@@ -26,7 +26,7 @@ function Show-Progress {
 }
 
 # OGC Banner
-Write-Host "=======================================" -ForegroundColor Blue
+Write-Host "=======================================" -ForegroundColor DarkBlue
 Write-Host "       OOOOOO    GGGGGG    CCCCCC      " -ForegroundColor Cyan
 Write-Host "      OO    OO  GG        CC           " -ForegroundColor Cyan
 Write-Host "      OO    OO  GG   GGG  CC           " -ForegroundColor Cyan
@@ -34,9 +34,9 @@ Write-Host "      OO    OO  GG    GG  CC           " -ForegroundColor Cyan
 Write-Host "       OOOOOO    GGGGGG    CCCCCC      " -ForegroundColor Cyan
 Write-Host "                                       " -ForegroundColor Cyan
 Write-Host "       OGC Windows Gaming Utility      " -ForegroundColor Yellow
-Write-Host "        https://discord.gg/ogc         " -ForegroundColor Orange
+Write-Host "        https://discord.gg/ogc         " -ForegroundColor Magenta
 Write-Host "        Created by Honest Goat         " -ForegroundColor Green
-Write-Host "=======================================" -ForegroundColor Blue
+Write-Host "=======================================" -ForegroundColor DarkBlue
 
 # Detect Windows Version
 $winVer = (Get-CimInstance Win32_OperatingSystem).Caption
