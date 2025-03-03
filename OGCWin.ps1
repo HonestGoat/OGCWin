@@ -90,31 +90,39 @@ $wingetInstalled = Get-Command winget -ErrorAction SilentlyContinue
 
 # Checking for Microsoft.UI.Xaml.2.8 dependency
 Write-Host "Checking for required dependencies..." -ForegroundColor Magenta
-$dependencyInstalled = Get-AppxPackage -Name Microsoft.UI.Xaml.2.8 -ErrorAction SilentlyContinue
+$dependencyInstalled = Get-AppxPackage -Name "Microsoft.UI.Xaml.2.8" -ErrorAction SilentlyContinue
+
+# If Dependency is Missing, Install it First
+if (-not $dependencyInstalled) {
+    Write-Host "Dependency 'Microsoft.UI.Xaml.2.8' is missing. Installing now..." -ForegroundColor Yellow
+
+    try {
+        # Use DISM or PowerShell to install the dependency
+        Add-AppxPackage -Online -PackageName "Microsoft.UI.Xaml.2.8" -ErrorAction Stop
+        Write-Host "Dependency installed successfully." -ForegroundColor Green
+    } catch {
+        Write-Host "ERROR: Failed to install 'Microsoft.UI.Xaml.2.8'. Please install it manually from the Microsoft Store." -ForegroundColor Red
+        Start-Sleep -Seconds 15
+        exit
+    }
+}
 
 # If Winget is not installed, proceed with installation
 if (-not $wingetInstalled) {
-    Write-Host "Winget not found!" -ForegroundColor Red
+    Write-Host "Winget not found! Installing now..." -ForegroundColor Yellow
 
-    # If Dependency is Missing, Install it First
-    if (-not $dependencyInstalled) {
-        Write-Host "Dependency 'Microsoft.UI.Xaml.2.8' is missing. Installing now..." -ForegroundColor Yellow
-        Invoke-WebRequest -Uri "https://www.microsoft.com/en-us/p/microsoftuixaml28/9nblggh6cskg" -OutFile "$env:TEMP\Microsoft.UI.Xaml.2.8.appx"
-        Add-AppxPackage -Path "$env:TEMP\Microsoft.UI.Xaml.2.8.appx"
-        Write-Host "Dependency installed successfully." -ForegroundColor Green
-    } else {
-        Write-Host "Dependency already installed. Proceeding with Winget installation..." -ForegroundColor Cyan
+    try {
+        Invoke-WebRequest -Uri "https://aka.ms/getwinget" -OutFile "$env:TEMP\winget.msixbundle"
+        Add-AppxPackage -Path "$env:TEMP\winget.msixbundle" -ErrorAction Stop
+        Write-Host "Winget installed successfully." -ForegroundColor Green
+    } catch {
+        Write-Host "ERROR: Failed to install Winget. Please install it manually from the Microsoft Store." -ForegroundColor Red
+        Start-Sleep -Seconds 15
+        exit
     }
-
-    # Install Winget
-    Write-Host "Installing Winget..." -ForegroundColor Yellow
-    Invoke-WebRequest -Uri "https://aka.ms/getwinget" -OutFile "$env:TEMP\winget.msixbundle"
-    Add-AppxPackage -Path "$env:TEMP\winget.msixbundle"
-    Write-Host "Winget installed successfully." -ForegroundColor Green
-
-} else {
-    Write-Host "Winget is installed." -ForegroundColor Green
 }
+
+Write-Host "Winget and dependencies installed successfully. Continuing..." -ForegroundColor Green
 
 # Disable Telemetry in Registry
 $telemetryKeys = @(
