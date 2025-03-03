@@ -65,7 +65,7 @@ if ($continueScript -ne "y") {
     exit
 }
 
-Write-Host "Continuing with Windows optimization and telemetry removal..." -ForegroundColor Green
+Write-Host "Starting OGC Windows Utility..." -ForegroundColor Green
 Start-Sleep -Seconds 2
 
 # Detect Windows Version
