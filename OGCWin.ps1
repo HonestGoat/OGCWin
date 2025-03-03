@@ -90,7 +90,7 @@ if (-not (Test-Path -Path $TempDir)) {
 }
 
 # Function to check if a package is installed
-function Is-PackageInstalled {
+function Get-PackageInstalled {
     param (
         [string]$PackageName
     )
@@ -136,7 +136,7 @@ $WinEdition = (Get-WmiObject -Class Win32_OperatingSystem).OperatingSystemSKU
 $IsEnterprise = $WinEdition -eq 4 -or $WinEdition -eq 12 -or $WinEdition -eq 13 -or $WinEdition -eq 18 -or $WinEdition -eq 48
 
 # Check and install Microsoft.VCLibs.x64.14.00.Desktop.appx
-if (-not (Is-PackageInstalled "Microsoft.VCLibs.140.00")) {
+if (-not (Get-PackageInstalled "Microsoft.VCLibs.140.00")) {
     Write-Host "Microsoft.VCLibs.x64.14.00.Desktop.appx is not installed. Installing now..." -ForegroundColor Yellow
     Download-File -Url $VCLibsUrl -Destination $VCLibsPath
 
@@ -157,7 +157,7 @@ if (-not (Is-PackageInstalled "Microsoft.VCLibs.140.00")) {
 }
 
 # Check and install Microsoft.UI.Xaml
-if (-not (Is-PackageInstalled "Microsoft.UI.Xaml.2.8")) {
+if (-not (Get-PackageInstalled "Microsoft.UI.Xaml.2.8")) {
     Write-Host "Microsoft.UI.Xaml is not installed. Installing now..." -ForegroundColor Yellow
     Download-File -Url $UIXamlUrl -Destination $UIXamlPath
 
@@ -178,7 +178,7 @@ if (-not (Is-PackageInstalled "Microsoft.UI.Xaml.2.8")) {
 }
 
 # Check if WinGet (App Installer) is installed
-if (-not (Is-PackageInstalled "Microsoft.DesktopAppInstaller")) {
+if (-not (Get-PackageInstalled "Microsoft.DesktopAppInstaller")) {
     Write-Host "WinGet (App Installer) is not installed. Installing now..." -ForegroundColor Yellow
 
     # Define a helper function to install WinGet using the PowerShell module method
@@ -226,7 +226,7 @@ if (-not (Is-PackageInstalled "Microsoft.DesktopAppInstaller")) {
 }
 
 # Final verification before cleaning up
-if (Is-PackageInstalled "Microsoft.DesktopAppInstaller" -and Is-PackageInstalled "Microsoft.VCLibs.140.00" -and Is-PackageInstalled "Microsoft.UI.Xaml.2.8") {
+if (Get-PackageInstalled "Microsoft.DesktopAppInstaller" -and Get-PackageInstalled "Microsoft.VCLibs.140.00" -and Get-PackageInstalled "Microsoft.UI.Xaml.2.8") {
     Write-Host "All dependencies and WinGet are installed successfully. Cleaning up temporary files..." -ForegroundColor Green
     Remove-Item -Path $TempDir -Recurse -Force
 } else {
