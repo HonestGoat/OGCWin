@@ -84,12 +84,23 @@ function Install-NuGet {
     $nugetInstalled = Get-Command nuget -ErrorAction SilentlyContinue
     if (-not $nugetInstalled) {
         Write-Host "NuGet is not installed. Installing now..." -ForegroundColor Yellow
-        $nugetUrl = "https://dist.nuget.org/win-x86-commandline/latest/nuget.exe"
-        $nugetPath = "$env:ProgramFiles\NuGet\nuget.exe"
+
+        # Set NuGet installation path
+        $nugetFolder = "C:\ProgramData\NuGet"
+        $nugetPath = "$nugetFolder\nuget.exe"
+
+        # Ensure the folder exists
+        if (!(Test-Path $nugetFolder)) {
+            New-Item -Path $nugetFolder -ItemType Directory -Force | Out-Null
+        }
 
         # Download and Install NuGet
+        $nugetUrl = "https://dist.nuget.org/win-x86-commandline/latest/nuget.exe"
         Invoke-WebRequest -Uri $nugetUrl -OutFile $nugetPath -ErrorAction Stop
-        [System.Environment]::SetEnvironmentVariable("Path", $env:Path + ";$env:ProgramFiles\NuGet", [System.EnvironmentVariableTarget]::Machine)
+
+        # Add NuGet to system PATH
+        [System.Environment]::SetEnvironmentVariable("Path", $env:Path + ";$nugetFolder", [System.EnvironmentVariableTarget]::Machine)
+
         Write-Host "NuGet installed successfully." -ForegroundColor Green
     } else {
         Write-Host "NuGet is already installed." -ForegroundColor Cyan
