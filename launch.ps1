@@ -61,6 +61,8 @@ if (-not (Test-WinGet)) {
     Start-Sleep -Seconds 5 # Wait for installation to complete
     if (-not (Test-WinGet)) {
         Write-Host "WinGet installation failed. Exiting Utility." -ForegroundColor Red
+        Write-Host "Please follow the manual intallation instructions" -ForegroundColor Red
+        Write-Host "pinned in the Tech SUpport channel in the OGC Discord." -ForegroundColor Red
         Start-Sleep -Seconds 5
         exit 1
     }
@@ -71,3 +73,5 @@ Start-Sleep -Seconds 1
 
 # Start OGC Windows Utility in new window with elevated privileges
 Start-Process powershell.exe -ArgumentList '-ExecutionPolicy Bypass -NoProfile -Command "irm https://raw.githubusercontent.com/HonestGoat/OGCWin/main/OGCWin.ps1 | iex"' -Verb RunAs
+Start-Sleep -Seconds 1
+exit 1
