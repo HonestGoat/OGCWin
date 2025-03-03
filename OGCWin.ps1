@@ -68,22 +68,8 @@ if ($continueScript -ne "y") {
 Write-Host "Starting OGC Windows Utility..." -ForegroundColor Green
 Start-Sleep -Seconds 2
 
-# Detect Windows Version
-$winVer = (Get-CimInstance Win32_OperatingSystem).Caption
-Write-Host "Detected Windows Version: $winVer" -ForegroundColor Yellow
-
-if ($winVer -match "Windows 11") {
-    Write-Host "Windows 11 optimizations selected." -ForegroundColor Green
-    $win11 = $true
-} elseif ($winVer -match "Windows 10") {
-    Write-Host "Windows 10 optimizations selected." -ForegroundColor Green
-    $win11 = $false
-} else {
-    Write-Host "Unsupported Windows Version. Exiting." -ForegroundColor Red
-    exit
-}
-
-Write-Host "Disabling Telemetry, Tracking, and Data Collection..." -ForegroundColor Magenta
+Write-Host "Checking for dependencies..." -ForegroundColor Cyan
+Start-Sleep -Seconds 2
 
 # Checking for Winget
 Write-Host "Checking for Winget..." -ForegroundColor Magenta
@@ -93,54 +79,76 @@ $wingetInstalled = Get-Command winget -ErrorAction SilentlyContinue
 Write-Host "Checking for required dependencies..." -ForegroundColor Magenta
 $dependencyInstalled = Get-AppxPackage -Name "Microsoft.UI.Xaml.2.8.7" -ErrorAction SilentlyContinue
 
+# Function to Check if NuGet is Installed
+function Install-NuGet {
+    $nugetInstalled = Get-Command nuget -ErrorAction SilentlyContinue
+    if (-not $nugetInstalled) {
+        Write-Host "NuGet is not installed. Installing now..." -ForegroundColor Yellow
+        $nugetUrl = "https://dist.nuget.org/win-x86-commandline/latest/nuget.exe"
+        $nugetPath = "$env:ProgramFiles\NuGet\nuget.exe"
+
+        # Download and Install NuGet
+        Invoke-WebRequest -Uri $nugetUrl -OutFile $nugetPath -ErrorAction Stop
+        [System.Environment]::SetEnvironmentVariable("Path", $env:Path + ";$env:ProgramFiles\NuGet", [System.EnvironmentVariableTarget]::Machine)
+        Write-Host "NuGet installed successfully." -ForegroundColor Green
+    } else {
+        Write-Host "NuGet is already installed." -ForegroundColor Cyan
+    }
+}
+
+# Function to Manually Install Microsoft.UI.Xaml.2.8.7
+function Install-UIXaml-Manually {
+    Write-Host "Attempting manual installation of Microsoft.UI.Xaml.2.8.7..." -ForegroundColor Yellow
+    
+    # Ensure NuGet is Installed First
+    Install-NuGet
+
+    $nupkgUrl = "https://www.nuget.org/api/v2/package/Microsoft.UI.Xaml/2.8.7"
+    $nupkgPath = "$env:TEMP\Microsoft.UI.Xaml.2.8.7.nupkg"
+    $extractPath = "$env:TEMP\Microsoft.UI.Xaml.2.8.7"
+
+    try {
+        # Download the .nupkg package
+        Write-Host "Downloading Microsoft.UI.Xaml.2.8.7 package using NuGet..." -ForegroundColor Cyan
+        Invoke-WebRequest -Uri $nupkgUrl -OutFile $nupkgPath -ErrorAction Stop
+
+        # Extract the package
+        Write-Host "Extracting package..." -ForegroundColor Cyan
+        Add-Type -AssemblyName System.IO.Compression.FileSystem
+        [System.IO.Compression.ZipFile]::ExtractToDirectory($nupkgPath, $extractPath)
+
+        # Locate and install the .appx package
+        $arch = if ([Environment]::Is64BitOperatingSystem) { "x64" } else { "x86" }
+        $appxPath = Join-Path -Path $extractPath -ChildPath "tools\AppX\$arch\Release\Microsoft.UI.Xaml.2.8.appx"
+
+        if (Test-Path $appxPath) {
+            Write-Host "Installing Microsoft.UI.Xaml.2.8.7 manually..." -ForegroundColor Cyan
+            Add-AppxPackage -Path $appxPath -ErrorAction Stop
+            Write-Host "Dependency installed successfully via manual method." -ForegroundColor Green
+            return $true
+        } else {
+            Write-Host "ERROR: Could not find the .appx file for installation." -ForegroundColor Red
+            return $false
+        }
+    } catch {
+        Write-Host "ERROR: Manual installation of Microsoft.UI.Xaml.2.8.7 failed." -ForegroundColor Red
+        return $false
+    }
+}
+
 # If Dependency is Missing, Attempt to Install
 if (-not $dependencyInstalled) {
     Write-Host "Dependency 'Microsoft.UI.Xaml.2.8.7' is missing. Installing now..." -ForegroundColor Yellow
 
     try {
         # First attempt standard installation
+        Write-Host "Attempting standard installation using Add-AppxPackage..." -ForegroundColor Cyan
         Add-AppxPackage -Online -PackageName "Microsoft.UI.Xaml.2.8.7" -ErrorAction Stop
-        Write-Host "Dependency installed successfully." -ForegroundColor Green
+        Write-Host "Dependency installed successfully via standard method." -ForegroundColor Green
     } catch {
-        Write-Host "Normal installation failed. Attempting manual installation..." -ForegroundColor Red
+        Write-Host "Standard installation failed. Attempting manual installation..." -ForegroundColor Red
         
         # If standard install fails, try manual install
-        function Install-UIXaml-Manually {
-            Write-Host "Attempting manual installation of Microsoft.UI.Xaml.2.8.7..." -ForegroundColor Yellow
-            
-            $nupkgUrl = "https://www.nuget.org/api/v2/package/Microsoft.UI.Xaml/2.8.7"
-            $nupkgPath = "$env:TEMP\Microsoft.UI.Xaml.2.8.7.nupkg"
-            $extractPath = "$env:TEMP\Microsoft.UI.Xaml.2.8.7"
-
-            try {
-                # Download the .nupkg package
-                Write-Host "Downloading Microsoft.UI.Xaml.2.8.7 package..." -ForegroundColor Cyan
-                Invoke-WebRequest -Uri $nupkgUrl -OutFile $nupkgPath -ErrorAction Stop
-
-                # Extract the package
-                Write-Host "Extracting package..." -ForegroundColor Cyan
-                Add-Type -AssemblyName System.IO.Compression.FileSystem
-                [System.IO.Compression.ZipFile]::ExtractToDirectory($nupkgPath, $extractPath)
-
-                # Locate and install the .appx package
-                $arch = if ([Environment]::Is64BitOperatingSystem) { "x64" } else { "x86" }
-                $appxPath = Join-Path -Path $extractPath -ChildPath "tools\AppX\$arch\Release\Microsoft.UI.Xaml.2.8.appx"
-
-                if (Test-Path $appxPath) {
-                    Write-Host "Installing Microsoft.UI.Xaml.2.8.7 manually..." -ForegroundColor Cyan
-                    Add-AppxPackage -Path $appxPath -ErrorAction Stop
-                    Write-Host "Dependency installed successfully via manual method." -ForegroundColor Green
-                    return $true
-                } else {
-                    Write-Host "ERROR: Could not find the .appx file for installation." -ForegroundColor Red
-                    return $false
-                }
-            } catch {
-                Write-Host "ERROR: Manual installation of Microsoft.UI.Xaml.2.8.7 failed." -ForegroundColor Red
-                return $false
-            }
-        }
-
         if (-not (Install-UIXaml-Manually)) {
             Write-Host "ERROR: Microsoft.UI.Xaml.2.8.7 could not be installed. Please install it manually from the Microsoft Store." -ForegroundColor Red
             Write-Host "UTILITY EXITING IN 15 SECONDS..." -ForegroundColor Red
@@ -167,6 +175,23 @@ if (-not $wingetInstalled) {
 }
 
 Write-Host "Winget and dependencies installed successfully. Continuing..." -ForegroundColor Green
+
+# Detect Windows Version
+$winVer = (Get-CimInstance Win32_OperatingSystem).Caption
+Write-Host "Detected Windows Version: $winVer" -ForegroundColor Yellow
+
+if ($winVer -match "Windows 11") {
+    Write-Host "Windows 11 optimizations selected." -ForegroundColor Green
+    $win11 = $true
+} elseif ($winVer -match "Windows 10") {
+    Write-Host "Windows 10 optimizations selected." -ForegroundColor Green
+    $win11 = $false
+} else {
+    Write-Host "Unsupported Windows Version. Exiting." -ForegroundColor Red
+    exit
+}
+
+Write-Host "Disabling Telemetry, Tracking, and Data Collection..." -ForegroundColor Magenta
 
 # Disable Telemetry in Registry
 $telemetryKeys = @(
