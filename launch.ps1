@@ -35,7 +35,7 @@ function Install-WinGet {
     # Download and install Microsoft.VCLibs.140.00.UWPDesktop
     Write-Host "Downloading Microsoft.VCLibs.140.00.UWPDesktop..." -ForegroundColor Yellow
     $vclibsPath = "$env:TEMP\Microsoft.VCLibs.x64.14.00.Desktop.appx"
-    Invoke-WebRequest -Uri $vclibsUrl -OutFile $vclibsPath -UseBasicParsing
+    Start-Process -FilePath "curl.exe" -ArgumentList "-L -o `"$vclibsPath`" `"$vclibsUrl`"" -NoNewWindow -Wait
     Add-AppxPackage -Path $vclibsPath
 
     # Get the download URL of the latest WinGet installer from GitHub
@@ -47,7 +47,7 @@ function Install-WinGet {
     # Download and install WinGet
     Write-Host "Downloading WinGet..." -ForegroundColor Yellow
     $wingetPath = "$env:TEMP\$($wingetAsset.name)"
-    Invoke-WebRequest -Uri $wingetUrl -OutFile $wingetPath -UseBasicParsing
+    Start-Process -FilePath "curl.exe" -ArgumentList "-L -o `"$wingetPath`" `"$wingetUrl`"" -NoNewWindow -Wait
     Add-AppxPackage -Path $wingetPath
 
     # Clean up downloaded files
@@ -56,7 +56,7 @@ function Install-WinGet {
 
 # Main script execution
 if (-not (Test-WinGet)) {
-    Write-Host "WinGet is not installed. Attempting to install..."
+    Write-Host "WinGet is not installed. Attempting to install..." -ForegroundColor Yellow
     Install-WinGet
     Start-Sleep -Seconds 5 # Wait for installation to complete
     if (-not (Test-WinGet)) {
