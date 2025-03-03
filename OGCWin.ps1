@@ -71,169 +71,57 @@ Start-Sleep -Seconds 1
 Write-Host "Checking for dependencies..." -ForegroundColor Cyan
 Start-Sleep -Seconds 2
 
-# Define URLs for dependencies and WinGet
-$VCLibsUrl = "https://aka.ms/Microsoft.VCLibs.x64.14.00.Desktop.appx"
-$UIXamlUrl = "https://raw.githubusercontent.com/HonestGoat/OGCWin/main/Microsoft.UI.Xaml.2.8_8.2501.31001.0_x64.appx"
-$WinGetUrl = "https://github.com/microsoft/winget-cli/releases/download/v1.10.320/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle"
-$WinGetLicenseUrl = "https://github.com/microsoft/winget-cli/releases/download/v1.10.320/3463fe9ad25e44f28630526aa9ad5648_License1.xml"
-
-# Define paths for downloaded files
-$TempDir = "$env:TEMP\WinGetInstall"
-$VCLibsPath = "$TempDir\Microsoft.VCLibs.x64.14.00.Desktop.appx"
-$UIXamlPath = "$TempDir\Microsoft.UI.Xaml.2.8.appx"
-$WinGetPath = "$TempDir\Microsoft.DesktopAppInstaller.msixbundle"
-$WinGetLicensePath = "$TempDir\License1.xml"
-
-# Create temporary directory if it doesn't exist
-if (-not (Test-Path -Path $TempDir)) {
-    New-Item -Path $TempDir -ItemType Directory | Out-Null
-}
-
-# Function to check if a package is installed
-function Get-PackageInstalled {
-    param (
-        [string]$PackageName
-    )
-    $package = Get-AppxPackage -Name $PackageName -ErrorAction SilentlyContinue
-    return $null -ne $package
-}
-
-# Function to install an Appx package
-function Install-AppxPackageSafely {
-    param (
-        [string]$PackagePath
-    )
+# Function to check if WinGet is installed
+function Test-WinGet {
     try {
-        Add-AppxPackage -Path $PackagePath -ErrorAction Stop
-        Write-Host "Successfully installed package from $PackagePath" -ForegroundColor Green
+        winget --version
+        return $true
     } catch {
-        Write-Host "Failed to install package from $PackagePath. Error: $_" -ForegroundColor Red
+        return $false
+    }
+}
+
+# Function to install WinGet
+function Install-WinGet {
+    # Define URLs for dependencies and WinGet
+    $vclibsUrl = "https://aka.ms/Microsoft.VCLibs.x64.14.00.Desktop.appx"
+    $wingetApiUrl = "https://api.github.com/repos/microsoft/winget-cli/releases/latest"
+
+    # Download and install Microsoft.VCLibs.140.00.UWPDesktop
+    Write-Host "Downloading Microsoft.VCLibs.140.00.UWPDesktop..." -ForegroundColor Yellow
+    $vclibsPath = "$env:TEMP\Microsoft.VCLibs.x64.14.00.Desktop.appx"
+    Invoke-WebRequest -Uri $vclibsUrl -OutFile $vclibsPath -UseBasicParsing
+    Add-AppxPackage -Path $vclibsPath
+
+    # Get the download URL of the latest WinGet installer from GitHub
+    Write-Host "Fetching latest WinGet release information..." -ForegroundColor Yellow
+    $latestRelease = Invoke-RestMethod -Uri $wingetApiUrl
+    $wingetAsset = $latestRelease.assets | Where-Object { $_.name -like "*.msixbundle" }
+    $wingetUrl = $wingetAsset.browser_download_url
+
+    # Download and install WinGet
+    Write-Host "Downloading WinGet..." -ForegroundColor Yellow
+    $wingetPath = "$env:TEMP\$($wingetAsset.name)"
+    Invoke-WebRequest -Uri $wingetUrl -OutFile $wingetPath -UseBasicParsing
+    Add-AppxPackage -Path $wingetPath
+
+    # Clean up downloaded files
+    Remove-Item -Path $vclibsPath, $wingetPath
+}
+
+# Main script execution
+if (-not (Test-WinGet)) {
+    Write-Host "WinGet is not installed. Attempting to install..."
+    Install-WinGet
+    Start-Sleep -Seconds 5 # Wait for installation to complete
+    if (-not (Test-WinGet)) {
+        Write-Host "WinGet installation failed. Exiting Utility." -ForegroundColor Red
+        Start-Sleep -Seconds 10
         exit 1
     }
 }
 
-# Function to download a file (only if it doesn't already exist)
-function Get-FileDownload {
-    param (
-        [string]$Url,
-        [string]$Destination
-    )
-    if (-not (Test-Path $Destination)) {
-        try {
-            Invoke-WebRequest -Uri $Url -OutFile $Destination -ErrorAction Stop
-            Write-Host "Downloaded $Url to $Destination" -ForegroundColor Green
-        } catch {
-            Write-Host "Failed to download $Url. Error: $_" -ForegroundColor Red
-            exit 1
-        }
-    } else {
-        Write-Host "File already exists at $Destination. Skipping download." -ForegroundColor Cyan
-    }
-}
-
-# Determine Windows edition
-$WinEdition = (Get-WmiObject -Class Win32_OperatingSystem).OperatingSystemSKU
-$IsEnterprise = $WinEdition -eq 4 -or $WinEdition -eq 12 -or $WinEdition -eq 13 -or $WinEdition -eq 18 -or $WinEdition -eq 48
-
-# Check and install Microsoft.VCLibs.x64.14.00.Desktop.appx
-if (-not (Get-PackageInstalled "Microsoft.VCLibs.140.00")) {
-    Write-Host "Microsoft.VCLibs.x64.14.00.Desktop.appx is not installed. Installing now..." -ForegroundColor Yellow
-    Download-File -Url $VCLibsUrl -Destination $VCLibsPath
-
-    if ($IsEnterprise) {
-        Write-Host "Enterprise edition detected. Installing using Add-AppxProvisionedPackage..." -ForegroundColor Yellow
-        try {
-            Add-AppxProvisionedPackage -Online -PackagePath $VCLibsPath -ErrorAction Stop
-            Write-Host "Dependency installed successfully via provisioning method." -ForegroundColor Green
-        } catch {
-            Write-Host "Failed to install Microsoft.VCLibs.140.00 using provisioning method. Error: $_" -ForegroundColor Red
-            exit 1
-        }
-    } else {
-        Install-AppxPackageSafely -PackagePath $VCLibsPath
-    }
-} else {
-    Write-Host "Microsoft.VCLibs.x64.14.00.Desktop.appx is already installed." -ForegroundColor Cyan
-}
-
-# Check and install Microsoft.UI.Xaml
-if (-not (Get-PackageInstalled "Microsoft.UI.Xaml.2.8")) {
-    Write-Host "Microsoft.UI.Xaml is not installed. Installing now..." -ForegroundColor Yellow
-    Download-File -Url $UIXamlUrl -Destination $UIXamlPath
-
-    if ($IsEnterprise) {
-        Write-Host "Enterprise edition detected. Installing using Add-AppxProvisionedPackage..." -ForegroundColor Yellow
-        try {
-            Add-AppxProvisionedPackage -Online -PackagePath $UIXamlPath -ErrorAction Stop
-            Write-Host "Dependency installed successfully via provisioning method." -ForegroundColor Green
-        } catch {
-            Write-Host "Failed to install Microsoft.UI.Xaml using provisioning method. Error: $_" -ForegroundColor Red
-            exit 1
-        }
-    } else {
-        Install-AppxPackageSafely -PackagePath $UIXamlPath
-    }
-} else {
-    Write-Host "Microsoft.UI.Xaml is already installed." -ForegroundColor Cyan
-}
-
-# Check if WinGet (App Installer) is installed
-if (-not (Get-PackageInstalled "Microsoft.DesktopAppInstaller")) {
-    Write-Host "WinGet (App Installer) is not installed. Installing now..." -ForegroundColor Yellow
-
-    # Define a helper function to install WinGet using the PowerShell module method
-    function Install-WinGetUsingModule {
-        Write-Host "Installing WinGet using PowerShell module..." -ForegroundColor Yellow
-        try {
-            Install-PackageProvider -Name NuGet -Force -ErrorAction Stop
-            Install-Module -Name Microsoft.WinGet.Client -Force -Repository PSGallery -ErrorAction Stop
-            Repair-WinGetPackageManager -ErrorAction Stop
-            Write-Host "WinGet installed successfully using PowerShell module." -ForegroundColor Green
-        } catch {
-            Write-Host "Failed to install WinGet using PowerShell module. Error: $_" -ForegroundColor Red
-            exit 1
-        }
-    }
-
-    if ($IsEnterprise) {
-        Write-Host "Enterprise edition detected. Installing WinGet using PowerShell module method..." -ForegroundColor Yellow
-        Install-WinGetUsingModule
-    } else {
-        # Attempt standard installation using Add-AppxPackage
-        try {
-            Add-AppxPackage -RegisterByFamilyName -MainPackage "Microsoft.DesktopAppInstaller_8wekyb3d8bbwe" -ErrorAction Stop
-            Write-Host "WinGet installed successfully using Add-AppxPackage." -ForegroundColor Green
-        } catch {
-            Write-Host "Standard installation failed. Attempting manual installation..." -ForegroundColor Red
-            # Download WinGet package and license
-            Download-File -Url $WinGetUrl -Destination $WinGetPath
-            Download-File -Url $WinGetLicenseUrl -Destination $WinGetLicensePath
-            # Install WinGet using Add-AppxProvisionedPackage
-            try {
-                Add-AppxProvisionedPackage -Online -PackagePath $WinGetPath -LicensePath $WinGetLicensePath -ErrorAction Stop
-                Write-Host "WinGet installed successfully using manual method." -ForegroundColor Green
-            } catch {
-                Write-Host "Failed to install WinGet manually. Error: $_" -ForegroundColor Red
-                exit 1
-            }
-        }
-    }
-} else {
-    Write-Host "One or more packages failed to install. Temp files retained for debugging." -ForegroundColor Red
-    Write-Host "Exiting script in 15 seconds..." -ForegroundColor Yellow
-    Start-Sleep -Seconds 15
-    exit 1
-}
-
-# Final verification before cleaning up
-if (Get-PackageInstalled "Microsoft.DesktopAppInstaller" -and Get-PackageInstalled "Microsoft.VCLibs.140.00" -and Get-PackageInstalled "Microsoft.UI.Xaml.2.8") {
-    Write-Host "All dependencies and WinGet are installed successfully. Cleaning up temporary files..." -ForegroundColor Green
-    Remove-Item -Path $TempDir -Recurse -Force
-} else {
-    Write-Host "One or more packages failed to install. Temp files retained for debugging." -ForegroundColor Red
-}
-
-
+Write-Host "WinGet is installed." -ForegroundColor Green
 
 # Detect Windows Version
 $winVer = (Get-CimInstance Win32_OperatingSystem).Caption
