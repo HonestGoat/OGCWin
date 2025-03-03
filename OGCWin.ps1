@@ -90,7 +90,7 @@ if (-not (Test-Path -Path $TempDir)) {
 }
 
 # Function to check if a package is installed
-function Test-PackageInstalled {
+function Is-PackageInstalled {
     param (
         [string]$PackageName
     )
