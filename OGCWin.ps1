@@ -289,56 +289,6 @@ if ($blockTelemetry -eq "y") {
     Write-Host "Skipping the blocking of telemetry domains." -ForegroundColor Cyan
 }
 
-# Ask the user if they want to disable Windows Defender telemetry
-$disableDefenderTelemetry = Read-Host "Do you want to disable Windows Defender data collection? (y/n)"
-
-if ($disableDefenderTelemetry -eq "y") {
-    Write-Host "Disabling Windows Defender Cloud Telemetry..." -ForegroundColor Magenta
-
-    # Step 1: Ensure PowerShell is Running as Administrator
-    if (-Not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")) {
-        Write-Host "ERROR: You must run PowerShell as Administrator to modify Windows Defender settings." -ForegroundColor Red
-        exit 1
-    }
-
-    # Step 2: Disable Windows Defender Tamper Protection via Registry
-    Write-Host "Disabling Tamper Protection via Registry..." -ForegroundColor Yellow
-    reg add "HKLM\SOFTWARE\Microsoft\Windows Defender\Features" /v TamperProtection /t REG_DWORD /d 0 /f
-    Write-Host "Tamper Protection disabled. A system restart is required for changes to take effect." -ForegroundColor Green
-
-    # Prompt the user to restart before continuing
-    $restartRequired = Read-Host "A restart is required to apply the changes. Restart now? (y/n)"
-    if ($restartRequired -eq "y") {
-        Restart-Computer -Force
-    } else {
-        Write-Host "Please restart your computer manually before running this script again." -ForegroundColor Yellow
-        exit
-    }
-
-    # Step 3: Modify Defender Registry Keys (AFTER REBOOT)
-    Write-Host "Modifying Windows Defender registry settings..." -ForegroundColor Magenta
-    $defenderKeys = @(
-        "HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender\Spynet",
-        "HKLM:\SOFTWARE\Microsoft\Windows Defender\Spynet"
-    )
-
-    foreach ($key in $defenderKeys) {
-        if (!(Test-Path $key)) { New-Item -Path $key -Force | Out-Null }
-        Set-ItemProperty -Path $key -Name SubmitSamplesConsent -Type DWord -Value 2 -Force
-        Set-ItemProperty -Path $key -Name SpynetReporting -Type DWord -Value 0 -Force
-    }
-
-    Write-Host "Windows Defender telemetry has been disabled." -ForegroundColor Green
-
-    # Step 4: Re-enable Tamper Protection
-    Write-Host "Re-enabling Windows Defender Tamper Protection..." -ForegroundColor Cyan
-    reg add "HKLM\SOFTWARE\Microsoft\Windows Defender\Features" /v TamperProtection /t REG_DWORD /d 5 /f
-    Write-Host "Tamper Protection re-enabled successfully." -ForegroundColor Green
-
-} else {
-    Write-Host "Skipping Windows Defender telemetry modifications." -ForegroundColor Cyan
-}
-
 # Prompt the user for bloatware removal
 $removeBloatware = Read-Host "Do you want to remove preinstalled advertising apps and bloatware? [Recommended] (y/n)"
 
