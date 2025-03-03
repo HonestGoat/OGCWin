@@ -108,6 +108,7 @@ function Install-AppxPackageSafely {
         Write-Host "Successfully installed package from $PackagePath" -ForegroundColor Green
     } catch {
         Write-Host "Failed to install package from $PackagePath. Error: $_" -ForegroundColor Red
+        pause
         exit 1
     }
 }
