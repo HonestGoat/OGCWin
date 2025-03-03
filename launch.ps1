@@ -68,7 +68,10 @@ if (-not (Test-WinGet)) {
     }
 }
 
-Write-Host "Starting OGC Windows Utility..." -ForegroundColor Green
+Write-Host "All dependencies detected." -ForegroundColor Green
+Start-Sleep -Seconds 1
+
+Write-Host "Starting OGC Windows Utility..." -ForegroundColor Cyan
 Start-Sleep -Seconds 1
 
 # Start OGC Windows Utility in new window with elevated privileges
