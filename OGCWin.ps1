@@ -86,13 +86,20 @@ function Install-NuGet {
         Write-Host "NuGet is not installed. Installing now..." -ForegroundColor Yellow
 
         # Set NuGet installation path
-        $nugetFolder = "C:\ProgramData\NuGet"
+        $nugetFolder = "C:\Program Files\NuGet"
         $nugetPath = "$nugetFolder\nuget.exe"
 
-        # Ensure the folder exists
+        # Ensure the folder exists (force create it)
         if (!(Test-Path $nugetFolder)) {
+            Write-Host "Creating NuGet folder in Program Files..." -ForegroundColor Cyan
             New-Item -Path $nugetFolder -ItemType Directory -Force | Out-Null
         }
+
+        # Set folder permissions (Ensure administrator has full access)
+        $acl = Get-Acl $nugetFolder
+        $rule = New-Object System.Security.AccessControl.FileSystemAccessRule("Administrators", "FullControl", "ContainerInherit, ObjectInherit", "None", "Allow")
+        $acl.SetAccessRule($rule)
+        Set-Acl $nugetFolder $acl
 
         # Download and Install NuGet
         $nugetUrl = "https://dist.nuget.org/win-x86-commandline/latest/nuget.exe"
