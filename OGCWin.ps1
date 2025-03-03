@@ -95,12 +95,6 @@ function Install-NuGet {
             New-Item -Path $nugetFolder -ItemType Directory -Force | Out-Null
         }
 
-        # Set folder permissions (Ensure administrator has full access)
-        $acl = Get-Acl $nugetFolder
-        $rule = New-Object System.Security.AccessControl.FileSystemAccessRule("Administrators", "FullControl", "ContainerInherit, ObjectInherit", "None", "Allow")
-        $acl.SetAccessRule($rule)
-        Set-Acl $nugetFolder $acl
-
         # Download and Install NuGet
         $nugetUrl = "https://dist.nuget.org/win-x86-commandline/latest/nuget.exe"
         Invoke-WebRequest -Uri $nugetUrl -OutFile $nugetPath -ErrorAction Stop
@@ -135,17 +129,27 @@ function Install-UIXaml-Manually {
         Add-Type -AssemblyName System.IO.Compression.FileSystem
         [System.IO.Compression.ZipFile]::ExtractToDirectory($nupkgPath, $extractPath)
 
-        # Locate and install the .appx package
-        $arch = if ([Environment]::Is64BitOperatingSystem) { "x64" } else { "x86" }
-        $appxPath = Join-Path -Path $extractPath -ChildPath "tools\AppX\$arch\Release\Microsoft.UI.Xaml.2.8.appx"
+        # Locate the .appx file dynamically (since folder structure might change)
+        $appxFiles = Get-ChildItem -Path $extractPath -Recurse -Filter "*.appx" | Select-Object -ExpandProperty FullName
 
-        if (Test-Path $appxPath) {
-            Write-Host "Installing Microsoft.UI.Xaml.2.8.7 manually..." -ForegroundColor Cyan
-            Add-AppxPackage -Path $appxPath -ErrorAction Stop
+        if ($appxFiles.Count -eq 0) {
+            Write-Host "ERROR: No .appx files found in extracted package." -ForegroundColor Red
+            return $false
+        }
+
+        # Use DISM to install instead of Add-AppxPackage
+        foreach ($appxFile in $appxFiles) {
+            Write-Host "Installing Microsoft.UI.Xaml.2.8.7 from $appxFile using DISM..." -ForegroundColor Cyan
+            Start-Process -FilePath "dism.exe" -ArgumentList "/Online /Add-ProvisionedAppxPackage /PackagePath:$appxFile /SkipLicense" -NoNewWindow -Wait
+        }
+
+        # Verify installation
+        $verifyInstall = Get-AppxPackage -Name "Microsoft.UI.Xaml.2.8.7" -ErrorAction SilentlyContinue
+        if ($verifyInstall) {
             Write-Host "Dependency installed successfully via manual method." -ForegroundColor Green
             return $true
         } else {
-            Write-Host "ERROR: Could not find the .appx file for installation." -ForegroundColor Red
+            Write-Host "ERROR: Microsoft.UI.Xaml.2.8.7 installation verification failed." -ForegroundColor Red
             return $false
         }
     } catch {
@@ -176,23 +180,7 @@ if (-not $dependencyInstalled) {
     }
 }
 
-# If Winget is not installed, proceed with installation
-if (-not $wingetInstalled) {
-    Write-Host "Winget not found! Installing now..." -ForegroundColor Yellow
-
-    try {
-        Invoke-WebRequest -Uri "https://aka.ms/getwinget" -OutFile "$env:TEMP\winget.msixbundle"
-        Add-AppxPackage -Path "$env:TEMP\winget.msixbundle" -ErrorAction Stop
-        Write-Host "Winget installed successfully." -ForegroundColor Green
-    } catch {
-        Write-Host "ERROR: Failed to install Winget. Please install it manually from the Microsoft Store." -ForegroundColor Red
-        Write-Host "UTILITY EXITING IN 15 SECONDS..." -ForegroundColor Red
-        Start-Sleep -Seconds 15
-        exit
-    }
-}
-
-Write-Host "Winget and dependencies installed successfully. Continuing..." -ForegroundColor Green
+Write-Host "Microsoft.UI.Xaml.2.8.7 successfully installed. Continuing..." -ForegroundColor Green
 
 # Detect Windows Version
 $winVer = (Get-CimInstance Win32_OperatingSystem).Caption
