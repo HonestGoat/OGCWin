@@ -71,137 +71,169 @@ Start-Sleep -Seconds 1
 Write-Host "Checking for dependencies..." -ForegroundColor Cyan
 Start-Sleep -Seconds 2
 
-# Checking for Winget
-Write-Host "Checking for Winget..." -ForegroundColor Magenta
-$wingetInstalled = Get-Command winget -ErrorAction SilentlyContinue
+# Define URLs for dependencies and WinGet
+$VCLibsUrl = "https://aka.ms/Microsoft.VCLibs.x64.14.00.Desktop.appx"
+$UIXamlUrl = "https://raw.githubusercontent.com/HonestGoat/OGCWin/main/Microsoft.UI.Xaml.2.8_8.2501.31001.0_x64.appx"
+$WinGetUrl = "https://github.com/microsoft/winget-cli/releases/download/v1.10.320/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle"
+$WinGetLicenseUrl = "https://github.com/microsoft/winget-cli/releases/download/v1.10.320/3463fe9ad25e44f28630526aa9ad5648_License1.xml"
 
-# Checking for Microsoft.UI.Xaml.2.8.7 dependency
-Write-Host "Checking for required dependencies..." -ForegroundColor Magenta
-$dependencyInstalled = Get-AppxPackage -Name "Microsoft.UI.Xaml.2.8.7" -ErrorAction SilentlyContinue
+# Define paths for downloaded files
+$TempDir = "$env:TEMP\WinGetInstall"
+$VCLibsPath = "$TempDir\Microsoft.VCLibs.x64.14.00.Desktop.appx"
+$UIXamlPath = "$TempDir\Microsoft.UI.Xaml.2.8.appx"
+$WinGetPath = "$TempDir\Microsoft.DesktopAppInstaller.msixbundle"
+$WinGetLicensePath = "$TempDir\License1.xml"
 
-# Function to Check if NuGet is Installed
-function Install-NuGet {
-    $nugetInstalled = Get-Command nuget -ErrorAction SilentlyContinue
-    if (-not $nugetInstalled) {
-        Write-Host "NuGet is not installed. Installing now..." -ForegroundColor Yellow
+# Create temporary directory if it doesn't exist
+if (-not (Test-Path -Path $TempDir)) {
+    New-Item -Path $TempDir -ItemType Directory | Out-Null
+}
 
-        # Set NuGet installation path
-        $nugetFolder = "C:\Program Files\NuGet"
-        $nugetPath = "$nugetFolder\nuget.exe"
+# Function to check if a package is installed
+function Test-PackageInstalled {
+    param (
+        [string]$PackageName
+    )
+    $package = Get-AppxPackage -Name $PackageName -ErrorAction SilentlyContinue
+    return $null -ne $package
+}
 
-        # Ensure the folder exists (force create it)
-        if (!(Test-Path $nugetFolder)) {
-            Write-Host "Creating NuGet folder in Program Files..." -ForegroundColor Cyan
-            New-Item -Path $nugetFolder -ItemType Directory -Force | Out-Null
+# Function to install an Appx package
+function Install-AppxPackageSafely {
+    param (
+        [string]$PackagePath
+    )
+    try {
+        Add-AppxPackage -Path $PackagePath -ErrorAction Stop
+        Write-Host "Successfully installed package from $PackagePath" -ForegroundColor Green
+    } catch {
+        Write-Host "Failed to install package from $PackagePath. Error: $_" -ForegroundColor Red
+        exit 1
+    }
+}
+
+# Function to download a file (only if it doesn't already exist)
+function Get-FileDownload {
+    param (
+        [string]$Url,
+        [string]$Destination
+    )
+    if (-not (Test-Path $Destination)) {
+        try {
+            Invoke-WebRequest -Uri $Url -OutFile $Destination -ErrorAction Stop
+            Write-Host "Downloaded $Url to $Destination" -ForegroundColor Green
+        } catch {
+            Write-Host "Failed to download $Url. Error: $_" -ForegroundColor Red
+            exit 1
         }
-
-        # Download and Install NuGet
-        $nugetUrl = "https://dist.nuget.org/win-x86-commandline/latest/nuget.exe"
-        Invoke-WebRequest -Uri $nugetUrl -OutFile $nugetPath -ErrorAction Stop
-
-        # Add NuGet to system PATH
-        [System.Environment]::SetEnvironmentVariable("Path", $env:Path + ";$nugetFolder", [System.EnvironmentVariableTarget]::Machine)
-
-        Write-Host "NuGet installed successfully." -ForegroundColor Green
     } else {
-        Write-Host "NuGet is already installed." -ForegroundColor Cyan
+        Write-Host "File already exists at $Destination. Skipping download." -ForegroundColor Cyan
     }
 }
 
-# Function to Manually Install Microsoft.UI.Xaml.2.8.7
-function Install-UIXaml-Manually {
-    Write-Host "Attempting manual installation of Microsoft.UI.Xaml.2.8.7..." -ForegroundColor Yellow
-    
-    # Ensure NuGet is Installed First
-    Install-NuGet
+# Determine Windows edition
+$WinEdition = (Get-WmiObject -Class Win32_OperatingSystem).OperatingSystemSKU
+$IsEnterprise = $WinEdition -eq 4 -or $WinEdition -eq 12 -or $WinEdition -eq 13 -or $WinEdition -eq 18 -or $WinEdition -eq 48
 
-    $nupkgUrl = "https://www.nuget.org/api/v2/package/Microsoft.UI.Xaml/2.8.7"
-    $nupkgPath = "$env:TEMP\Microsoft.UI.Xaml.2.8.7.nupkg"
-    $extractPath = "$env:TEMP\Microsoft.UI.Xaml.2.8.7"
+# Check and install Microsoft.VCLibs.x64.14.00.Desktop.appx
+if (-not (Is-PackageInstalled "Microsoft.VCLibs.140.00")) {
+    Write-Host "Microsoft.VCLibs.x64.14.00.Desktop.appx is not installed. Installing now..." -ForegroundColor Yellow
+    Download-File -Url $VCLibsUrl -Destination $VCLibsPath
 
-    try {
-        # Download the .nupkg package
-        Write-Host "Downloading Microsoft.UI.Xaml.2.8.7 package using NuGet..." -ForegroundColor Cyan
-        Invoke-WebRequest -Uri $nupkgUrl -OutFile $nupkgPath -ErrorAction Stop
-
-        # Extract the package
-        Write-Host "Extracting package..." -ForegroundColor Cyan
-        Add-Type -AssemblyName System.IO.Compression.FileSystem
-        [System.IO.Compression.ZipFile]::ExtractToDirectory($nupkgPath, $extractPath)
-
-        # Determine correct system architecture
-        $arch = if ([System.Environment]::Is64BitOperatingSystem) { "x64" } else { "x86" }
-        
-        # Locate the correct .appx file (ONLY for system architecture)
-        $appxPath = Get-ChildItem -Path $extractPath -Recurse -Filter "*$arch*\Microsoft.UI.Xaml.2.8.appx" | Select-Object -ExpandProperty FullName -ErrorAction SilentlyContinue
-
-        if (-not $appxPath) {
-            Write-Host "ERROR: No compatible .appx file found for your system's architecture ($arch)." -ForegroundColor Red
-            return $false
+    if ($IsEnterprise) {
+        Write-Host "Enterprise edition detected. Installing using Add-AppxProvisionedPackage..." -ForegroundColor Yellow
+        try {
+            Add-AppxProvisionedPackage -Online -PackagePath $VCLibsPath -ErrorAction Stop
+            Write-Host "Dependency installed successfully via provisioning method." -ForegroundColor Green
+        } catch {
+            Write-Host "Failed to install Microsoft.VCLibs.140.00 using provisioning method. Error: $_" -ForegroundColor Red
+            exit 1
         }
-
-        # Use DISM to install the correct package
-        Write-Host "Installing Microsoft.UI.Xaml.2.8.7 ($arch) using DISM..." -ForegroundColor Cyan
-        Start-Process -FilePath "dism.exe" -ArgumentList "/Online /Add-ProvisionedAppxPackage /PackagePath:$appxPath /SkipLicense" -NoNewWindow -Wait
-
-        # Verify installation
-        $verifyInstall = Get-AppxPackage -Name "Microsoft.UI.Xaml.2.8.7" -ErrorAction SilentlyContinue
-        if ($verifyInstall) {
-            Write-Host "Dependency installed successfully via manual method." -ForegroundColor Green
-            return $true
-        } else {
-            Write-Host "ERROR: Microsoft.UI.Xaml.2.8.7 installation verification failed." -ForegroundColor Red
-            return $false
-        }
-    } catch {
-        Write-Host "ERROR: Manual installation of Microsoft.UI.Xaml.2.8.7 failed." -ForegroundColor Red
-        return $false
+    } else {
+        Install-AppxPackageSafely -PackagePath $VCLibsPath
     }
+} else {
+    Write-Host "Microsoft.VCLibs.x64.14.00.Desktop.appx is already installed." -ForegroundColor Cyan
 }
 
-# If Dependency is Missing, Attempt to Install
-if (-not $dependencyInstalled) {
-    Write-Host "Dependency 'Microsoft.UI.Xaml.2.8.7' is missing. Installing now..." -ForegroundColor Yellow
+# Check and install Microsoft.UI.Xaml
+if (-not (Is-PackageInstalled "Microsoft.UI.Xaml.2.8")) {
+    Write-Host "Microsoft.UI.Xaml is not installed. Installing now..." -ForegroundColor Yellow
+    Download-File -Url $UIXamlUrl -Destination $UIXamlPath
 
-    try {
-        # First attempt standard installation
-        Write-Host "Attempting standard installation using Add-AppxPackage..." -ForegroundColor Cyan
-        Add-AppxPackage -Online -PackageName "Microsoft.UI.Xaml.2.8.7" -ErrorAction Stop
-        Write-Host "Dependency installed successfully via standard method." -ForegroundColor Green
-    } catch {
-        Write-Host "Standard installation failed. Attempting manual installation..." -ForegroundColor Red
-        
-        # If standard install fails, try manual install
-        if (-not (Install-UIXaml-Manually)) {
-            Write-Host "ERROR: Microsoft.UI.Xaml.2.8.7 could not be installed. Please install it manually from the Microsoft Store." -ForegroundColor Red
-            Write-Host "UTILITY EXITING IN 15 SECONDS..." -ForegroundColor Red
-            Start-Sleep -Seconds 15
-            exit
+    if ($IsEnterprise) {
+        Write-Host "Enterprise edition detected. Installing using Add-AppxProvisionedPackage..." -ForegroundColor Yellow
+        try {
+            Add-AppxProvisionedPackage -Online -PackagePath $UIXamlPath -ErrorAction Stop
+            Write-Host "Dependency installed successfully via provisioning method." -ForegroundColor Green
+        } catch {
+            Write-Host "Failed to install Microsoft.UI.Xaml using provisioning method. Error: $_" -ForegroundColor Red
+            exit 1
+        }
+    } else {
+        Install-AppxPackageSafely -PackagePath $UIXamlPath
+    }
+} else {
+    Write-Host "Microsoft.UI.Xaml is already installed." -ForegroundColor Cyan
+}
+
+# Check if WinGet (App Installer) is installed
+if (-not (Is-PackageInstalled "Microsoft.DesktopAppInstaller")) {
+    Write-Host "WinGet (App Installer) is not installed. Installing now..." -ForegroundColor Yellow
+
+    # Define a helper function to install WinGet using the PowerShell module method
+    function Install-WinGetUsingModule {
+        Write-Host "Installing WinGet using PowerShell module..." -ForegroundColor Yellow
+        try {
+            Install-PackageProvider -Name NuGet -Force -ErrorAction Stop
+            Install-Module -Name Microsoft.WinGet.Client -Force -Repository PSGallery -ErrorAction Stop
+            Repair-WinGetPackageManager -ErrorAction Stop
+            Write-Host "WinGet installed successfully using PowerShell module." -ForegroundColor Green
+        } catch {
+            Write-Host "Failed to install WinGet using PowerShell module. Error: $_" -ForegroundColor Red
+            exit 1
         }
     }
-}
 
-Write-Host "Microsoft.UI.Xaml.2.8.7 successfully installed. Continuing..." -ForegroundColor Green
-
-# ==============================================
-# Install Winget
-# ==============================================
-if (-not $wingetInstalled) {
-    Write-Host "Winget not found! Installing now..." -ForegroundColor Yellow
-
-    try {
-        Invoke-WebRequest -Uri "https://aka.ms/getwinget" -OutFile "$env:TEMP\winget.msixbundle"
-        Add-AppxPackage -Path "$env:TEMP\winget.msixbundle" -ErrorAction Stop
-        Write-Host "Winget installed successfully." -ForegroundColor Green
-    } catch {
-        Write-Host "ERROR: Failed to install Winget. Please install it manually from the Microsoft Store." -ForegroundColor Red
-        Write-Host "UTILITY EXITING IN 15 SECONDS..." -ForegroundColor Red
-        Start-Sleep -Seconds 15
-        exit
+    if ($IsEnterprise) {
+        Write-Host "Enterprise edition detected. Installing WinGet using PowerShell module method..." -ForegroundColor Yellow
+        Install-WinGetUsingModule
+    } else {
+        # Attempt standard installation using Add-AppxPackage
+        try {
+            Add-AppxPackage -RegisterByFamilyName -MainPackage "Microsoft.DesktopAppInstaller_8wekyb3d8bbwe" -ErrorAction Stop
+            Write-Host "WinGet installed successfully using Add-AppxPackage." -ForegroundColor Green
+        } catch {
+            Write-Host "Standard installation failed. Attempting manual installation..." -ForegroundColor Red
+            # Download WinGet package and license
+            Download-File -Url $WinGetUrl -Destination $WinGetPath
+            Download-File -Url $WinGetLicenseUrl -Destination $WinGetLicensePath
+            # Install WinGet using Add-AppxProvisionedPackage
+            try {
+                Add-AppxProvisionedPackage -Online -PackagePath $WinGetPath -LicensePath $WinGetLicensePath -ErrorAction Stop
+                Write-Host "WinGet installed successfully using manual method." -ForegroundColor Green
+            } catch {
+                Write-Host "Failed to install WinGet manually. Error: $_" -ForegroundColor Red
+                exit 1
+            }
+        }
     }
+} else {
+    Write-Host "One or more packages failed to install. Temp files retained for debugging." -ForegroundColor Red
+    Write-Host "Exiting script in 15 seconds..." -ForegroundColor Yellow
+    Start-Sleep -Seconds 15
+    exit 1
 }
 
-Write-Host "Winget and dependencies installed successfully. Continuing..." -ForegroundColor Green
+# Final verification before cleaning up
+if (Is-PackageInstalled "Microsoft.DesktopAppInstaller" -and Is-PackageInstalled "Microsoft.VCLibs.140.00" -and Is-PackageInstalled "Microsoft.UI.Xaml.2.8") {
+    Write-Host "All dependencies and WinGet are installed successfully. Cleaning up temporary files..." -ForegroundColor Green
+    Remove-Item -Path $TempDir -Recurse -Force
+} else {
+    Write-Host "One or more packages failed to install. Temp files retained for debugging." -ForegroundColor Red
+}
+
+
 
 # Detect Windows Version
 $winVer = (Get-CimInstance Win32_OperatingSystem).Caption
