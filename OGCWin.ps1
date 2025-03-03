@@ -38,6 +38,7 @@ Write-Host "       OGC Windows Gaming Utility      " -ForegroundColor Yellow
 Write-Host "        https://discord.gg/ogc         " -ForegroundColor Magenta
 Write-Host "        Created by Honest Goat         " -ForegroundColor Green
 Write-Host "=======================================" -ForegroundColor DarkBlue
+Write-Host ""
 
 # Welcome & Instructions
 Write-Host "Welcome to the OGC Windows Gaming Utility!" -ForegroundColor Cyan
@@ -88,22 +89,64 @@ Write-Host "Disabling Telemetry, Tracking, and Data Collection..." -ForegroundCo
 Write-Host "Checking for Winget..." -ForegroundColor Magenta
 $wingetInstalled = Get-Command winget -ErrorAction SilentlyContinue
 
-# Checking for Microsoft.UI.Xaml.2.8 dependency
+# Checking for Microsoft.UI.Xaml.2.8.7 dependency
 Write-Host "Checking for required dependencies..." -ForegroundColor Magenta
-$dependencyInstalled = Get-AppxPackage -Name "Microsoft.UI.Xaml.2.8" -ErrorAction SilentlyContinue
+$dependencyInstalled = Get-AppxPackage -Name "Microsoft.UI.Xaml.2.8.7" -ErrorAction SilentlyContinue
 
-# If Dependency is Missing, Install it First
+# If Dependency is Missing, Attempt to Install
 if (-not $dependencyInstalled) {
-    Write-Host "Dependency 'Microsoft.UI.Xaml.2.8' is missing. Installing now..." -ForegroundColor Yellow
+    Write-Host "Dependency 'Microsoft.UI.Xaml.2.8.7' is missing. Installing now..." -ForegroundColor Yellow
 
     try {
-        # Use DISM or PowerShell to install the dependency
-        Add-AppxPackage -Online -PackageName "Microsoft.UI.Xaml.2.8" -ErrorAction Stop
+        # First attempt standard installation
+        Add-AppxPackage -Online -PackageName "Microsoft.UI.Xaml.2.8.7" -ErrorAction Stop
         Write-Host "Dependency installed successfully." -ForegroundColor Green
     } catch {
-        Write-Host "ERROR: Failed to install 'Microsoft.UI.Xaml.2.8'. Please install it manually from the Microsoft Store." -ForegroundColor Red
-        Start-Sleep -Seconds 15
-        exit
+        Write-Host "Normal installation failed. Attempting manual installation..." -ForegroundColor Red
+        
+        # If standard install fails, try manual install
+        function Install-UIXaml-Manually {
+            Write-Host "Attempting manual installation of Microsoft.UI.Xaml.2.8.7..." -ForegroundColor Yellow
+            
+            $nupkgUrl = "https://www.nuget.org/api/v2/package/Microsoft.UI.Xaml/2.8.7"
+            $nupkgPath = "$env:TEMP\Microsoft.UI.Xaml.2.8.7.nupkg"
+            $extractPath = "$env:TEMP\Microsoft.UI.Xaml.2.8.7"
+
+            try {
+                # Download the .nupkg package
+                Write-Host "Downloading Microsoft.UI.Xaml.2.8.7 package..." -ForegroundColor Cyan
+                Invoke-WebRequest -Uri $nupkgUrl -OutFile $nupkgPath -ErrorAction Stop
+
+                # Extract the package
+                Write-Host "Extracting package..." -ForegroundColor Cyan
+                Add-Type -AssemblyName System.IO.Compression.FileSystem
+                [System.IO.Compression.ZipFile]::ExtractToDirectory($nupkgPath, $extractPath)
+
+                # Locate and install the .appx package
+                $arch = if ([Environment]::Is64BitOperatingSystem) { "x64" } else { "x86" }
+                $appxPath = Join-Path -Path $extractPath -ChildPath "tools\AppX\$arch\Release\Microsoft.UI.Xaml.2.8.appx"
+
+                if (Test-Path $appxPath) {
+                    Write-Host "Installing Microsoft.UI.Xaml.2.8.7 manually..." -ForegroundColor Cyan
+                    Add-AppxPackage -Path $appxPath -ErrorAction Stop
+                    Write-Host "Dependency installed successfully via manual method." -ForegroundColor Green
+                    return $true
+                } else {
+                    Write-Host "ERROR: Could not find the .appx file for installation." -ForegroundColor Red
+                    return $false
+                }
+            } catch {
+                Write-Host "ERROR: Manual installation of Microsoft.UI.Xaml.2.8.7 failed." -ForegroundColor Red
+                return $false
+            }
+        }
+
+        if (-not (Install-UIXaml-Manually)) {
+            Write-Host "ERROR: Microsoft.UI.Xaml.2.8.7 could not be installed. Please install it manually from the Microsoft Store." -ForegroundColor Red
+            Write-Host "UTILITY EXITING IN 15 SECONDS..." -ForegroundColor Red
+            Start-Sleep -Seconds 15
+            exit
+        }
     }
 }
 
@@ -117,6 +160,7 @@ if (-not $wingetInstalled) {
         Write-Host "Winget installed successfully." -ForegroundColor Green
     } catch {
         Write-Host "ERROR: Failed to install Winget. Please install it manually from the Microsoft Store." -ForegroundColor Red
+        Write-Host "UTILITY EXITING IN 15 SECONDS..." -ForegroundColor Red
         Start-Sleep -Seconds 15
         exit
     }
