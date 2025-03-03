@@ -76,5 +76,4 @@ Start-Sleep -Seconds 1
 
 # Start OGC Windows Utility in new window with elevated privileges
 Start-Process powershell.exe -ArgumentList '-ExecutionPolicy Bypass -NoProfile -Command "irm https://raw.githubusercontent.com/HonestGoat/OGCWin/main/OGCWin.ps1 | iex"' -Verb RunAs
-Start-Sleep -Seconds 1
 exit 1

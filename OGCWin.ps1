@@ -65,64 +65,6 @@ if ($continueScript -ne "y") {
     exit
 }
 
-Write-Host "Starting OGC Windows Utility..." -ForegroundColor Green
-Start-Sleep -Seconds 1
-
-Write-Host "Checking for dependencies..." -ForegroundColor Cyan
-Start-Sleep -Seconds 2
-
-# Function to check if WinGet is installed
-function Test-WinGet {
-    try {
-        winget --version
-        return $true
-    } catch {
-        return $false
-    }
-}
-
-# Function to install WinGet
-function Install-WinGet {
-    # Define URLs for dependencies and WinGet
-    $vclibsUrl = "https://aka.ms/Microsoft.VCLibs.x64.14.00.Desktop.appx"
-    $wingetApiUrl = "https://api.github.com/repos/microsoft/winget-cli/releases/latest"
-
-    # Download and install Microsoft.VCLibs.140.00.UWPDesktop
-    Write-Host "Downloading Microsoft.VCLibs.140.00.UWPDesktop..." -ForegroundColor Yellow
-    $vclibsPath = "$env:TEMP\Microsoft.VCLibs.x64.14.00.Desktop.appx"
-    Invoke-WebRequest -Uri $vclibsUrl -OutFile $vclibsPath -UseBasicParsing
-    Add-AppxPackage -Path $vclibsPath
-
-    # Get the download URL of the latest WinGet installer from GitHub
-    Write-Host "Fetching latest WinGet release information..." -ForegroundColor Yellow
-    $latestRelease = Invoke-RestMethod -Uri $wingetApiUrl
-    $wingetAsset = $latestRelease.assets | Where-Object { $_.name -like "*.msixbundle" }
-    $wingetUrl = $wingetAsset.browser_download_url
-
-    # Download and install WinGet
-    Write-Host "Downloading WinGet..." -ForegroundColor Yellow
-    $wingetPath = "$env:TEMP\$($wingetAsset.name)"
-    Invoke-WebRequest -Uri $wingetUrl -OutFile $wingetPath -UseBasicParsing
-    Add-AppxPackage -Path $wingetPath
-
-    # Clean up downloaded files
-    Remove-Item -Path $vclibsPath, $wingetPath
-}
-
-# Main script execution
-if (-not (Test-WinGet)) {
-    Write-Host "WinGet is not installed. Attempting to install..."
-    Install-WinGet
-    Start-Sleep -Seconds 5 # Wait for installation to complete
-    if (-not (Test-WinGet)) {
-        Write-Host "WinGet installation failed. Exiting Utility." -ForegroundColor Red
-        Start-Sleep -Seconds 10
-        exit 1
-    }
-}
-
-Write-Host "WinGet is installed." -ForegroundColor Green
-
 # Detect Windows Version
 $winVer = (Get-CimInstance Win32_OperatingSystem).Caption
 Write-Host "Detected Windows Version: $winVer" -ForegroundColor Yellow
@@ -130,9 +72,11 @@ Write-Host "Detected Windows Version: $winVer" -ForegroundColor Yellow
 if ($winVer -match "Windows 11") {
     Write-Host "Windows 11 optimizations selected." -ForegroundColor Green
     $win11 = $true
+    Start-Sleep -Seconds 1
 } elseif ($winVer -match "Windows 10") {
     Write-Host "Windows 10 optimizations selected." -ForegroundColor Green
     $win11 = $false
+    Start-Sleep -Seconds 1
 } else {
     Write-Host "Unsupported Windows Version. Exiting." -ForegroundColor Red
     exit
@@ -197,13 +141,20 @@ foreach ($task in $tasks) {
 
 Write-Host "Telemetry Scheduled Tasks Disabled." -ForegroundColor Green
 
-# Disable Cortana & Online Search
-Write-Host "Disabling Cortana & Online Search..." -ForegroundColor Magenta
+# Disable Cortana via Group Policy Registry Settings
+Write-Host "Disabling Cortana via Group Policy..." -ForegroundColor Magenta
+$gpCortanaKey = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Search"
+if (!(Test-Path $gpCortanaKey)) { New-Item -Path $gpCortanaKey -Force | Out-Null }
+Set-ItemProperty -Path $gpCortanaKey -Name "AllowCortana" -Type DWord -Value 0 -Force
+Write-Host "Cortana has been disabled via Group Policy." -ForegroundColor Green
+
+# Disable Cortana & Bing Search in User's Search Settings
+Write-Host "Disabling Cortana & Bing Search in User Settings..." -ForegroundColor Magenta
 $searchKey = "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Search"
 if (!(Test-Path $searchKey)) { New-Item -Path $searchKey -Force | Out-Null }
 Set-ItemProperty -Path $searchKey -Name "CortanaConsent" -Type DWord -Value 0 -Force
 Set-ItemProperty -Path $searchKey -Name "BingSearchEnabled" -Type DWord -Value 0 -Force
-Write-Host "Cortana and Bing Search Disabled." -ForegroundColor Green
+Write-Host "Cortana and Bing Search have been disabled in User Settings." -ForegroundColor Green
 
 # Disable Location Tracking
 Write-Host "Disabling Location Tracking..." -ForegroundColor Magenta
@@ -221,6 +172,9 @@ if ($blockTelemetry -eq "y") {
     Write-Host "Blocking Telemetry Domains via Hosts File..." -ForegroundColor Magenta
 
     $hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+    $backupPath = "$hostsPath.bak"
+
+    # Define telemetry domains
     $telemetryDomains = @(
         "vortex.data.microsoft.com",
         "settings-win.data.microsoft.com",
@@ -292,8 +246,18 @@ if ($blockTelemetry -eq "y") {
         "i1.services.social.microsoft.com.nsatc.net"
     )
 
+    # Ensure PowerShell is running as Admin
+    if (-Not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")) {
+        Write-Host "ERROR: You must run PowerShell as Administrator to modify the hosts file." -ForegroundColor Red
+        exit 1
+    }
+
+    # Take ownership of the hosts file and grant full control
+    Write-Host "Taking ownership of the hosts file..." -ForegroundColor Yellow
+    takeown /f $hostsPath /a > $null
+    icacls $hostsPath /grant Administrators:F /c /l /q > $null
+
     # Backup the original hosts file
-    $backupPath = "$hostsPath.bak"
     if (-Not (Test-Path $backupPath)) {
         Copy-Item -Path $hostsPath -Destination $backupPath -Force
         Write-Host "Original hosts file backed up to $backupPath" -ForegroundColor Green
@@ -302,14 +266,19 @@ if ($blockTelemetry -eq "y") {
     }
 
     # Read the current hosts file content
-    $hostsContent = Get-Content -Path $hostsPath
+    try {
+        $hostsContent = Get-Content -Path $hostsPath -ErrorAction Stop
+    } catch {
+        Write-Host "ERROR: Failed to read the hosts file. It may be locked by another process." -ForegroundColor Red
+        exit 1
+    }
 
     # Add telemetry domains to the hosts file if they are not already present
     foreach ($domain in $telemetryDomains) {
         $entry = "0.0.0.0 $domain"
         if ($hostsContent -notcontains $entry) {
-            Add-Content -Path $hostsPath -Value $entry
-            Write-Host "Added $domain to hosts file." -ForegroundColor Green
+            Write-Host "Adding $domain to hosts file..." -ForegroundColor Green
+            "$entry" | Out-File -FilePath $hostsPath -Encoding utf8 -Append
         } else {
             Write-Host "$domain is already present in the hosts file." -ForegroundColor Yellow
         }
@@ -326,12 +295,28 @@ $disableDefenderTelemetry = Read-Host "Do you want to disable Windows Defender d
 if ($disableDefenderTelemetry -eq "y") {
     Write-Host "Disabling Windows Defender Cloud Telemetry..." -ForegroundColor Magenta
 
-    # Step 1: Disable Tamper Protection Temporarily
-    Write-Host "Temporarily disabling Windows Defender Tamper Protection..." -ForegroundColor Yellow
-    Set-MpPreference -DisableTamperProtection $true -ErrorAction SilentlyContinue
-    Start-Sleep -Seconds 2  # Give time for changes to take effect
+    # Step 1: Ensure PowerShell is Running as Administrator
+    if (-Not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")) {
+        Write-Host "ERROR: You must run PowerShell as Administrator to modify Windows Defender settings." -ForegroundColor Red
+        exit 1
+    }
 
-    # Step 2: Modify Defender Registry Keys
+    # Step 2: Disable Windows Defender Tamper Protection via Registry
+    Write-Host "Disabling Tamper Protection via Registry..." -ForegroundColor Yellow
+    reg add "HKLM\SOFTWARE\Microsoft\Windows Defender\Features" /v TamperProtection /t REG_DWORD /d 0 /f
+    Write-Host "Tamper Protection disabled. A system restart is required for changes to take effect." -ForegroundColor Green
+
+    # Prompt the user to restart before continuing
+    $restartRequired = Read-Host "A restart is required to apply the changes. Restart now? (y/n)"
+    if ($restartRequired -eq "y") {
+        Restart-Computer -Force
+    } else {
+        Write-Host "Please restart your computer manually before running this script again." -ForegroundColor Yellow
+        exit
+    }
+
+    # Step 3: Modify Defender Registry Keys (AFTER REBOOT)
+    Write-Host "Modifying Windows Defender registry settings..." -ForegroundColor Magenta
     $defenderKeys = @(
         "HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender\Spynet",
         "HKLM:\SOFTWARE\Microsoft\Windows Defender\Spynet"
@@ -343,11 +328,11 @@ if ($disableDefenderTelemetry -eq "y") {
         Set-ItemProperty -Path $key -Name SpynetReporting -Type DWord -Value 0 -Force
     }
 
-    Write-Host "Windows Defender telemetry disabled." -ForegroundColor Green
+    Write-Host "Windows Defender telemetry has been disabled." -ForegroundColor Green
 
-    # Step 3: Automatically Re-enable Tamper Protection
+    # Step 4: Re-enable Tamper Protection
     Write-Host "Re-enabling Windows Defender Tamper Protection..." -ForegroundColor Cyan
-    Set-MpPreference -DisableTamperProtection $false -ErrorAction SilentlyContinue
+    reg add "HKLM\SOFTWARE\Microsoft\Windows Defender\Features" /v TamperProtection /t REG_DWORD /d 5 /f
     Write-Host "Tamper Protection re-enabled successfully." -ForegroundColor Green
 
 } else {
@@ -374,6 +359,7 @@ if ($removeBloatware -eq "y") {
         "Microsoft.Office.OneNote",
         "Microsoft.OneConnect",
         "Microsoft.OneNote",
+        "Microsoft.Paint3D",
         "Microsoft.People",
         "Microsoft.Print3D",
         "Microsoft.ScreenSketch",
@@ -398,57 +384,77 @@ if ($removeBloatware -eq "y") {
     Write-Host "Skipping bloatware removal." -ForegroundColor Cyan
 }
 
-# Function to Check if an App is Installed
-function Test-AppInstalled($appName) {
-    return $null -ne (Get-AppxPackage -Name $appName -ErrorAction SilentlyContinue)
-}
+# Prompt the user about "Your Phone" app
+$useYourPhone = Read-Host "Do you want to use 'Your Phone' app to integrate your phone with Windows? (y/n)"
 
-# List of Xbox-related apps
-$xboxApps = @(
-    "Microsoft.Xbox.TCUI",
-    "Microsoft.XboxApp",
-    "Microsoft.XboxGameOverlay",
-    "Microsoft.XboxGamingOverlay",
-    "Microsoft.XboxIdentityProvider",
-    "Microsoft.XboxSpeechToTextOverlay"
-)
+# Check if "Your Phone" is installed
+$yourPhoneInstalled = Get-AppxPackage -Name "Microsoft.YourPhone" -ErrorAction SilentlyContinue
 
-# Detect Installed Xbox Apps
-$installedXboxApps = @()
-foreach ($app in $xboxApps) {
-    if (Is-AppInstalled $app) {
-        $installedXboxApps += $app
-    }
-}
-
-# Check if any Xbox apps are installed
-if ($installedXboxApps.Count -gt 0) {
-    Write-Host "The following Xbox-related apps are installed:" -ForegroundColor Cyan
-    $installedXboxApps | ForEach-Object { Write-Host " - $_" -ForegroundColor Yellow }
-    
-    $useXbox = Read-Host "Do you want to use Windows Game Pass or Xbox features? (y/n)"
-    
-    if ($useXbox -ne "y") {
-        Write-Host "Removing Xbox-related apps..." -ForegroundColor Magenta
-        foreach ($app in $installedXboxApps) {
-            Get-AppxPackage -Name $app | Remove-AppxPackage -ErrorAction SilentlyContinue
-        }
-        Write-Host "Xbox-related apps removed." -ForegroundColor Green
+if ($useYourPhone -eq "y") {
+    if ($yourPhoneInstalled) {
+        Write-Host "'Your Phone' app is already installed. Keeping it." -ForegroundColor Green
     } else {
-        Write-Host "Keeping Xbox-related apps." -ForegroundColor Cyan
+        Write-Host "'Your Phone' app is not installed. Installing now..." -ForegroundColor Yellow
+        try {
+            winget install --id Microsoft.YourPhone -e --silent --accept-package-agreements --accept-source-agreements
+            Write-Host "'Your Phone' app installed successfully." -ForegroundColor Green
+        } catch {
+            Write-Host "Failed to install 'Your Phone' app. Error: $_" -ForegroundColor Red
+        }
+    }
+} elseif ($useYourPhone -eq "n") {
+    if ($yourPhoneInstalled) {
+        Write-Host "Removing 'Your Phone' app..." -ForegroundColor Magenta
+        Get-AppxPackage -Name "Microsoft.YourPhone" | Remove-AppxPackage -ErrorAction SilentlyContinue
+        Get-AppxProvisionedPackage -Online | Where-Object DisplayName -EQ "Microsoft.YourPhone" | Remove-AppxProvisionedPackage -Online -ErrorAction SilentlyContinue
+        Write-Host "'Your Phone' app removed." -ForegroundColor Green
+    } else {
+        Write-Host "'Your Phone' app is not installed. No action needed." -ForegroundColor Cyan
     }
 } else {
-    # If no Xbox apps are installed, ask if the user wants to install them
-    $installXbox = Read-Host "Xbox features are not installed. Do you want to install them? (y/n)"
-    
-    if ($installXbox -eq "y") {
-        Write-Host "Installing Xbox-related apps..." -ForegroundColor Magenta
-        foreach ($app in $xboxApps) {
-            winget install --id $app --silent --accept-package-agreements --accept-source-agreements
+    Write-Host "Invalid selection. No changes made to 'Your Phone' app." -ForegroundColor Red
+}
+
+# Function to check if an app is installed
+function Test-AppInstalled {
+    param (
+        [string]$AppName
+    )
+    return ($null -ne (Get-AppxPackage -Name $AppName -ErrorAction SilentlyContinue))
+}
+
+# List of Xbox and Game Pass related apps
+$xboxApps = @{
+    "Microsoft.Xbox.TCUI" = "Microsoft.Xbox.TCUI"
+    "Microsoft.XboxApp" = "Microsoft.XboxApp"
+    "Microsoft.XboxGameOverlay" = "Microsoft.XboxGameOverlay"
+    "Microsoft.XboxGamingOverlay" = "Microsoft.XboxGamingOverlay"
+    "Microsoft.XboxIdentityProvider" = "Microsoft.XboxIdentityProvider"
+    "Microsoft.XboxSpeechToTextOverlay" = "Microsoft.XboxSpeechToTextOverlay"
+}
+
+# Prompt the user
+$useXbox = Read-Host "Do you want to use Windows Game Pass or Xbox features? (y/n)"
+
+foreach ($app in $xboxApps.Keys) {
+    $isInstalled = Test-AppInstalled -AppName $app
+
+    if ($useXbox -eq "y") {
+        if ($isInstalled) {
+            Write-Host "$app is already installed. Keeping it." -ForegroundColor Green
+        } else {
+            Write-Host "$app is not installed. Installing now..." -ForegroundColor Yellow
+            winget install --id $xboxApps[$app] --silent --accept-package-agreements --accept-source-agreements
+            Write-Host "$app installed successfully." -ForegroundColor Green
         }
-        Write-Host "Xbox-related apps installed." -ForegroundColor Green
     } else {
-        Write-Host "Skipping Xbox feature installation." -ForegroundColor Cyan
+        if ($isInstalled) {
+            Write-Host "Removing $app..." -ForegroundColor Magenta
+            Get-AppxPackage -Name $app | Remove-AppxPackage -ErrorAction SilentlyContinue
+            Write-Host "$app removed." -ForegroundColor Green
+        } else {
+            Write-Host "$app is not installed. No action needed." -ForegroundColor Cyan
+        }
     }
 }
 
@@ -513,11 +519,15 @@ if ($useTeams -eq "y") {
         Write-Host "Microsoft Teams is not installed. No action needed." -ForegroundColor Cyan
     }
 
-    # Remove Teams icon from the taskbar
-    Write-Host "Removing Microsoft Teams icon from the taskbar..." -ForegroundColor Yellow
-    reg add "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced" /v "TaskbarMn" /t REG_DWORD /d 0 /f
-    Write-Host "Microsoft Teams icon removed from the taskbar." -ForegroundColor Green
+    # Remove "Meet Now" icon from the taskbar
+    Write-Host "Removing 'Meet Now' icon from the taskbar..." -ForegroundColor Yellow
+    reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer" /v "HideSCAMeetNow" /t REG_DWORD /d 1 /f
+    Write-Host "'Meet Now' icon removed from the taskbar." -ForegroundColor Green
 
+    # Refresh the taskbar to apply changes immediately
+    Write-Host "Restarting Windows Explorer to apply changes..." -ForegroundColor Cyan
+    Stop-Process -Name explorer -Force
+    Start-Process -FilePath "explorer.exe" -ArgumentList "/n" -WindowStyle Hidden
 } else {
     Write-Host "Invalid selection. No changes made to Microsoft Teams." -ForegroundColor Red
 }
@@ -586,7 +596,7 @@ if ($win11) {
         # Restart Explorer to apply changes
         Stop-Process -Name explorer -Force
         Start-Sleep -Seconds 2
-        Start-Process explorer.exe
+        Start-Process -FilePath "explorer.exe" -ArgumentList "/n" -WindowStyle Hidden
     }
 }
 
@@ -595,7 +605,7 @@ function Restart-Explorer {
     Write-Host "Restarting Windows Explorer..." -ForegroundColor Yellow
     Stop-Process -Name explorer -Force
     Start-Sleep -Seconds 2
-    Start-Process explorer.exe
+    Start-Process -FilePath "explorer.exe" -ArgumentList "/n" -WindowStyle Hidden
     Write-Host "Windows Explorer restarted." -ForegroundColor Green
 }
 
@@ -625,8 +635,35 @@ if ($debloatTaskbar -eq "y") {
     Set-RegistryValue -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced\People" -Name "PeopleBand" -Value 0  # Remove People Icon
     Set-RegistryValue -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\PenWorkspace" -Name "PenWorkspaceButtonDesiredVisibility" -Value 0  # Remove Ink Workspace
 
+    # Remove the Weather/News Widget (Completely disable)
+    Set-RegistryValue -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Feeds" -Name "EnableFeeds" -Value 0
+    Write-Host "Weather & News Widget removed." -ForegroundColor Green
+
+    # Function to remove (unpin) a taskbar icon
+    function Remove-TaskbarIcon {
+        param ([string]$AppName)
+    
+        $shell = New-Object -ComObject Shell.Application
+        $taskbar = $shell.Namespace(0)
+    
+        foreach ($item in $taskbar.Items()) {
+            if ($item.Name -match $AppName) {
+              Write-Host "Unpinning $AppName from taskbar..." -ForegroundColor Yellow
+              $item.InvokeVerb("Unpin from taskbar")
+               return
+            }
+        }
+    }
+
+    # Unpin Microsoft Store from Taskbar
+    Unpin-TaskbarIcon "Microsoft Store"
+
+    # Unpin Mail from Taskbar
+    Unpin-TaskbarIcon "Mail"
+
     Write-Host "Taskbar debloating complete. Restarting Explorer..." -ForegroundColor Green
-    Restart-Explorer
+    Stop-Process -Name explorer -Force
+    Start-Process -FilePath "explorer.exe" -ArgumentList "/n" -WindowStyle Hidden
 
 } else {
     Write-Host "Skipping taskbar debloating." -ForegroundColor Cyan
@@ -656,7 +693,7 @@ if ($enableDarkMode -eq "y") {
     # Restart Windows Explorer to apply changes immediately
     Write-Host "Restarting Windows Explorer to apply changes..."
     Stop-Process -Name explorer -Force
-    Start-Process explorer
+    Start-Process -FilePath "explorer.exe" -ArgumentList "/n" -WindowStyle Hidden
     Write-Host "Windows Explorer restarted." -ForegroundColor Green
 } else {
     Write-Host "Dark Mode not enabled." -ForegroundColor Cyan
@@ -677,6 +714,8 @@ if ($gameOptimizations -eq "y") {
     Write-Host "Applying gaming optimizations..." -ForegroundColor Magenta
     reg add "HKCU\Software\Microsoft\GameBar" /v "AllowAutoGameMode" /t REG_DWORD /d 1 /f
     reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\GraphicsSettings" /v "HwSchMode" /t REG_DWORD /d 2 /f
+    Stop-Process -Name explorer -Force
+    Start-Process -FilePath "explorer.exe" -ArgumentList "/n" -WindowStyle Hidden
     Write-Host "Gaming features enabled!" -ForegroundColor Green
 }
 
@@ -764,7 +803,8 @@ if ($installBrowser -eq "y") {
     Write-Host "2. Brave" -ForegroundColor Yellow
     Write-Host "3. Opera GX" -ForegroundColor Yellow
     Write-Host "4. Chrome" -ForegroundColor Yellow
-    Write-Host "5. None (Skip Browser Installation)" -ForegroundColor Yellow
+    Write-Host "5. Edge (Already Installed)" -ForegroundColor Yellow
+    Write-Host "6. Skip Browser Installation" -ForegroundColor Yellow
 
     $browser = Read-Host "Enter the number corresponding to your browser choice"
 
@@ -786,6 +826,16 @@ if ($installBrowser -eq "y") {
             winget install Google.Chrome
         }
         "5" {
+            Write-Host "Microsoft Edge selected." -ForegroundColor Green
+
+            # Ensure Edge Background Mode is Enabled
+            $edgeRegPath = "HKLM:\SOFTWARE\Policies\Microsoft\Edge"
+            if (!(Test-Path $edgeRegPath)) { 
+                New-Item -Path $edgeRegPath -Force | Out-Null 
+            }
+            Set-ItemProperty -Path $edgeRegPath -Name "BackgroundModeEnabled" -Type DWord -Value 1 -Force
+        }
+        "6" {
             Write-Host "Skipping browser installation." -ForegroundColor Cyan
         }
         default {
@@ -896,22 +946,46 @@ if ($installGPUDrivers -eq "y") {
         Write-Host "AMD drivers installed successfully." -ForegroundColor Green
     }
 
-    # Function to Install Intel Drivers
-    function Install-Intel-Drivers {
-        Write-Host "Downloading and installing Intel Arc drivers..." -ForegroundColor Cyan
-        $intelDriverURL = "https://downloadmirror.intel.com/848516/gfx_win_101.6632.exe"
-        $intelDriverPath = "$env:TEMP\Intel-Driver.exe"
-        Invoke-WebRequest -Uri $intelDriverURL -OutFile $intelDriverPath
-        Start-Process -FilePath $intelDriverPath -ArgumentList "-s" -Wait
-        Remove-Item -Path $intelDriverPath
-        Write-Host "Intel drivers installed successfully." -ForegroundColor Green
+    # Function to Install Intel HD Graphics (Integrated)
+    function Install-Intel-HD-Drivers {
+        Write-Host "Downloading and installing Intel HD Graphics drivers (Integrated)..." -ForegroundColor Cyan
+        $intelHDDriverURL = "https://downloadmirror.intel.com/815427/gfx_win_101.2111.exe"
+        $intelHDDriverPath = "$env:TEMP\Intel-HD-Driver.exe"
+        Invoke-WebRequest -Uri $intelHDDriverURL -OutFile $intelHDDriverPath
+        Start-Process -FilePath $intelHDDriverPath -ArgumentList "-s" -Wait
+        Remove-Item -Path $intelHDDriverPath
+        Write-Host "Intel HD Graphics drivers installed successfully." -ForegroundColor Green
+    }
+
+    # Function to Install Intel Arc Graphics (Dedicated)
+    function Install-Intel-Arc-Drivers {
+        Write-Host "Downloading and installing Intel Arc Graphics drivers (Dedicated)..." -ForegroundColor Cyan
+        $intelArcDriverURL = "https://downloadmirror.intel.com/848516/gfx_win_101.6632.exe"
+        $intelArcDriverPath = "$env:TEMP\Intel-Arc-Driver.exe"
+        Invoke-WebRequest -Uri $intelArcDriverURL -OutFile $intelArcDriverPath
+        Start-Process -FilePath $intelArcDriverPath -ArgumentList "-s" -Wait
+        Remove-Item -Path $intelArcDriverPath
+        Write-Host "Intel Arc Graphics drivers installed successfully." -ForegroundColor Green
     }
 
     # Process User Choice
     switch ($gpuChoice) {
         "1" { Install-NVIDIA-Drivers }
         "2" { Install-AMD-Drivers }
-        "3" { Install-Intel-Drivers }
+        "3" {
+            # Intel: Ask if the user has an Integrated (HD) or Dedicated (Arc) GPU
+            Write-Host "You selected Intel. Please choose the type of Intel GPU you have:" -ForegroundColor Cyan
+            Write-Host "1. Intel HD Graphics (Integrated)" -ForegroundColor Yellow
+            Write-Host "2. Intel Arc Graphics (Dedicated)" -ForegroundColor Yellow
+
+            $intelChoice = Read-Host "Enter the number of your choice (1/2)"
+
+            switch ($intelChoice) {
+                "1" { Install-Intel-HD-Drivers }
+                "2" { Install-Intel-Arc-Drivers }
+                default { Write-Host "Invalid selection. No Intel drivers will be installed." -ForegroundColor Red }
+            }
+        }
         "4" { Write-Host "Skipping graphics driver installation." -ForegroundColor Cyan }
         default { Write-Host "Invalid selection. No drivers will be installed." -ForegroundColor Red }
     }
@@ -926,7 +1000,7 @@ $desktopPath = [System.IO.Path]::Combine([System.Environment]::GetFolderPath("De
 
 # Define the shortcut target
 $shortcutTarget = "C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe"
-$shortcutArguments = "-ExecutionPolicy Bypass -Command `"Start-Process powershell.exe -verb runas -ArgumentList 'irm https://raw.githubusercontent.com/HonestGoat/OGCWin/main/OGCWin.ps1 | iex'`""
+$shortcutArguments = "-ExecutionPolicy Bypass -Command `"Start-Process powershell.exe -verb runas -ArgumentList 'irm https://raw.githubusercontent.com/HonestGoat/OGCWin/main/launch.ps1 | iex'`""
 
 # Check if the shortcut already exists
 if (-Not (Test-Path $desktopPath)) {
@@ -950,3 +1024,7 @@ Write-Host "===========================================" -ForegroundColor Green
 Write-Host "  OGC Windows Gaming Utility is complete!  " -ForegroundColor Cyan
 Write-Host "  Enjoy your optimized gaming experience.  " -ForegroundColor Cyan
 Write-Host "===========================================" -ForegroundColor Green
+Start-Sleep -Seconds 1
+Write-Host ""
+Write-Host "You may now close the window." -ForegroundColor Green
+Pause
