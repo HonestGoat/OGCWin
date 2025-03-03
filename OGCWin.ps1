@@ -66,7 +66,7 @@ if ($continueScript -ne "y") {
 }
 
 Write-Host "Starting OGC Windows Utility..." -ForegroundColor Green
-Start-Sleep -Seconds 2
+Start-Sleep -Seconds 1
 
 Write-Host "Checking for dependencies..." -ForegroundColor Cyan
 Start-Sleep -Seconds 2
@@ -129,19 +129,20 @@ function Install-UIXaml-Manually {
         Add-Type -AssemblyName System.IO.Compression.FileSystem
         [System.IO.Compression.ZipFile]::ExtractToDirectory($nupkgPath, $extractPath)
 
-        # Locate the .appx file dynamically (since folder structure might change)
-        $appxFiles = Get-ChildItem -Path $extractPath -Recurse -Filter "*.appx" | Select-Object -ExpandProperty FullName
+        # Determine correct system architecture
+        $arch = if ([System.Environment]::Is64BitOperatingSystem) { "x64" } else { "x86" }
+        
+        # Locate the correct .appx file (ONLY for system architecture)
+        $appxPath = Get-ChildItem -Path $extractPath -Recurse -Filter "*$arch*\Microsoft.UI.Xaml.2.8.appx" | Select-Object -ExpandProperty FullName -ErrorAction SilentlyContinue
 
-        if ($appxFiles.Count -eq 0) {
-            Write-Host "ERROR: No .appx files found in extracted package." -ForegroundColor Red
+        if (-not $appxPath) {
+            Write-Host "ERROR: No compatible .appx file found for your system's architecture ($arch)." -ForegroundColor Red
             return $false
         }
 
-        # Use DISM to install instead of Add-AppxPackage
-        foreach ($appxFile in $appxFiles) {
-            Write-Host "Installing Microsoft.UI.Xaml.2.8.7 from $appxFile using DISM..." -ForegroundColor Cyan
-            Start-Process -FilePath "dism.exe" -ArgumentList "/Online /Add-ProvisionedAppxPackage /PackagePath:$appxFile /SkipLicense" -NoNewWindow -Wait
-        }
+        # Use DISM to install the correct package
+        Write-Host "Installing Microsoft.UI.Xaml.2.8.7 ($arch) using DISM..." -ForegroundColor Cyan
+        Start-Process -FilePath "dism.exe" -ArgumentList "/Online /Add-ProvisionedAppxPackage /PackagePath:$appxPath /SkipLicense" -NoNewWindow -Wait
 
         # Verify installation
         $verifyInstall = Get-AppxPackage -Name "Microsoft.UI.Xaml.2.8.7" -ErrorAction SilentlyContinue
@@ -181,6 +182,26 @@ if (-not $dependencyInstalled) {
 }
 
 Write-Host "Microsoft.UI.Xaml.2.8.7 successfully installed. Continuing..." -ForegroundColor Green
+
+# ==============================================
+# Install Winget
+# ==============================================
+if (-not $wingetInstalled) {
+    Write-Host "Winget not found! Installing now..." -ForegroundColor Yellow
+
+    try {
+        Invoke-WebRequest -Uri "https://aka.ms/getwinget" -OutFile "$env:TEMP\winget.msixbundle"
+        Add-AppxPackage -Path "$env:TEMP\winget.msixbundle" -ErrorAction Stop
+        Write-Host "Winget installed successfully." -ForegroundColor Green
+    } catch {
+        Write-Host "ERROR: Failed to install Winget. Please install it manually from the Microsoft Store." -ForegroundColor Red
+        Write-Host "UTILITY EXITING IN 15 SECONDS..." -ForegroundColor Red
+        Start-Sleep -Seconds 15
+        exit
+    }
+}
+
+Write-Host "Winget and dependencies installed successfully. Continuing..." -ForegroundColor Green
 
 # Detect Windows Version
 $winVer = (Get-CimInstance Win32_OperatingSystem).Caption
