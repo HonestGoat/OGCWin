@@ -1017,6 +1017,87 @@ if ($installGPUDrivers -eq "y") {
     Write-Host "Skipping graphics driver installation." -ForegroundColor Cyan
 }
 
+Write-Host "Disabling tracking and telemtry for GPU Manufacturer software and drivers" -ForegroundColor Magenta
+
+# Function to disable a service
+function Disable-Service {
+    param (
+        [string]$serviceName
+    )
+    Write-Host "Disabling service: $serviceName" -ForegroundColor Yellow
+    try {
+        Stop-Service -Name $serviceName -ErrorAction SilentlyContinue
+        Set-Service -Name $serviceName -StartupType Disabled
+        Write-Host "Service $serviceName disabled successfully." -ForegroundColor Green
+    } catch {
+        Write-Host "Failed to disable service $serviceName. It may not exist on this system." -ForegroundColor Red
+    }
+}
+
+# Function to disable a scheduled task
+function Disable-ScheduledTask {
+    param (
+        [string]$taskPath
+    )
+    Write-Host "Disabling scheduled task: $taskPath" -ForegroundColor Yellow
+    try {
+        schtasks /Change /TN $taskPath /Disable
+        Write-Host "Scheduled task $taskPath disabled successfully." -ForegroundColor Green
+    } catch {
+        Write-Host "Failed to disable scheduled task $taskPath. It may not exist on this system." -ForegroundColor Red
+    }
+}
+
+# Function to set a registry value
+function Set-RegistryValue {
+    param (
+        [string]$path,
+        [string]$name,
+        [string]$value
+    )
+    Write-Host "Setting registry value: Path = $path, Name = $name, Value = $value" -ForegroundColor Yellow
+    try {
+        New-Item -Path $path -Force | Out-Null
+        Set-ItemProperty -Path $path -Name $name -Value $value
+        Write-Host "Registry value $name set successfully at $path." -ForegroundColor Green
+    } catch {
+        Write-Host "Failed to set registry value $name at $path." -ForegroundColor Red
+    }
+}
+
+# Disable NVIDIA Telemetry Services
+$nvTelemetryServices = @(
+    "NvTelemetryContainer",
+    "NvContainerLocalSystem",
+    "NvContainerNetworkService"
+)
+
+foreach ($service in $nvTelemetryServices) {
+    Disable-Service -serviceName $service
+}
+
+# Disable NVIDIA Telemetry Scheduled Tasks
+$nvTelemetryTasks = @(
+    "\NvTmMon",
+    "\NvTmRep",
+    "\NvTmRepOnLogon"
+)
+
+foreach ($task in $nvTelemetryTasks) {
+    Disable-ScheduledTask -taskPath $task
+}
+
+# Disable NVIDIA Telemetry via Registry
+Set-RegistryValue -path "HKLM:\Software\NVIDIA Corporation\Global\NvTelemetry" -name "EnableTelemetry" -value 0
+
+# Disable AMD User Experience Program via Registry
+Set-RegistryValue -path "HKLM:\Software\AMD\CN" -name "UserExperienceProgram" -value 0
+
+# Disable AMD External Events Utility Service
+Disable-Service -serviceName "AMD External Events Utility"
+
+Write-Host "nVidia and AMD tracking and Telemetry disabled." -ForegroundColor Green
+
 # Check for OGCWin shortcut.
 # Define the desktop path for the OGCWin shortcut
 $desktopPath = [System.IO.Path]::Combine([System.Environment]::GetFolderPath("Desktop"), "OGCWin.lnk")
