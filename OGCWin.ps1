@@ -50,10 +50,12 @@ Write-Host "✔ Customizing Windows settings for a better gaming experience" -Fo
 Write-Host "✔ Improving privacy and performance" -ForegroundColor Green
 Write-Host "✔ Allow you to remove or install common applications." -ForegroundColor Green
 Write-Host ""
-Write-Host "! For optimal performance and privacy, settings marked [Recommended] should be chosen. !" -ForegroundColor Magenta
+Write-Host "! For optimal performance and privacy, apply settings marked as [Recommended] !" -ForegroundColor Magenta
 Write-Host ""
-Write-Host "⚠ IMPORTANT: This utility will make changes to your system, but no critical functionality will be lost." -ForegroundColor Red
-Write-Host "Please read each prompt carefully before proceeding." -ForegroundColor Red
+Write-Host "⚠ THIS UTILITY WILL MAKE CAHNGES TO YOUR SYSTEM, ⚠" -ForegroundColor Red
+Write-Host "⚠  BUT NO CRITICAL FUNCTIONALITY WILL BE LOST.   ⚠" -ForegroundColor Red
+Write-Host ""
+Write-Host "⚠ Please read each prompt carefully before proceeding. ⚠" -ForegroundColor Magenta
 Write-Host ""
 
 # Confirm User Wants to Continue
