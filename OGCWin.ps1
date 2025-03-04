@@ -434,8 +434,7 @@ if ($removeBloatware -eq "y") {
         "Microsoft.WindowsMaps",
         "Microsoft.WindowsSoundRecorder",
         "Microsoft.WindowsCommunicationsApps",   # Mail & Calendar
-        "Microsoft.Windows.Photos",
-        "Microsoft.Windows.Cortana"
+        "Microsoft.Windows.Photos"
     )
 
     foreach ($app in $crapware) {
@@ -1458,5 +1457,6 @@ Write-Host "In future you can easily run this utility by simply" -ForegroundColo
 Write-Host "double clicking on the OGCWin icon on your desktop." -ForegroundColor Magenta
 Start-Sleep -Seconds 1
 Write-Host ""
-Write-Host "You may now close the window." -ForegroundColor Green
-Pause
+Write-Host "This window will automatically close." -ForegroundColor Green
+Start-Sleep -Seconds 3
+exit
