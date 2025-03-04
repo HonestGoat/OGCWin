@@ -74,7 +74,10 @@ Start-Sleep -Seconds 1
 Write-Host "Starting OGC Windows Utility..." -ForegroundColor Cyan
 Start-Sleep -Seconds 1
 
-# Start OGC Windows Utility in a new PowerShell window with a black background
+# Store the current PowerShell process ID
+$pidToKill = $PID
+
+# Define PowerShell command to execute
 $psCommand = @'
 $host.UI.RawUI.BackgroundColor = 'Black'
 $host.UI.RawUI.ForegroundColor = 'White'
@@ -82,5 +85,11 @@ Clear-Host
 irm https://raw.githubusercontent.com/HonestGoat/OGCWin/main/OGCWin.ps1 | iex
 '@
 
-Start-Process powershell.exe -ArgumentList "-NoExit -ExecutionPolicy Bypass -NoProfile -Command `"$psCommand`"" -Verb RunAs
-exit 1
+# Detect the correct PowerShell executable
+$powerShellExe = if ($PSVersionTable.PSEdition -eq "Core") { "pwsh.exe" } else { "powershell.exe" }
+
+# Start OGC Windows Utility in a new PowerShell window with admin privileges
+Start-Process $powerShellExe -ArgumentList "-NoExit -ExecutionPolicy Bypass -NoProfile -Command `"$psCommand`"" -Verb RunAs
+
+# Forcefully terminate the original PowerShell session to prevent lingering messages
+Stop-Process -Id $pidToKill -Force
