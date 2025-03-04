@@ -163,7 +163,101 @@ if (!(Test-Path $locationKey)) { New-Item -Path $locationKey -Force | Out-Null }
 Set-ItemProperty -Path $locationKey -Name "EnableLocation" -Type DWord -Value 0 -Force
 Write-Host "Location Tracking Disabled." -ForegroundColor Green
 
-Write-Host "Your privacy has been enhanced and tracking, telemetry and data collection has been disabled!" -ForegroundColor Green
+# Disable tips and suggestions
+Write-Host "Disabling all tips, suggestions and advertisements." -ForegroundColor Magenta 
+
+# Function to set registry values
+function Set-RegistryValue {
+    param (
+        [string]$Path,
+        [string]$Name,
+        [string]$Value,
+        [Microsoft.Win32.RegistryValueKind]$Type = [Microsoft.Win32.RegistryValueKind]::DWord
+    )
+    try {
+        if (-Not (Test-Path $Path)) {
+            New-Item -Path $Path -Force | Out-Null
+        }
+        Set-ItemProperty -Path $Path -Name $Name -Value $Value -Type $Type
+        Write-Host "Set $Name at $Path to $Value" -ForegroundColor Green
+    } catch {
+        Write-Host "Failed to set $Name at $Path" -ForegroundColor Red
+    }
+}
+
+# Disable Windows Welcome Experience
+Set-RegistryValue -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" -Name "SubscribedContent-310093Enabled" -Value 0
+
+# Disable Tailored Experiences
+Set-RegistryValue -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Privacy" -Name "TailoredExperiencesWithDiagnosticDataEnabled" -Value 0
+
+# Disable App Suggestions in Start Menu
+Set-RegistryValue -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" -Name "SubscribedContent-338388Enabled" -Value 0
+
+# Disable Windows Tips
+Set-RegistryValue -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" -Name "SubscribedContent-338389Enabled" -Value 0
+
+# Disable Ads in File Explorer
+Set-RegistryValue -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "ShowSyncProviderNotifications" -Value 0
+
+# Disable 'Get More Out of Windows' Notifications
+Set-RegistryValue -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\UserProfileEngagement" -Name "ScoobeSystemSettingEnabled" -Value 0
+
+# Disable 'Suggested Content' in Settings App
+Set-RegistryValue -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" -Name "SubscribedContent-353694Enabled" -Value 0
+
+# Disable 'Show Me Windows Welcome Experience' After Updates
+Set-RegistryValue -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" -Name "SubscribedContent-353696Enabled" -Value 0
+
+# Disable 'Suggested Apps' in Share Dialog
+Set-RegistryValue -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" -Name "SubscribedContent-353698Enabled" -Value 0
+
+# Disable 'Windows Spotlight' on Lock Screen
+Set-RegistryValue -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" -Name "RotatingLockScreenEnabled" -Value 0
+Set-RegistryValue -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" -Name "RotatingLockScreenOverlayEnabled" -Value 0
+
+# Disable 'Get Even More Out of Windows' Page in Settings
+Set-RegistryValue -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\UserProfileEngagement" -Name "ScoobeSystemSettingEnabled" -Value 0
+
+# Disable 'Consumer Features' (e.g., Candy Crush installation)
+Set-RegistryValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\CloudContent" -Name "DisableWindowsConsumerFeatures" -Value 1
+
+# Disable 'Microsoft Account' Notifications
+Set-RegistryValue -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Notifications\Settings\Windows.SystemToast.MicrosoftAccount" -Name "Enabled" -Value 0
+
+# Disable 'Windows Defender' Notifications
+Set-RegistryValue -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Notifications\Settings\Windows.SystemToast.SecurityAndMaintenance" -Name "Enabled" -Value 0
+
+# Disable 'Windows Update' Notifications
+Set-RegistryValue -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Notifications\Settings\WindowsUpdateClient" -Name "Enabled" -Value 0
+
+# Disable 'OneDrive' Notifications
+Set-RegistryValue -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Notifications\Settings\OneDrive" -Name "Enabled" -Value 0
+
+# Disable 'Get Office' Notifications
+Set-RegistryValue -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Notifications\Settings\OfficeHub" -Name "Enabled" -Value 0
+
+# Disable 'Suggested Apps' in Share Dialog
+Set-RegistryValue -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" -Name "SubscribedContent-353698Enabled" -Value 0
+
+# Disable 'Online Tips' in Settings App
+Set-RegistryValue -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" -Name "SubscribedContent-353702Enabled" -Value 0
+
+# Disable 'Windows Ink Workspace' Suggested Apps
+Set-RegistryValue -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\PenWorkspace" -Name "PenWorkspaceButtonDesiredVisibility" -Value 0
+Set-RegistryValue -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\PenWorkspace" -Name "SuggestedAppsEnabled" -Value 0
+
+# Disable 'Windows Spotlight' on Lock Screen
+Set-RegistryValue -Path "HKCU:\Software\Policies\Microsoft\Windows\CloudContent" -Name "DisableWindowsSpotlightFeatures" -Value 1
+Set-RegistryValue -Path "HKCU:\Software\Policies\Microsoft\Windows\CloudContent" -Name "DisableWindowsConsumerFeatures" -Value 1
+Set-RegistryValue -Path "HKCU:\Software\Policies\Microsoft\Windows\CloudContent" -Name "DisableSoftLanding" -Value 1
+
+# Disable 'Windows Tips' Notifications
+Set-RegistryValue -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" -Name "SubscribedContent-338393Enabled" -Value 0
+
+Write-Host "Tips and suggestions have now been disabled." -ForegroundColor Green
+Start-Sleep -Seconds 1
+Write-Host "Your privacy has been enhanced. Tracking, telemetry, data collection and suggestions have been disabled!" -ForegroundColor Green
 
 # Prompt the user for consent to block telemetry domains
 $blockTelemetry = Read-Host "Do you want to block known Microsoft tracking and telemetry domains via the hosts file? [Recommended] (y/n)"
