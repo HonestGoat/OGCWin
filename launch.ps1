@@ -69,10 +69,12 @@ if (-not (Test-WinGet)) {
 }
 
 # Check PowerShell version
+Start-Sleep -Seconds 1
 Write-Host "Checking Powershell version..." -ForegroundColor Magenta
 
 # Install latest PowerShell using WinGet
-winget install Microsoft.Powershell --silent --accept-package-agreements --accept-source-agreements
+winget install Microsoft.Powershell --source winget --silent --accept-package-agreements --accept-source-agreements
+Start-Sleep -Seconds 1
 
 Write-Host "All dependencies installed." -ForegroundColor Green
 Start-Sleep -Seconds 1
