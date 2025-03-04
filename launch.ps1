@@ -68,10 +68,23 @@ if (-not (Test-WinGet)) {
     }
 }
 
-Write-Host "All dependencies detected." -ForegroundColor Green
+# Check PowerShell version
+Write-Host "Checking Powershell version..." -ForegroundColor Magenta
+if ($PSVersionTable.PSVersion.Major -lt 7) {
+    Write-Host "PowerShell version is too old. Installing latest version..." -ForegroundColor Yellow
+
+    # Install PowerShell 7 silently using WinGet
+    winget install Microsoft.Powershell --silent --accept-package-agreements --accept-source-agreements
+
+    Write-Host "PowerShell update complete." -ForegroundColor Green
+} else {
+    Write-Host "PowerShell version requirements met. No action needed." -ForegroundColor Green
+}
+
+Write-Host "All dependencies installed." -ForegroundColor Green
 Start-Sleep -Seconds 1
 
-Write-Host "Starting OGC Windows Utility..." -ForegroundColor Cyan
+Write-Host "Starting OGC Windows Utility..." -ForegroundColor Magenta
 Start-Sleep -Seconds 1
 
 # Start OGC Windows Utility in a new PowerShell window with a black background
