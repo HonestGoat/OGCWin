@@ -1,8 +1,8 @@
 # OGC Windows and Gaming Utility by Honest Goat
-# Version: 1.0
+# Version: 1.1
 # This script disables tracking and data collection, optimizes Windows for gaming, removes bloatware,
 # disables invasive and annoying features like CoPilot and Recall, removes Edge integrations and annoyances
-# and installs a host of common software and video drivers.
+# and allows the user to install a host of common applications drivers.
 
 # Set PowerShell Execution Policy to allow scripts (requires admin)
 Set-ExecutionPolicy Bypass -Scope Process -Force
@@ -50,7 +50,7 @@ Write-Host "✔ Customizing Windows settings for a better gaming experience" -Fo
 Write-Host "✔ Improving privacy and performance" -ForegroundColor Green
 Write-Host "✔ Allow you to remove or install common applications." -ForegroundColor Green
 Write-Host ""
-Write-Host "! For an optimal Windows configuration for gamers, settings marked [Recommended] should be chosen. !" -ForegroundColor Magenta
+Write-Host "! For optimal performance and privacy, settings marked [Recommended] should be chosen. !" -ForegroundColor Magenta
 Write-Host ""
 Write-Host "⚠ IMPORTANT: This utility will make changes to your system, but no critical functionality will be lost." -ForegroundColor Red
 Write-Host "Please read each prompt carefully before proceeding." -ForegroundColor Red
@@ -335,7 +335,7 @@ if ($removeBloatware -eq "y") {
 }
 
 # Prompt the user about "Your Phone" app
-$useYourPhone = Read-Host "Do you want to use 'Your Phone' app to integrate your phone with Windows? (y/n)"
+$useYourPhone = Read-Host "Do you want to use the 'Your Phone' app to integrate your phone with Windows? (y/n)"
 
 # Check if "Your Phone" is installed
 $yourPhoneInstalled = Get-AppxPackage -Name "Microsoft.YourPhone" -ErrorAction SilentlyContinue
@@ -384,7 +384,7 @@ $xboxApps = @{
 }
 
 # Prompt the user
-$useXbox = Read-Host "Do you want to use Windows Game Pass or Xbox features? (y/n)"
+$useXbox = Read-Host "Do you want to use Windows Game Pass or xBox features? (y/n)"
 
 foreach ($app in $xboxApps.Keys) {
     $isInstalled = Test-AppInstalled -AppName $app
@@ -473,11 +473,6 @@ if ($useTeams -eq "y") {
     Write-Host "Removing 'Meet Now' icon from the taskbar..." -ForegroundColor Yellow
     reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer" /v "HideSCAMeetNow" /t REG_DWORD /d 1 /f
     Write-Host "'Meet Now' icon removed from the taskbar." -ForegroundColor Green
-
-    # Refresh the taskbar to apply changes immediately
-    Write-Host "Restarting Windows Explorer to apply changes..." -ForegroundColor Cyan
-    Stop-Process -Name explorer -Force
-    Start-Process -FilePath "explorer.exe" -ArgumentList "/n" -WindowStyle Hidden
 } else {
     Write-Host "Invalid selection. No changes made to Microsoft Teams." -ForegroundColor Red
 }
@@ -541,22 +536,8 @@ if ($win11) {
         reg add "HKCU\Software\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}" /f
         reg add "HKCU\Software\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}\InprocServer32" /ve /t REG_SZ /d "" /f
 
-        Write-Host "Windows 10 UI tweaks applied! Restarting Explorer for changes to take effect..." -ForegroundColor Green
-
-        # Restart Explorer to apply changes
-        Stop-Process -Name explorer -Force
-        Start-Sleep -Seconds 2
-        Start-Process -FilePath "explorer.exe" -ArgumentList "/n" -WindowStyle Hidden
+        Write-Host "Windows 10 UI tweaks applied! Explorer will restart after all tweaks have been selected." -ForegroundColor Green
     }
-}
-
-# Function to restart Windows Explorer to apply changes
-function Restart-Explorer {
-    Write-Host "Restarting Windows Explorer..." -ForegroundColor Yellow
-    Stop-Process -Name explorer -Force
-    Start-Sleep -Seconds 2
-    Start-Process -FilePath "explorer.exe" -ArgumentList "/n" -WindowStyle Hidden
-    Write-Host "Windows Explorer restarted." -ForegroundColor Green
 }
 
 # Function to set registry value
@@ -585,36 +566,27 @@ if ($debloatTaskbar -eq "y") {
     Set-RegistryValue -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced\People" -Name "PeopleBand" -Value 0  # Remove People Icon
     Set-RegistryValue -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\PenWorkspace" -Name "PenWorkspaceButtonDesiredVisibility" -Value 0  # Remove Ink Workspace
 
-    # Remove the Weather/News Widget (Completely disable)
-    Set-RegistryValue -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Feeds" -Name "EnableFeeds" -Value 0
-    Write-Host "Weather & News Widget removed." -ForegroundColor Green
+    Write-Host "Disabling Weather & News Widget..." -ForegroundColor Magenta
 
-    # Function to remove (unpin) a taskbar icon
-    function Remove-TaskbarIcon {
-        param ([string]$AppName)
+    # Windows 10 & 11: Disable the Feeds & News Widget in Taskbar
+    Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Feeds" -Name "ShellFeedsTaskbarViewMode" -Type DWord -Value 2 -Force
+    Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Feeds" -Name "EnableFeeds" -Type DWord -Value 0 -Force
     
-        $shell = New-Object -ComObject Shell.Application
-        $taskbar = $shell.Namespace(0)
-    
-        foreach ($item in $taskbar.Items()) {
-            if ($item.Name -match $AppName) {
-              Write-Host "Unpinning $AppName from taskbar..." -ForegroundColor Yellow
-              $item.InvokeVerb("Unpin from taskbar")
-               return
-            }
-        }
+    # Windows 11: Disable Widgets via Taskbar settings
+    if ((Get-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name TaskbarDa -ErrorAction SilentlyContinue)) {
+        Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name TaskbarDa -Type DWord -Value 0 -Force
     }
-
-    # Unpin Microsoft Store from Taskbar
-    Unpin-TaskbarIcon "Microsoft Store"
-
-    # Unpin Mail from Taskbar
-    Unpin-TaskbarIcon "Mail"
-
-    Write-Host "Taskbar debloating complete. Restarting Explorer..." -ForegroundColor Green
-    Stop-Process -Name explorer -Force
-    Start-Process -FilePath "explorer.exe" -ArgumentList "/n" -WindowStyle Hidden
-
+    
+    # Windows 10 & 11: Disable News & Interests via Taskbar settings
+    Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "TaskbarMn" -Type DWord -Value 0 -Force
+    Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Feeds" -Name "EnableFeeds" -Type DWord -Value 0 -Force
+    
+#    # Disable the Widgets Service in Windows 11
+#    Get-Service "Widgets" -ErrorAction SilentlyContinue | Stop-Service -Force
+#    Set-Service -Name "Widgets" -StartupType Disabled
+    
+    Write-Host "Weather & News Widget fully disabled." -ForegroundColor Green
+        
 } else {
     Write-Host "Skipping taskbar debloating." -ForegroundColor Cyan
 }
@@ -639,12 +611,6 @@ if ($enableDarkMode -eq "y") {
     } else {
         Write-Host "Microsoft Office is not installed or the registry key does not exist. Skipping Office Dark Mode." -ForegroundColor Yellow
     }
-
-    # Restart Windows Explorer to apply changes immediately
-    Write-Host "Restarting Windows Explorer to apply changes..."
-    Stop-Process -Name explorer -Force
-    Start-Process -FilePath "explorer.exe" -ArgumentList "/n" -WindowStyle Hidden
-    Write-Host "Windows Explorer restarted." -ForegroundColor Green
 } else {
     Write-Host "Dark Mode not enabled." -ForegroundColor Cyan
 }
@@ -664,10 +630,14 @@ if ($gameOptimizations -eq "y") {
     Write-Host "Applying gaming optimizations..." -ForegroundColor Magenta
     reg add "HKCU\Software\Microsoft\GameBar" /v "AllowAutoGameMode" /t REG_DWORD /d 1 /f
     reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\GraphicsSettings" /v "HwSchMode" /t REG_DWORD /d 2 /f
-    Stop-Process -Name explorer -Force
-    Start-Process -FilePath "explorer.exe" -ArgumentList "/n" -WindowStyle Hidden
     Write-Host "Gaming features enabled!" -ForegroundColor Green
 }
+
+# Restart Explorer to apply any UI and Taskbar Tweaks
+Write-Host "Restarting Windows Explorer to apply changes..." -ForegroundColor Cyan
+Stop-Process -Name explorer -Force
+Start-Process -FilePath "explorer.exe" -ArgumentList "/n" -WindowStyle Hidden
+Write-Host "Windows Explorer Restarted." -ForegroundColor Green
 
 # Install Gaming Apps (Steam, Epic, GOG, Discord, Medal)
 $installGamingApps = Read-Host "Do you want to install gaming apps like Steam, Epic, GOG, Discord, and Medal? (y/n)"
@@ -874,48 +844,57 @@ if ($installGPUDrivers -eq "y") {
 
     $gpuChoice = Read-Host "Enter the number of your choice (1/2/3/4)"
 
-    # Function to Install NVIDIA Drivers
+    # Function to Download & Install Driver Using curl.exe
+    function Install-Driver {
+        param (
+            [string]$DriverURL,
+            [string]$DriverPath,
+            [string]$InstallArgs
+        )
+
+        Write-Host "Downloading driver from $DriverURL ..." -ForegroundColor Cyan
+        Start-Process -FilePath "curl.exe" -ArgumentList "-L -o `"$DriverPath`" `"$DriverURL`"" -NoNewWindow -Wait
+
+        if (Test-Path $DriverPath) {
+            Write-Host "Download complete. Installing driver..." -ForegroundColor Green
+            Start-Process -FilePath $DriverPath -ArgumentList $InstallArgs -NoNewWindow -Wait
+            Remove-Item -Path $DriverPath -Force
+            Write-Host "Driver installed successfully." -ForegroundColor Green
+        } else {
+            Write-Host "Failed to download the driver." -ForegroundColor Red
+        }
+    }
+
+    # NVIDIA Driver Installation
     function Install-NVIDIA-Drivers {
-        Write-Host "Downloading and installing NVIDIA drivers..." -ForegroundColor Cyan
-        $nvidiaDriverURL = "https://us.download.nvidia.com/Windows/572.60/572.60-desktop-win10-win11-64bit-international-dch-whql.exe"
-        $nvidiaDriverPath = "$env:TEMP\NVIDIA-Driver.exe"
-        Invoke-WebRequest -Uri $nvidiaDriverURL -OutFile $nvidiaDriverPath
-        Start-Process -FilePath $nvidiaDriverPath -ArgumentList "-s" -Wait
-        Remove-Item -Path $nvidiaDriverPath
-        Write-Host "NVIDIA drivers installed successfully." -ForegroundColor Green
+        Install-Driver `
+            -DriverURL "https://us.download.nvidia.com/Windows/572.60/572.60-desktop-win10-win11-64bit-international-dch-whql.exe" `
+            -DriverPath "$env:TEMP\NVIDIA-Driver.exe" `
+            -InstallArgs "-s"
     }
 
-    # Function to Install AMD Drivers
+    # AMD Driver Installation
     function Install-AMD-Drivers {
-        Write-Host "Downloading and installing AMD drivers..." -ForegroundColor Cyan
-        $amdDriverURL = "https://drivers.amd.com/drivers/whql-amd-software-adrenalin-edition-24.12.1-win10-win11-dec-rdna.exe"
-        $amdDriverPath = "$env:TEMP\AMD-Driver.exe"
-        Invoke-WebRequest -Uri $amdDriverURL -OutFile $amdDriverPath
-        Start-Process -FilePath $amdDriverPath -ArgumentList "/INSTALL /SILENT" -Wait
-        Remove-Item -Path $amdDriverPath
-        Write-Host "AMD drivers installed successfully." -ForegroundColor Green
+        Install-Driver `
+            -DriverURL "https://drivers.amd.com/drivers/whql-amd-software-adrenalin-edition-24.12.1-win10-win11-dec-rdna.exe" `
+            -DriverPath "$env:TEMP\AMD-Driver.exe" `
+            -InstallArgs "/INSTALL /SILENT"
     }
 
-    # Function to Install Intel HD Graphics (Integrated)
+    # Intel HD (Integrated Graphics) Installation
     function Install-Intel-HD-Drivers {
-        Write-Host "Downloading and installing Intel HD Graphics drivers (Integrated)..." -ForegroundColor Cyan
-        $intelHDDriverURL = "https://downloadmirror.intel.com/815427/gfx_win_101.2111.exe"
-        $intelHDDriverPath = "$env:TEMP\Intel-HD-Driver.exe"
-        Invoke-WebRequest -Uri $intelHDDriverURL -OutFile $intelHDDriverPath
-        Start-Process -FilePath $intelHDDriverPath -ArgumentList "-s" -Wait
-        Remove-Item -Path $intelHDDriverPath
-        Write-Host "Intel HD Graphics drivers installed successfully." -ForegroundColor Green
+        Install-Driver `
+            -DriverURL "https://downloadmirror.intel.com/815427/gfx_win_101.2111.exe" `
+            -DriverPath "$env:TEMP\Intel-HD-Driver.exe" `
+            -InstallArgs "-s"
     }
 
-    # Function to Install Intel Arc Graphics (Dedicated)
+    # Intel Arc (Dedicated GPU) Installation
     function Install-Intel-Arc-Drivers {
-        Write-Host "Downloading and installing Intel Arc Graphics drivers (Dedicated)..." -ForegroundColor Cyan
-        $intelArcDriverURL = "https://downloadmirror.intel.com/848516/gfx_win_101.6632.exe"
-        $intelArcDriverPath = "$env:TEMP\Intel-Arc-Driver.exe"
-        Invoke-WebRequest -Uri $intelArcDriverURL -OutFile $intelArcDriverPath
-        Start-Process -FilePath $intelArcDriverPath -ArgumentList "-s" -Wait
-        Remove-Item -Path $intelArcDriverPath
-        Write-Host "Intel Arc Graphics drivers installed successfully." -ForegroundColor Green
+        Install-Driver `
+            -DriverURL "https://downloadmirror.intel.com/848516/gfx_win_101.6632.exe" `
+            -DriverPath "$env:TEMP\Intel-Arc-Driver.exe" `
+            -InstallArgs "-s"
     }
 
     # Process User Choice
@@ -945,7 +924,7 @@ if ($installGPUDrivers -eq "y") {
 }
 
 # Check for OGCWin shortcut.
-# Define the desktop path for the current user
+# Define the desktop path for the OGCWin shortcut
 $desktopPath = [System.IO.Path]::Combine([System.Environment]::GetFolderPath("Desktop"), "OGCWin.lnk")
 
 # Define the shortcut target
@@ -965,7 +944,12 @@ if (-Not (Test-Path $desktopPath)) {
     $Shortcut.IconLocation = "C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe"  # Optional: Set an icon
     $Shortcut.Save()
 
+        # Exempt the shortcut and PowerShell from Windows Defender
+    Start-Process -FilePath "powershell" -Verb RunAs -ArgumentList "-Command Add-MpPreference -ExclusionPath '$desktopPath'"
+    Start-Process -FilePath "powershell" -Verb RunAs -ArgumentList "-Command Add-MpPreference -ExclusionProcess 'powershell.exe'"
+
     Write-Host "OGCWin shortcut created successfully on the desktop." -ForegroundColor Green
+
 } else {
     Write-Host "OGCWin shortcut already exists. No changes made." -ForegroundColor Cyan
 }
@@ -974,6 +958,10 @@ Write-Host "===========================================" -ForegroundColor Green
 Write-Host "  OGC Windows Gaming Utility is complete!  " -ForegroundColor Cyan
 Write-Host "  Enjoy your optimized gaming experience.  " -ForegroundColor Cyan
 Write-Host "===========================================" -ForegroundColor Green
+Write-Host ""
+Start-Sleep -Seconds 1
+Write-Host "In future you can easily run this utility by simply" -ForegroundColor Magenta
+Write-Host "double clicking on  the OGCWin icon on your desktop." -ForegroundColor Magenta
 Start-Sleep -Seconds 1
 Write-Host ""
 Write-Host "You may now close the window." -ForegroundColor Green
