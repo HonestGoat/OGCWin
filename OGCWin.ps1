@@ -179,7 +179,6 @@ function Set-RegistryValue {
             New-Item -Path $Path -Force | Out-Null
         }
         Set-ItemProperty -Path $Path -Name $Name -Value $Value -Type $Type
-        Write-Host "Set $Name at $Path to $Value" -ForegroundColor Green
     } catch {
         Write-Host "Failed to set $Name at $Path" -ForegroundColor Red
     }
