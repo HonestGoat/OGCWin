@@ -127,7 +127,8 @@ Write-Host ""
 function Get-UserSelection {
     while ($true) {
         Write-Host "What mode would you like to launch the OGC Windows Utility in:" -ForegroundColor Cyan
-        Write-Host "1. [NOT AVAILABLE]" -ForegroundColor Red  "Utility Mode - Access the main utility menu" -ForegroundColor Yellow
+        Write-Host ""
+        Write-Host "1. [NOT AVAILABLE] Utility Mode - Access the main utility menu" -ForegroundColor Red
         Write-Host "2. Wizard Mode - Step-by-step guided setup for new installations of Windows" -ForegroundColor Yellow
         $modeChoice = Read-Host "Enter 1 for Utility Mode or 2 for Wizard Mode"
         if ($modeChoice -eq "1") {
