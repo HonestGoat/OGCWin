@@ -120,30 +120,9 @@ Start-Sleep -Seconds 1
 
 Write-Host "All dependencies installed." -ForegroundColor Green
 Start-Sleep -Seconds 1
-
-Write-Host "Starting OGC Windows Utility..." -ForegroundColor Magenta
-Start-Sleep -Seconds 1
+Write-Host ""
 
 # Start OGC Windows Utility or New Windows Setup Wizard a new PowerShell window with a black background
-# Prompt user for mode selection
-Write-Host "What mode would you like to launch the OGC Windows Utility in:" -ForegroundColor Cyan
-Write-Host "1. [NOT AVAILABLE] Utility Mode - Access the main utility menu" -ForegroundColor Yellow
-Write-Host "2. Wizard Mode - Step-by-step guided setup for new installations of Windows" -ForegroundColor Yellow
-$modeChoice = Read-Host "Enter 1 for Utility Mode or 2 for Wizard Mode"
-
-# Determine the script URL based on user choice
-if ($modeChoice -eq "1") {
-    Write-Host "Utility Mode not yet available. The wizard will start instead."
-    Start-Sleep -Seconds 3
-    $modeChoice -eq 2
-    #    $scriptUrl = "https://raw.githubusercontent.com/HonestGoat/OGCWin/main/OGCWin.ps1"
-} elseif ($modeChoice -eq "2") {
-    $scriptUrl = "https://raw.githubusercontent.com/HonestGoat/OGCWin/main/OGCWiz.ps1"
-} else {
-    Write-Host "Invalid selection. Exiting." -ForegroundColor Red
-    exit
-}
-
 # Function to prompt user for mode selection
 function Get-UserSelection {
     while ($true) {
