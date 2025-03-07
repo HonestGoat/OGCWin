@@ -74,7 +74,7 @@ function Test-AppxInstalled {
 function Install-WinGet {
     # Define URLs for dependencies and WinGet
     $vclibsUrl = "https://aka.ms/Microsoft.VCLibs.x64.14.00.Desktop.appx"
-    $xamlUrl = "https://aka.ms/Microsoft.UI.Xaml.2.8"
+    $xamlUrl = "https://raw.githubusercontent.com/HonestGoat/OGCWin/main/Microsoft.UI.Xaml.2.8_8.2501.31001.0_x64.appx"
     $wingetApiUrl = "https://api.github.com/repos/microsoft/winget-cli/releases/latest"
 
     # Set download paths
