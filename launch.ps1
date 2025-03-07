@@ -149,7 +149,8 @@ if (-not (Test-WinGet)) {
         Write-Host "Please follow the manual installation instructions" -ForegroundColor Red
         Write-Host "Pinned in the Tech Support channel in the OGC Discord." -ForegroundColor Red
         Start-Sleep -Seconds 5
-        exit 1
+        pause
+#        exit
     }
 }
 
