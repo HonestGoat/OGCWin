@@ -167,7 +167,7 @@ function New-Shortcut {
 $desktopPath = [System.IO.Path]::Combine([System.Environment]::GetFolderPath("Desktop"), "OGC Windows Utility.lnk")
 
 # Create the shortcut
-Create-Shortcut -TargetPath $OGCWinBatch -ShortcutPath $desktopPath -Description "Launch OGC Windows Utility" -IconPath "C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe"
+New-Shortcut -TargetPath $OGCWinBatch -ShortcutPath $desktopPath -Description "Launch OGC Windows Utility" -IconPath "C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe"
 
 # Function to check if an exclusion exists in Windows Defender
 function Test-ExclusionSet {
@@ -311,6 +311,7 @@ Start-Sleep -Seconds 1
 Write-Host ""
 
 # Clear terminal and display OGC Banner again.
+Clear-Host
 Clear-Host
 $winVer = (Get-CimInstance Win32_OperatingSystem).Caption
 if ($winVer -match "Windows 10 Home" -or $winVer -match "Windows 10 Pro") {
