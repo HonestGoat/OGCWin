@@ -168,7 +168,41 @@ Write-Host "All dependencies installed." -ForegroundColor Green
 Start-Sleep -Seconds 1
 Write-Host ""
 
-# Start OGC Windows Utility or New Windows Setup Wizard a new PowerShell window with a black background
+# Clear terminal and display OGC Banner again.
+clear
+$winVer = (Get-CimInstance Win32_OperatingSystem).Caption
+if ($winVer -match "Windows 10 Home" -or $winVer -match "Windows 10 Pro") {
+    # Windows 10 Banner
+    Write-Host "=======================================" -ForegroundColor DarkBlue
+    Write-Host "       OOOOOO    GGGGGG    CCCCCC      " -ForegroundColor Cyan
+    Write-Host "      OO    OO  GG        CC           " -ForegroundColor Cyan
+    Write-Host "      OO    OO  GG   GGG  CC           " -ForegroundColor Cyan
+    Write-Host "      OO    OO  GG    GG  CC           " -ForegroundColor Cyan
+    Write-Host "       OOOOOO    GGGGGG    CCCCCC      " -ForegroundColor Cyan
+    Write-Host "                                       " -ForegroundColor Cyan
+    Write-Host "    OGC Windows 10 Utility Launcher    " -ForegroundColor Yellow
+    Write-Host "        https://discord.gg/ogc         " -ForegroundColor Magenta
+    Write-Host "        Created by Honest Goat         " -ForegroundColor Green
+    Write-Host "=======================================" -ForegroundColor DarkBlue
+} elseif ($winVer -match "Windows 11 Home" -or $winVer -match "Windows 11 Pro") {
+    # Windows 11 Banner
+    Write-Host "=======================================" -ForegroundColor DarkBlue
+    Write-Host "       OOOOOO    GGGGGG    CCCCCC      " -ForegroundColor Cyan
+    Write-Host "      OO    OO  GG        CC           " -ForegroundColor Cyan
+    Write-Host "      OO    OO  GG   GGG  CC           " -ForegroundColor Cyan
+    Write-Host "      OO    OO  GG    GG  CC           " -ForegroundColor Cyan
+    Write-Host "       OOOOOO    GGGGGG    CCCCCC      " -ForegroundColor Cyan
+    Write-Host "                                       " -ForegroundColor Cyan
+    Write-Host "    OGC Windows 11 Utility Launcher    " -ForegroundColor Yellow
+    Write-Host "        https://discord.gg/ogc         " -ForegroundColor Magenta
+    Write-Host "        Created by Honest Goat         " -ForegroundColor Green
+    Write-Host "=======================================" -ForegroundColor DarkBlue
+} else {
+    Write-Host "Unsupported Windows Version. Exiting." -ForegroundColor Red
+    Start-Sleep -Seconds 2
+    exit
+}
+
 # Function to prompt user for mode selection
 function Get-UserSelection {
     while ($true) {
