@@ -369,7 +369,7 @@ function Get-UserSelection {
         Write-Host "What mode would you like to launch the OGC Windows Utility in:" -ForegroundColor Cyan
         Write-Host ""
         Write-Host "1. [NOT AVAILABLE] Utility Mode - Access the main utility menu" -ForegroundColor Red
-#        Write-Host "1. Utility Mode - Access the main utility menu" -ForegroundColor Yellow
+        # Write-Host "1. Utility Mode - Access the main utility menu" -ForegroundColor Yellow
         Write-Host "2. Wizard Mode - Step-by-step guided setup for new installations of Windows" -ForegroundColor Yellow
         Write-Host "3. Display useful system information" -ForegroundColor Yellow
         $modeChoice = Read-Host "Please make a selection"
@@ -378,9 +378,6 @@ function Get-UserSelection {
             Write-Host "Utility Mode not yet available. The wizard will start instead." -ForegroundColor Red
             Start-Sleep -Seconds 2
             continue
-#            Write-Host "Starting OGC Windows Utility..." -ForegroundColor Magenta
-#            Start-Sleep -Seconds 1
-#            $scriptToRun = if ($windowsVersion -eq "Windows10") { Get-ScriptPath "OGCwin10" } else { Get-ScriptPath "OGCWin11" }
         } elseif ($modeChoice -eq "2") {
             Write-Host "Starting OGC New Windows Setup Wizard..." -ForegroundColor Magenta
             Start-Sleep -Seconds 1
@@ -498,19 +495,35 @@ $(Get-DisplayInfo)
             $systemInfo | Out-File -Encoding utf8 $outputFile
             Write-Host "`nSystem information saved to: $outputFile" -ForegroundColor Green
             Start-Sleep -Seconds 3
+            
+            # **Return to menu instead of executing a script**
+            continue
         } else {
             Write-Host "Invalid selection. Please try again." -ForegroundColor Red
             Start-Sleep -Seconds 2
             continue
         }
 
-        # Execute the selected script if it exists
-        if ($scriptToRun -and (Test-Path $scriptToRun)) {
-            Start-Process powershell.exe -ArgumentList "-NoExit -ExecutionPolicy Bypass -NoProfile -File `"$scriptToRun`"" -Verb RunAs
-            exit
-        } else {
-            Write-Host "Error: Script not found. Please check if the script exists in the scripts folder." -ForegroundColor Red
-            Start-Sleep -Seconds 3
+        # **Execute the selected script in a new PowerShell window with black background**
+        if ($scriptToRun) {
+            if (Test-Path $scriptToRun) {
+                Write-Host "Launching selected mode..." -ForegroundColor Green
+                Start-Sleep -Seconds 1
+
+                # Start the script in a new PowerShell window with black background and close original window
+                $psCommand = @"
+                `$host.UI.RawUI.BackgroundColor = 'Black'
+                `$host.UI.RawUI.ForegroundColor = 'White'
+                Clear-Host
+                Start-Process powershell.exe -ArgumentList '-NoExit -ExecutionPolicy Bypass -NoProfile -File `"$scriptToRun`""' -Verb RunAs
+                exit
+"@
+                Start-Process powershell.exe -ArgumentList "-NoExit -ExecutionPolicy Bypass -NoProfile -Command `"$psCommand`"" -Verb RunAs
+                exit
+            } else {
+                Write-Host "Error: Script not found. Please check if the script exists in the scripts folder." -ForegroundColor Red
+                Start-Sleep -Seconds 3
+            }
         }
     }
 }
