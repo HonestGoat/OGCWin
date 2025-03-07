@@ -1,3 +1,9 @@
+# OGC Windows System Information Tool by Honest Goat
+# Version: 0.1
+# This tool will display all useful system information.
+
+Write-Host "Gathering system information. This may take a minute..." -ForegroundColor Cyan
+
 # PowerShell script to display system information
 $desktopPath = [System.Environment]::GetFolderPath("Desktop")
 $outputFile = "$desktopPath\SystemInfo.txt"
