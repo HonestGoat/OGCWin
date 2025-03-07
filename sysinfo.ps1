@@ -4,7 +4,7 @@
 
 Write-Host "Gathering system information. This may take a minute..." -ForegroundColor Cyan
 
-# Display system information > Paths
+# PowerShell script to display system information
 $desktopPath = [System.Environment]::GetFolderPath("Desktop")
 $outputFile = "$desktopPath\SystemInfo.txt"
 
@@ -20,6 +20,17 @@ function Get-WindowsVersion {
 function Get-WindowsInstallDate {
     $os = Get-CimInstance Win32_OperatingSystem
     return $os.InstallDate
+}
+
+# Function to retrieve Windows product key
+function Get-WindowsProductKey {
+    try {
+        $key = (Get-WmiObject -Query "SELECT * FROM SoftwareLicensingService").OA3xOriginalProductKey
+        if (-not $key) { return "Product key not found (OEM key may be stored in BIOS)" }
+        return $key
+    } catch {
+        return "Could not retrieve product key"
+    }
 }
 
 # Function to get CPU information
@@ -41,9 +52,9 @@ function Get-RAMInfo {
     return "Installed RAM: ${totalRAM}GB"
 }
 
-# Function to get storage information (Model & Capacity only)
+# Function to get storage information (Model & Capacity only, excluding "Virtual Disk")
 function Get-StorageInfo {
-    $drives = Get-PhysicalDisk
+    $drives = Get-PhysicalDisk | Where-Object { $_.Model -ne "Virtual Disk" }
     $output = "Drives:"
     foreach ($drive in $drives) {
         $output += "`n  $($drive.Model) | Size: $([math]::Round($drive.Size / 1GB, 2)) GB"
@@ -82,6 +93,7 @@ $systemInfo = @"
 ===================================
 Windows Version   : $(Get-WindowsVersion)
 Windows Installed : $(Get-WindowsInstallDate)
+Product Key       : $(Get-WindowsProductKey)
 
 CPU              : $(Get-CPUInfo)
 Motherboard      : $(Get-MotherboardInfo)
