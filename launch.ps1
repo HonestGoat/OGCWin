@@ -87,10 +87,11 @@ function Install-WinGet {
             Write-Host "Downloading Microsoft.VCLibs.140.00.UWPDesktop..." -ForegroundColor Yellow
             Start-Process -FilePath "curl.exe" -ArgumentList "-L -o `"$vclibsPath`" `"$vclibsUrl`"" -NoNewWindow -Wait
         }
-        Write-Host "Installing Microsoft.VCLibs.140.00.UWPDesktop..." -ForegroundColor Green
+        Write-Host "Installing Microsoft.VCLibs.140.00.UWPDesktop..." -ForegroundColor Cyan
         Add-AppxPackage -Path $vclibsPath
+        Write-Host "Microsoft.VCLibs.140.00.UWPDesktop installed." -ForegroundColor Green
     } else {
-        Write-Host "Microsoft.VCLibs.140.00.UWPDesktop is already installed." -ForegroundColor Cyan
+        Write-Host "Microsoft.VCLibs.140.00.UWPDesktop is already installed." -ForegroundColor Green
     }
 
     # Check and install Microsoft.UI.Xaml.2.8
@@ -99,10 +100,11 @@ function Install-WinGet {
             Write-Host "Downloading Microsoft.UI.Xaml.2.8..." -ForegroundColor Yellow
             Start-Process -FilePath "curl.exe" -ArgumentList "-L -o `"$xamlPath`" `"$xamlUrl`"" -NoNewWindow -Wait
         }
-        Write-Host "Installing Microsoft.UI.Xaml.2.8..." -ForegroundColor Green
+        Write-Host "Installing Microsoft.UI.Xaml.2.8..." -ForegroundColor Cyan
         Add-AppxPackage -Path $xamlPath
+        Write-Host "Microsoft.UI.Xaml.2.8 installed." -ForegroundColor Green
     } else {
-        Write-Host "Microsoft.UI.Xaml.2.8 is already installed." -ForegroundColor Cyan
+        Write-Host "Microsoft.UI.Xaml.2.8 is already installed." -ForegroundColor Green
     }
 
     # Get the latest WinGet installer URL from GitHub
@@ -118,10 +120,10 @@ function Install-WinGet {
             Write-Host "Downloading WinGet..." -ForegroundColor Yellow
             Start-Process -FilePath "curl.exe" -ArgumentList "-L -o `"$wingetPath`" `"$wingetUrl`"" -NoNewWindow -Wait
         }
-        Write-Host "Installing WinGet..." -ForegroundColor Green
+        Write-Host "Installing WinGet..." -ForegroundColor Cyan
         Add-AppxPackage -Path $wingetPath
     } else {
-        Write-Host "WinGet is already installed." -ForegroundColor Cyan
+        Write-Host "WinGet is already installed." -ForegroundColor Green
     }
 
     # Final verification of installations
@@ -132,6 +134,7 @@ function Install-WinGet {
         # Clean up downloaded files but keep folder structure
         Write-Host "Cleaning up downloaded installation files..." -ForegroundColor Cyan
         Remove-Item -Path "$downloadsFolder\*" -Force -ErrorAction SilentlyContinue
+        Write-Host "Temporary files have been cleaned up." -ForegroundColor Green
     } else {
         Write-Host "Some dependencies failed to install. Please check manually." -ForegroundColor Red
     }
@@ -149,8 +152,7 @@ if (-not (Test-WinGet)) {
         Write-Host "Please follow the manual installation instructions" -ForegroundColor Red
         Write-Host "Pinned in the Tech Support channel in the OGC Discord." -ForegroundColor Red
         Start-Sleep -Seconds 5
-        pause
-#        exit
+        exit
     }
 }
 
