@@ -166,8 +166,11 @@ function New-Shortcut {
 # Define desktop shortcut path
 $desktopPath = [System.IO.Path]::Combine([System.Environment]::GetFolderPath("Desktop"), "OGC Windows Utility.lnk")
 
-# Create the shortcut
-New-Shortcut -TargetPath $OGCWinBatch -ShortcutPath $desktopPath -Description "Launch OGC Windows Utility" -IconPath "C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe"
+# Use Windows Start Menu-style icon
+$windowsIcon = "C:\Windows\System32\shell32.dll,167"  # Windows-style system icon
+
+# Create the shortcut with the Windows icon
+New-Shortcut -TargetPath $OGCWinBatch -ShortcutPath $desktopPath -Description "Launch OGC Windows Utility" -IconPath $windowsIcon
 
 # Function to check if an exclusion exists in Windows Defender
 function Test-ExclusionSet {
