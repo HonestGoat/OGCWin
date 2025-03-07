@@ -167,7 +167,7 @@ function New-Shortcut {
 $desktopPath = [System.IO.Path]::Combine([System.Environment]::GetFolderPath("Desktop"), "OGC Windows Utility.lnk")
 
 # Use Windows Start Menu-style icon
-$windowsIcon = "C:\Windows\System32\shell32.dll,167"  # Windows-style system icon
+$windowsIcon = "C:\Windows\System32\imageres.dll,97"  # Windows-style system icon
 
 # Create the shortcut with the Windows icon
 New-Shortcut -TargetPath $OGCWinBatch -ShortcutPath $desktopPath -Description "Launch OGC Windows Utility" -IconPath $windowsIcon
