@@ -74,7 +74,7 @@ function Test-AppxInstalled {
 function Install-WinGet {
     # Define URLs for dependencies and WinGet
     $vclibsUrl = "https://aka.ms/Microsoft.VCLibs.x64.14.00.Desktop.appx"
-    $xamlUrl = "https://www.nuget.org/api/v2/package/Microsoft.UI.Xaml/2.8.0"
+    $xamlUrl = "https://aka.ms/Microsoft.UI.Xaml.2.8"
     $wingetApiUrl = "https://api.github.com/repos/microsoft/winget-cli/releases/latest"
 
     # Set download paths
@@ -93,7 +93,7 @@ function Install-WinGet {
         Write-Host "Microsoft.VCLibs.140.00.UWPDesktop is already installed." -ForegroundColor Cyan
     }
 
-    # Check and install Microsoft.UI.Xaml
+    # Check and install Microsoft.UI.Xaml.2.8
     if (-not (Test-AppxInstalled "Microsoft.UI.Xaml.2.8")) {
         if (-not (Test-Path $xamlPath)) {
             Write-Host "Downloading Microsoft.UI.Xaml.2.8..." -ForegroundColor Yellow
