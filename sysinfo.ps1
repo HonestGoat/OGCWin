@@ -4,7 +4,7 @@
 
 Write-Host "Gathering system information. This may take a minute..." -ForegroundColor Cyan
 
-# PowerShell script to display system information
+# Display system information > Paths
 $desktopPath = [System.Environment]::GetFolderPath("Desktop")
 $outputFile = "$desktopPath\SystemInfo.txt"
 
@@ -20,17 +20,6 @@ function Get-WindowsVersion {
 function Get-WindowsInstallDate {
     $os = Get-CimInstance Win32_OperatingSystem
     return $os.InstallDate
-}
-
-# Function to retrieve Windows product key
-function Get-WindowsProductKey {
-    try {
-        $key = (Get-WmiObject -Query "SELECT * FROM SoftwareLicensingService").OA3xOriginalProductKey
-        if (-not $key) { return "Product key not found (OEM key may be stored in BIOS)" }
-        return $key
-    } catch {
-        return "Could not retrieve product key"
-    }
 }
 
 # Function to get CPU information
@@ -49,37 +38,30 @@ function Get-MotherboardInfo {
 function Get-RAMInfo {
     $ram = Get-CimInstance Win32_PhysicalMemory
     $totalRAM = ($ram | Measure-Object -Property Capacity -Sum).Sum / 1GB
-    $virtualMemory = Get-CimInstance Win32_OperatingSystem | Select-Object -ExpandProperty TotalVirtualMemorySize
-    return "Installed RAM: ${totalRAM}GB | Virtual Memory: $([math]::Round($virtualMemory / 1MB, 2)) GB"
+    return "Installed RAM: ${totalRAM}GB"
 }
 
-# Function to get storage information
+# Function to get storage information (Model & Capacity only)
 function Get-StorageInfo {
-    $drives = Get-PhysicalDisk | Where-Object MediaType -ne "Unspecified"  # Removes virtual disks
-    $volumes = Get-Volume | Where-Object { $_.DriveLetter -match "[A-Z]" } # Only physical drives with letters
-
+    $drives = Get-PhysicalDisk
     $output = "Drives:"
     foreach ($drive in $drives) {
-        $volume = $volumes | Where-Object { $_.UniqueId -eq $drive.DeviceId }
-        $driveLetter = if ($volume) { "$($volume.DriveLetter):" } else { "No Letter" }
-        $freeSpace = if ($volume) { "{0:N2}" -f ($volume.SizeRemaining / 1GB) } else { "Unknown" }
-        $output += "`n  [$driveLetter] $($drive.Model) | Size: $([math]::Round($drive.Size / 1GB, 2)) GB | Free Space: ${freeSpace} GB | Type: $($drive.MediaType)"
+        $output += "`n  $($drive.Model) | Size: $([math]::Round($drive.Size / 1GB, 2)) GB"
     }
     return $output
 }
 
-# Function to get GPU information (supports multiple GPUs)
+# Function to get GPU information (List each GPU separately)
 function Get-GPUInfo {
     $gpus = Get-CimInstance Win32_VideoController
     $output = "GPUs:"
     foreach ($gpu in $gpus) {
-        $vram = if ($gpu.AdapterRAM -gt 0) { [math]::Round($gpu.DedicatedVideoMemory / 1GB, 2) } else { "Unknown" }
-        $output += "`n  $($gpu.Name) | VRAM: ${vram}GB | Driver: $($gpu.DriverVersion)"
+        $output += "`n  $($gpu.Name)"
     }
     return $output
 }
 
-# Function to get proper display brand and model
+# Function to get display information (Brand & Model only)
 function Get-DisplayInfo {
     $monitors = Get-CimInstance WmiMonitorID -Namespace root\wmi
     $output = "Connected Displays:"
@@ -100,7 +82,6 @@ $systemInfo = @"
 ===================================
 Windows Version   : $(Get-WindowsVersion)
 Windows Installed : $(Get-WindowsInstallDate)
-Product Key       : $(Get-WindowsProductKey)
 
 CPU              : $(Get-CPUInfo)
 Motherboard      : $(Get-MotherboardInfo)
