@@ -2,7 +2,7 @@
 # Version: 0.1
 # This tool will display all useful system information.
 
-Write-Host "Gathering system information. This may take a minute..." -ForegroundColor Cyan
+Write-Host "Gathering system information..." -ForegroundColor Cyan
 
 # PowerShell script to display system information
 $desktopPath = [System.Environment]::GetFolderPath("Desktop")
