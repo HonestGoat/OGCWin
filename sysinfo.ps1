@@ -1,8 +1,14 @@
-# PowerShell script to display system information in an organized format
+# OGC Windows System Information Tool by Honest Goat
+# Version: 0.1
+# This tool will display all useful system information.
+
+Write-Host "Gathering system information. This may take a minute..." -ForegroundColor Cyan
+
+# PowerShell script to display system information
 $desktopPath = [System.Environment]::GetFolderPath("Desktop")
 $outputFile = "$desktopPath\SystemInfo.txt"
 
-# Function to get Windows version (e.g., Windows 11 24H2)
+# Function to get Windows version
 function Get-WindowsVersion {
     $version = (Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion").DisplayVersion
     $edition = (Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion").EditionID
@@ -18,18 +24,12 @@ function Get-WindowsInstallDate {
 
 # Function to retrieve Windows product key
 function Get-WindowsProductKey {
-    (Get-WmiObject -Query "SELECT * FROM SoftwareLicensingService").OA3xOriginalProductKey
-}
-
-# Function to check if Windows updates are available
-function Get-WindowsUpdateStatus {
     try {
-        $updateSession = New-Object -ComObject Microsoft.Update.Session
-        $updateSearcher = $updateSession.CreateUpdateSearcher()
-        $result = $updateSearcher.Search("IsInstalled=0")
-        return if ($result.Updates.Count -gt 0) { "Updates available" } else { "Fully up to date" }
+        $key = (Get-WmiObject -Query "SELECT * FROM SoftwareLicensingService").OA3xOriginalProductKey
+        if (-not $key) { return "Product key not found (OEM key may be stored in BIOS)" }
+        return $key
     } catch {
-        return "Could not check update status"
+        return "Could not retrieve product key"
     }
 }
 
@@ -63,33 +63,27 @@ function Get-StorageInfo {
     return $output
 }
 
-# Function to get GPU information
+# Function to get GPU information (supports multiple GPUs)
 function Get-GPUInfo {
-    $gpu = Get-CimInstance Win32_VideoController
-    return "$($gpu.Name) | VRAM: $([math]::Round($gpu.AdapterRAM / 1GB, 2)) GB | Driver: $($gpu.DriverVersion)"
-}
-
-# Function to get connected display information
-function Get-DisplayInfo {
-    $monitors = Get-CimInstance WmiMonitorID -Namespace root\wmi
-    $output = "Connected Displays:"
-    foreach ($monitor in $monitors) {
-        $model = [System.Text.Encoding]::ASCII.GetString($monitor.UserFriendlyName) -replace '\0'
-        $output += "`n  Model: $model"
+    $gpus = Get-CimInstance Win32_VideoController
+    $output = "GPUs:"
+    foreach ($gpu in $gpus) {
+        $vram = if ($gpu.AdapterRAM -gt 0) { [math]::Round($gpu.AdapterRAM / 1GB, 2) } else { "Unknown" }
+        $output += "`n  $($gpu.Name) | VRAM: ${vram}GB | Driver: $($gpu.DriverVersion)"
     }
     return $output
 }
 
-# Function to get keyboard and mouse information
-function Get-InputDevices {
-    $devices = Get-PnpDevice | Where-Object { $_.Class -match "Keyboard|Mouse" } | Select-Object FriendlyName
-    return "Input Devices:`n" + ($devices.FriendlyName -join "`n  ")
-}
-
-# Function to get audio devices
-function Get-AudioDevices {
-    $audio = Get-CimInstance Win32_SoundDevice
-    return "Audio Devices:`n" + ($audio | ForEach-Object { "  $($_.Manufacturer) $($_.ProductName)" }) -join "`n"
+# Function to get connected display information (including refresh rate)
+function Get-DisplayInfo {
+    $monitors = Get-CimInstance Win32_DesktopMonitor
+    $output = "Connected Displays:"
+    foreach ($monitor in $monitors) {
+        $model = $monitor.Caption
+        $refreshRate = if ($monitor.ScreenRefreshRate -gt 0) { "$($monitor.ScreenRefreshRate)Hz" } else { "Unknown" }
+        $output += "`n  Model: $model | Refresh Rate: $refreshRate"
+    }
+    return $output
 }
 
 # Collect system information
@@ -100,17 +94,14 @@ $systemInfo = @"
 Windows Version   : $(Get-WindowsVersion)
 Windows Installed : $(Get-WindowsInstallDate)
 Product Key       : $(Get-WindowsProductKey)
-Update Status     : $(Get-WindowsUpdateStatus)
 
 CPU              : $(Get-CPUInfo)
 Motherboard      : $(Get-MotherboardInfo)
 RAM              : $(Get-RAMInfo)
 Storage          : $(Get-StorageInfo)
 
-GPU              : $(Get-GPUInfo)
-Displays         : $(Get-DisplayInfo)
-Input Devices    : $(Get-InputDevices)
-Audio Devices    : $(Get-AudioDevices)
+$(Get-GPUInfo)
+$(Get-DisplayInfo)
 
 ===================================
 "@
@@ -118,6 +109,9 @@ Audio Devices    : $(Get-AudioDevices)
 # Display system information
 Write-Host $systemInfo -ForegroundColor Cyan
 
-# Save to a file
-$systemInfo | Out-File -Encoding utf8 $outputFile
-Write-Host "`nSystem information saved to: $outputFile" -ForegroundColor Green
+# Prompt user if they want to save to a file
+$saveToFile = Read-Host "Do you want to save this report to your desktop? (y/n)"
+if ($saveToFile -eq "y") {
+    $systemInfo | Out-File -Encoding utf8 $outputFile
+    Write-Host "`nSystem information saved to: $outputFile" -ForegroundColor Green
+}
