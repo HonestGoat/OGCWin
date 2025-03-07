@@ -1,9 +1,3 @@
-# OGC Windows System Information Tool by Honest Goat
-# Version: 0.1
-# This tool will display all useful system information.
-
-Write-Host "Gathering system information. This may take a minute..." -ForegroundColor Cyan
-
 # PowerShell script to display system information
 $desktopPath = [System.Environment]::GetFolderPath("Desktop")
 $outputFile = "$desktopPath\SystemInfo.txt"
@@ -55,10 +49,15 @@ function Get-RAMInfo {
 
 # Function to get storage information
 function Get-StorageInfo {
-    $drives = Get-PhysicalDisk | Select-Object MediaType, Model, @{Name="Size (GB)"; Expression={"{0:N2}" -f ($_.Size / 1GB)}}
+    $drives = Get-PhysicalDisk | Where-Object MediaType -ne "Unspecified"  # Removes virtual disks
+    $volumes = Get-Volume | Where-Object { $_.DriveLetter -match "[A-Z]" } # Only physical drives with letters
+
     $output = "Drives:"
     foreach ($drive in $drives) {
-        $output += "`n  $($drive.Model) | Size: $($drive.'Size (GB)') GB | Type: $($drive.MediaType)"
+        $volume = $volumes | Where-Object { $_.UniqueId -eq $drive.DeviceId }
+        $driveLetter = if ($volume) { "$($volume.DriveLetter):" } else { "No Letter" }
+        $freeSpace = if ($volume) { "{0:N2}" -f ($volume.SizeRemaining / 1GB) } else { "Unknown" }
+        $output += "`n  [$driveLetter] $($drive.Model) | Size: $([math]::Round($drive.Size / 1GB, 2)) GB | Free Space: ${freeSpace} GB | Type: $($drive.MediaType)"
     }
     return $output
 }
@@ -68,20 +67,22 @@ function Get-GPUInfo {
     $gpus = Get-CimInstance Win32_VideoController
     $output = "GPUs:"
     foreach ($gpu in $gpus) {
-        $vram = if ($gpu.AdapterRAM -gt 0) { [math]::Round($gpu.AdapterRAM / 1GB, 2) } else { "Unknown" }
+        $vram = if ($gpu.AdapterRAM -gt 0) { [math]::Round($gpu.DedicatedVideoMemory / 1GB, 2) } else { "Unknown" }
         $output += "`n  $($gpu.Name) | VRAM: ${vram}GB | Driver: $($gpu.DriverVersion)"
     }
     return $output
 }
 
-# Function to get connected display information (including refresh rate)
+# Function to get proper display brand and model
 function Get-DisplayInfo {
-    $monitors = Get-CimInstance Win32_DesktopMonitor
+    $monitors = Get-CimInstance WmiMonitorID -Namespace root\wmi
     $output = "Connected Displays:"
     foreach ($monitor in $monitors) {
-        $model = $monitor.Caption
-        $refreshRate = if ($monitor.ScreenRefreshRate -gt 0) { "$($monitor.ScreenRefreshRate)Hz" } else { "Unknown" }
-        $output += "`n  Model: $model | Refresh Rate: $refreshRate"
+        $brand = [System.Text.Encoding]::ASCII.GetString($monitor.ManufacturerName) -replace '\0'
+        $model = [System.Text.Encoding]::ASCII.GetString($monitor.UserFriendlyName) -replace '\0'
+        if ($brand -and $model) {
+            $output += "`n  $brand $model"
+        }
     }
     return $output
 }
