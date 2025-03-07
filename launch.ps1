@@ -37,22 +37,171 @@ if ($winVer -match "Windows 10 Home" -or $winVer -match "Windows 10 Pro") {
     exit
 }
 
-Start-Sleep -Seconds 1
+# Function to determine Windows version
+function Get-WindowsVersion {
+    $winVer = (Get-CimInstance Win32_OperatingSystem).Caption
+    if ($winVer -match "Windows 10 Home" -or $winVer -match "Windows 10 Pro") {
+        return "Windows10"
+        Write-Host "Running in Windows 10 mode." -ForegroundColor Cyan
+    } elseif ($winVer -match "Windows 11 Home" -or $winVer -match "Windows 11 Pro") {
+        return "Windows11"
+        Write-Host "Running in Windows 11 mode." -ForegroundColor Cyan
+    } else {
+        Write-Host "Unsupported Windows Version. Exiting." -ForegroundColor Red
+        Start-Sleep -Seconds 2
+        exit
+    }
+}
 
-Write-Host "Checking for dependencies..." -ForegroundColor Cyan
-Start-Sleep -Seconds 2
+# Install OGCWin to ProgramData folder on C Drive.
+Write-Host "Setting up OGCWin..." -ForegroundColor Cyan
+Start-sleep -Seconds 1
 
 # Define OGCWin folder paths
 $parentFolder = "C:\ProgramData\OGC Windows Utility"
 $downloadsFolder = "$parentFolder\downloads"
+$redistributableFolder = "$parentFolder\redist"
+$configurationsFolder = "$parentFolder\configs"
+$imagesFolder = "$parentFolder\images"
+$tempFolder = "$parentFolder\temp"
+$driversFolder = "$parentFolder\drivers"
+$pythonFolder = "$parentFolder\python"
+$scriptsFolder = "$parentFolder\scripts"
 
-# Ensure the folder structure exists (silently)
-if (-not (Test-Path $parentFolder)) { 
-    New-Item -Path $parentFolder -ItemType Directory -Force | Out-Null 
+# Ensure all necessary folders exist
+$folders = @($parentFolder, $downloadsFolder, $redistributableFolder, $configurationsFolder, $imagesFolder, $tempFolder, $driversFolder, $pythonFolder, $scriptsFolder)
+foreach ($folder in $folders) {
+    if (-not (Test-Path $folder)) { 
+        New-Item -Path $folder -ItemType Directory -Force | Out-Null 
+    }
 }
-if (-not (Test-Path $downloadsFolder)) { 
-    New-Item -Path $downloadsFolder -ItemType Directory -Force | Out-Null 
+
+Write-Host "Downloading OGCWin files..." -ForegroundColor Yellow
+Start-Sleep -Seconds 1
+
+# Download urls.cfg (Always overwrite to ensure updates)
+$urlsConfigPath = "$configurationsFolder\urls.cfg"
+$urlsConfigUrl = "https://raw.githubusercontent.com/HonestGoat/OGCWin/main/urls.cfg"
+
+if (Test-Path $urlsConfigPath) {
+    Write-Host "Updating OGCWin..." -ForegroundColor Yellow
+} else {
+    Write-Host "Installing OGCWin..." -ForegroundColor Yellow
 }
+
+Start-Process -FilePath "curl.exe" -ArgumentList "-L -o `"$urlsConfigPath`" `"$urlsConfigUrl`"" -NoNewWindow -Wait
+
+# Function to load URLs from urls.cfg
+function Get-Url {
+    param ($key)
+    $configData = Get-Content -Path $urlsConfigPath | Where-Object { $_ -match "=" }
+    $urlMap = @{}
+
+    foreach ($line in $configData) {
+        $parts = $line -split "=", 2
+        if ($parts.Count -eq 2) {
+            $urlMap[$parts[0].Trim()] = $parts[1].Trim()
+        }
+    }
+
+    if ($urlMap.ContainsKey($key)) {
+        return $urlMap[$key]
+    } else {
+        Write-Host "Warning: URL key '$key' not found in urls.cfg" -ForegroundColor Red
+        return $null
+    }
+}
+
+# Define script names and locations
+$OGClaunch = "$scriptsFolder\launch.ps1"
+$ogcwin10 = "$scriptsFolder\OGCWin10.ps1"
+$ogcwin11 = "$scriptsFolder\OGCWin11.ps1"
+$ogcwiz10 = "$scriptsFolder\OGCWiz10.ps1"
+$ogcwiz11 = "$scriptsFolder\OGCWiz11.ps1"
+$OGCWinBatch = "$parentFolder\OGCWin.bat"
+
+# Function to always update scripts from GitHub
+function Get-Scripts {
+    $scripts = @{
+        "OGClaunch" = $OGClaunch
+        "OGCwin10" = $ogcwin10
+        "OGCWin11" = $ogcwin11
+        "OGCWiz10" = $ogcwiz10
+        "OGCWiz11" = $ogcwiz11
+        "OGCWin" = $OGCWinBatch
+    }
+
+    foreach ($script in $scripts.Keys) {
+        $scriptPath = $scripts[$script]
+        $scriptUrl = Get-Url $script
+
+        # Always redownload and overwrite the scripts
+        Write-Host "Updating $script..." -ForegroundColor Yellow
+        Start-Process -FilePath "curl.exe" -ArgumentList "-L -o `"$scriptPath`" `"$scriptUrl`"" -NoNewWindow -Wait
+    }
+}
+
+# Call function to update scripts
+Get-Scripts
+
+# Function to create a desktop shortcut for OGCWin.bat
+function New-Shortcut {
+    param (
+        [string]$TargetPath,
+        [string]$ShortcutPath,
+        [string]$Description,
+        [string]$IconPath
+    )
+
+    if (-Not (Test-Path $ShortcutPath)) {
+        $WScriptShell = New-Object -ComObject WScript.Shell
+        $Shortcut = $WScriptShell.CreateShortcut($ShortcutPath)
+        $Shortcut.TargetPath = $TargetPath
+        $Shortcut.Description = $Description
+        $Shortcut.IconLocation = $IconPath
+        $Shortcut.Save()
+    }
+}
+
+# Define desktop shortcut path
+$desktopPath = [System.IO.Path]::Combine([System.Environment]::GetFolderPath("Desktop"), "OGC Windows Utility.lnk")
+
+# Create the shortcut
+Create-Shortcut -TargetPath $OGCWinBatch -ShortcutPath $desktopPath -Description "Launch OGC Windows Utility" -IconPath "C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe"
+
+# Function to check if an exclusion exists in Windows Defender
+function Test-ExclusionSet {
+    param ([string]$path)
+    $existingExclusions = Get-MpPreference | Select-Object -ExpandProperty ExclusionPath
+    return $existingExclusions -contains $path
+}
+
+# Add Windows Defender exclusions for OGCWin
+$defenderExclusions = @(
+    "$parentFolder",
+    "$scriptsFolder",
+    "$downloadsFolder",
+    "$redistributableFolder",
+    "$configurationsFolder",
+    "$imagesFolder",
+    "$tempFolder",
+    "$driversFolder",
+    "$pythonFolder",
+    "$OGCWinBatch"
+)
+
+foreach ($path in $defenderExclusions) {
+    if (-Not (Test-ExclusionSet $path)) {
+        Add-MpPreference -ExclusionPath "$path" -ErrorAction SilentlyContinue
+    }
+}
+
+Write-Host "OGCWin setup complete. In future you can launch OGCWin from the desktop shortcut." -ForegroundColor Green
+
+# Check for dependencies for OGCWin
+Start-Sleep -Seconds 1
+Write-Host "Checking for dependencies..." -ForegroundColor Cyan
+Start-Sleep -Seconds 2
 
 # Function to check if WinGet is installed
 function Test-WinGet {
@@ -72,16 +221,16 @@ function Test-AppxInstalled {
 
 # Function to install dependencies and WinGet
 function Install-WinGet {
-    # Define URLs for dependencies and WinGet
-    $vclibsUrl = "https://aka.ms/Microsoft.VCLibs.x64.14.00.Desktop.appx"
-    $xamlUrl = "https://raw.githubusercontent.com/HonestGoat/OGCWin/main/Microsoft.UI.Xaml.2.8_8.2501.31001.0_x64.appx"
-    $wingetApiUrl = "https://api.github.com/repos/microsoft/winget-cli/releases/latest"
+    # Load URLs from config
+    $vclibsUrl = Get-Url "VCLibs"
+    $xamlUrl = Get-Url "UIXaml"
+    $wingetApiUrl = Get-Url "WinGetAPI"
 
     # Set download paths
     $vclibsPath = "$downloadsFolder\Microsoft.VCLibs.x64.14.00.Desktop.appx"
     $xamlPath = "$downloadsFolder\Microsoft.UI.Xaml.2.8_8.2501.31001.0_x64.appx"
 
-    # Check and install Microsoft.VCLibs
+    # Install Microsoft.VCLibs
     if (-not (Test-AppxInstalled "Microsoft.VCLibs.140.00.UWPDesktop")) {
         if (-not (Test-Path $vclibsPath)) {
             Write-Host "Downloading Microsoft.VCLibs.140.00.UWPDesktop..." -ForegroundColor Yellow
@@ -89,12 +238,11 @@ function Install-WinGet {
         }
         Write-Host "Installing Microsoft.VCLibs.140.00.UWPDesktop..." -ForegroundColor Cyan
         Add-AppxPackage -Path $vclibsPath
-        Write-Host "Microsoft.VCLibs.140.00.UWPDesktop installed." -ForegroundColor Green
     } else {
         Write-Host "Microsoft.VCLibs.140.00.UWPDesktop is already installed." -ForegroundColor Green
     }
 
-    # Check and install Microsoft.UI.Xaml.2.8
+    # Install Microsoft.UI.Xaml
     if (-not (Test-AppxInstalled "Microsoft.UI.Xaml.2.8")) {
         if (-not (Test-Path $xamlPath)) {
             Write-Host "Downloading Microsoft.UI.Xaml.2.8..." -ForegroundColor Yellow
@@ -102,19 +250,17 @@ function Install-WinGet {
         }
         Write-Host "Installing Microsoft.UI.Xaml.2.8..." -ForegroundColor Cyan
         Add-AppxPackage -Path $xamlPath
-        Write-Host "Microsoft.UI.Xaml.2.8 installed." -ForegroundColor Green
     } else {
         Write-Host "Microsoft.UI.Xaml.2.8 is already installed." -ForegroundColor Green
     }
 
-    # Get the latest WinGet installer URL from GitHub
+    # Install WinGet
     Write-Host "Fetching latest WinGet release information..." -ForegroundColor Yellow
     $latestRelease = Invoke-RestMethod -Uri $wingetApiUrl
     $wingetAsset = $latestRelease.assets | Where-Object { $_.name -like "*.msixbundle" }
     $wingetUrl = $wingetAsset.browser_download_url
     $wingetPath = "$downloadsFolder\$($wingetAsset.name)"
 
-    # Check and install WinGet
     if (-not (Test-WinGet)) {
         if (-not (Test-Path $wingetPath)) {
             Write-Host "Downloading WinGet..." -ForegroundColor Yellow
@@ -126,27 +272,23 @@ function Install-WinGet {
         Write-Host "WinGet is already installed." -ForegroundColor Green
     }
 
-    # Final verification of installations
+    # Clean up downloaded files
     if (Test-AppxInstalled "Microsoft.VCLibs.140.00.UWPDesktop" -and `
         Test-AppxInstalled "Microsoft.UI.Xaml.2.8" -and `
         Test-WinGet) {
-
-        # Clean up downloaded files but keep folder structure
-        Write-Host "Cleaning up downloaded installation files..." -ForegroundColor Cyan
+        Write-Host "Cleaning up installation files..." -ForegroundColor Cyan
         Remove-Item -Path "$downloadsFolder\*" -Force -ErrorAction SilentlyContinue
-        Write-Host "Temporary files have been cleaned up." -ForegroundColor Green
     } else {
-        Write-Host "Some dependencies failed to install. Please check manually." -ForegroundColor Red
+        Write-Host "Some dependencies failed to install." -ForegroundColor Red
     }
 }
 
-# Winget check completion
+# Winget installation check
 if (-not (Test-WinGet)) {
     Write-Host "WinGet is not installed. Attempting to install..." -ForegroundColor Yellow
     Install-WinGet
-    Start-Sleep -Seconds 5 # Wait for installation to complete
+    Start-Sleep -Seconds 5
 
-    # Re-check installation status
     if (-not (Test-WinGet)) {
         Write-Host "WinGet installation failed. Exiting Utility." -ForegroundColor Red
         Write-Host "Please follow the manual installation instructions" -ForegroundColor Red
@@ -169,7 +311,7 @@ Start-Sleep -Seconds 1
 Write-Host ""
 
 # Clear terminal and display OGC Banner again.
-clear
+Clear-Host
 $winVer = (Get-CimInstance Win32_OperatingSystem).Caption
 if ($winVer -match "Windows 10 Home" -or $winVer -match "Windows 10 Pro") {
     # Windows 10 Banner
@@ -203,27 +345,45 @@ if ($winVer -match "Windows 10 Home" -or $winVer -match "Windows 10 Pro") {
     exit
 }
 
+# Function to determine Windows version
+function Get-WindowsVersion {
+    $winVer = (Get-CimInstance Win32_OperatingSystem).Caption
+    if ($winVer -match "Windows 10 Home" -or $winVer -match "Windows 10 Pro") {
+        return "Windows10"
+    } elseif ($winVer -match "Windows 11 Home" -or $winVer -match "Windows 11 Pro") {
+        return "Windows11"
+    } else {
+        Write-Host "Unsupported Windows Version. Exiting." -ForegroundColor Red
+        Start-Sleep -Seconds 2
+        exit
+    }
+}
+
 # Function to prompt user for mode selection
 function Get-UserSelection {
+    $windowsVersion = Get-WindowsVersion
+    $scriptToRun = $null
+
     while ($true) {
         Write-Host "What mode would you like to launch the OGC Windows Utility in:" -ForegroundColor Cyan
         Write-Host ""
         Write-Host "1. [NOT AVAILABLE] Utility Mode - Access the main utility menu" -ForegroundColor Red
+#        Write-Host "1. Utility Mode - Access the main utility menu" -ForegroundColor Yellow
         Write-Host "2. Wizard Mode - Step-by-step guided setup for new installations of Windows" -ForegroundColor Yellow
         Write-Host "3. Display useful system information" -ForegroundColor Yellow
         $modeChoice = Read-Host "Please make a selection"
 
         if ($modeChoice -eq "1") {
-            Write-Host "Utility Mode not yet available. The wizard will start instead."
-            Start-Sleep -Seconds 3
-            $modeChoice -eq 2
+            Write-Host "Utility Mode not yet available. The wizard will start instead." -ForegroundColor Red
+            Start-Sleep -Seconds 2
+            continue
 #            Write-Host "Starting OGC Windows Utility..." -ForegroundColor Magenta
 #            Start-Sleep -Seconds 1
-#            return "https://raw.githubusercontent.com/HonestGoat/OGCWin/main/OGCWin.ps1"
+#            $scriptToRun = if ($windowsVersion -eq "Windows10") { Get-ScriptPath "OGCwin10" } else { Get-ScriptPath "OGCWin11" }
         } elseif ($modeChoice -eq "2") {
-            Write-Host "Starting OGC New Windows Setup Wizard.." -ForegroundColor Magenta
+            Write-Host "Starting OGC New Windows Setup Wizard..." -ForegroundColor Magenta
             Start-Sleep -Seconds 1
-            return "https://raw.githubusercontent.com/HonestGoat/OGCWin/main/OGCWiz.ps1"
+            $scriptToRun = if ($windowsVersion -eq "Windows10") { Get-ScriptPath "OGCWiz10" } else { Get-ScriptPath "OGCWiz11" }
         } elseif ($modeChoice -eq "3") {
             # SYSTEM INFORMATION SCRIPT
             Write-Host "Gathering system information..." -ForegroundColor Cyan
@@ -233,7 +393,7 @@ function Get-UserSelection {
             $outputFile = "$desktopPath\SystemInfo.txt"
 
             # Function to get Windows version
-            function Get-WindowsVersion {
+            function Get-WindowsVersionInfo {
                 $version = (Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion").DisplayVersion
                 $edition = (Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion").EditionID
                 $os = (Get-CimInstance Win32_OperatingSystem).Caption
@@ -315,7 +475,7 @@ function Get-UserSelection {
 ===================================
     SYSTEM INFORMATION REPORT
 ===================================
-Windows Version   : $(Get-WindowsVersion)
+Windows Version   : $(Get-WindowsVersionInfo)
 Windows Installed : $(Get-WindowsInstallDate)
 Product Key       : $(Get-WindowsProductKey)
 
@@ -337,27 +497,24 @@ $(Get-DisplayInfo)
             $systemInfo | Out-File -Encoding utf8 $outputFile
             Write-Host "`nSystem information saved to: $outputFile" -ForegroundColor Green
             Start-Sleep -Seconds 3
-
         } else {
             Write-Host "Invalid selection. Please try again." -ForegroundColor Red
             Start-Sleep -Seconds 2
+            continue
+        }
+
+        # Execute the selected script if it exists
+        if ($scriptToRun -and (Test-Path $scriptToRun)) {
+            Start-Process powershell.exe -ArgumentList "-NoExit -ExecutionPolicy Bypass -NoProfile -File `"$scriptToRun`"" -Verb RunAs
+            exit
+        } else {
+            Write-Host "Error: Script not found. Please check if the script exists in the scripts folder." -ForegroundColor Red
+            Start-Sleep -Seconds 3
         }
     }
 }
 
-# Get valid script URL from user (or run system info)
-$scriptUrl = Get-UserSelection
-
-# Start the selected mode in a new PowerShell window with a black background (if not system info)
-if ($scriptUrl) {
-    $psCommand = @"
-    `$host.UI.RawUI.BackgroundColor = 'Black'
-    `$host.UI.RawUI.ForegroundColor = 'White'
-    Clear-Host
-    irm $scriptUrl | iex
-"@
-    Start-Process powershell.exe -ArgumentList "-NoExit -ExecutionPolicy Bypass -NoProfile -Command `"$psCommand`"" -Verb RunAs
-    exit
-}
+# Call the function to start selection process
+Get-UserSelection
 
 Write-Host "You may now close this window." -ForegroundColor Green
