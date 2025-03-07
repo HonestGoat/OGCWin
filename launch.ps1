@@ -64,36 +64,77 @@ function Test-WinGet {
     }
 }
 
-# Function to install WinGet
+# Function to check if an Appx package is installed
+function Test-AppxInstalled {
+    param ($PackageName)
+    return $null -ne (Get-AppxPackage | Where-Object { $_.Name -eq $PackageName })
+}
+
+# Function to install dependencies and WinGet
 function Install-WinGet {
     # Define URLs for dependencies and WinGet
     $vclibsUrl = "https://aka.ms/Microsoft.VCLibs.x64.14.00.Desktop.appx"
+    $xamlUrl = "https://www.nuget.org/api/v2/package/Microsoft.UI.Xaml/2.8.0"
     $wingetApiUrl = "https://api.github.com/repos/microsoft/winget-cli/releases/latest"
 
     # Set download paths
     $vclibsPath = "$downloadsFolder\Microsoft.VCLibs.x64.14.00.Desktop.appx"
+    $xamlPath = "$downloadsFolder\Microsoft.UI.Xaml.2.8_8.2501.31001.0_x64.appx"
 
-    # Download and install Microsoft.VCLibs.140.00.UWPDesktop
-    Write-Host "Downloading Microsoft.VCLibs.140.00.UWPDesktop..." -ForegroundColor Yellow
-    Start-Process -FilePath "curl.exe" -ArgumentList "-L -o `"$vclibsPath`" `"$vclibsUrl`"" -NoNewWindow -Wait
-    Add-AppxPackage -Path $vclibsPath
+    # Check and install Microsoft.VCLibs
+    if (-not (Test-AppxInstalled "Microsoft.VCLibs.140.00.UWPDesktop")) {
+        if (-not (Test-Path $vclibsPath)) {
+            Write-Host "Downloading Microsoft.VCLibs.140.00.UWPDesktop..." -ForegroundColor Yellow
+            Start-Process -FilePath "curl.exe" -ArgumentList "-L -o `"$vclibsPath`" `"$vclibsUrl`"" -NoNewWindow -Wait
+        }
+        Write-Host "Installing Microsoft.VCLibs.140.00.UWPDesktop..." -ForegroundColor Green
+        Add-AppxPackage -Path $vclibsPath
+    } else {
+        Write-Host "Microsoft.VCLibs.140.00.UWPDesktop is already installed." -ForegroundColor Cyan
+    }
 
-    # Get the download URL of the latest WinGet installer from GitHub
+    # Check and install Microsoft.UI.Xaml
+    if (-not (Test-AppxInstalled "Microsoft.UI.Xaml.2.8")) {
+        if (-not (Test-Path $xamlPath)) {
+            Write-Host "Downloading Microsoft.UI.Xaml.2.8..." -ForegroundColor Yellow
+            Start-Process -FilePath "curl.exe" -ArgumentList "-L -o `"$xamlPath`" `"$xamlUrl`"" -NoNewWindow -Wait
+        }
+        Write-Host "Installing Microsoft.UI.Xaml.2.8..." -ForegroundColor Green
+        Add-AppxPackage -Path $xamlPath
+    } else {
+        Write-Host "Microsoft.UI.Xaml.2.8 is already installed." -ForegroundColor Cyan
+    }
+
+    # Get the latest WinGet installer URL from GitHub
     Write-Host "Fetching latest WinGet release information..." -ForegroundColor Yellow
     $latestRelease = Invoke-RestMethod -Uri $wingetApiUrl
     $wingetAsset = $latestRelease.assets | Where-Object { $_.name -like "*.msixbundle" }
     $wingetUrl = $wingetAsset.browser_download_url
-
-    # Set WinGet download path
     $wingetPath = "$downloadsFolder\$($wingetAsset.name)"
 
-    # Download and install WinGet
-    Write-Host "Downloading WinGet..." -ForegroundColor Yellow
-    Start-Process -FilePath "curl.exe" -ArgumentList "-L -o `"$wingetPath`" `"$wingetUrl`"" -NoNewWindow -Wait
-    Add-AppxPackage -Path $wingetPath
+    # Check and install WinGet
+    if (-not (Test-WinGet)) {
+        if (-not (Test-Path $wingetPath)) {
+            Write-Host "Downloading WinGet..." -ForegroundColor Yellow
+            Start-Process -FilePath "curl.exe" -ArgumentList "-L -o `"$wingetPath`" `"$wingetUrl`"" -NoNewWindow -Wait
+        }
+        Write-Host "Installing WinGet..." -ForegroundColor Green
+        Add-AppxPackage -Path $wingetPath
+    } else {
+        Write-Host "WinGet is already installed." -ForegroundColor Cyan
+    }
 
-    # Clean up downloaded files but keep folder structure
+    # Final verification of installations
+    if (Test-AppxInstalled "Microsoft.VCLibs.140.00.UWPDesktop" -and `
+        Test-AppxInstalled "Microsoft.UI.Xaml.2.8" -and `
+        Test-WinGet) {
 
+        # Clean up downloaded files but keep folder structure
+        Write-Host "Cleaning up downloaded installation files..." -ForegroundColor Cyan
+        Remove-Item -Path "$downloadsFolder\*" -Force -ErrorAction SilentlyContinue
+    } else {
+        Write-Host "Some dependencies failed to install. Please check manually." -ForegroundColor Red
+    }
 }
 
 # Winget check completion
@@ -101,10 +142,12 @@ if (-not (Test-WinGet)) {
     Write-Host "WinGet is not installed. Attempting to install..." -ForegroundColor Yellow
     Install-WinGet
     Start-Sleep -Seconds 5 # Wait for installation to complete
+
+    # Re-check installation status
     if (-not (Test-WinGet)) {
         Write-Host "WinGet installation failed. Exiting Utility." -ForegroundColor Red
         Write-Host "Please follow the manual installation instructions" -ForegroundColor Red
-        Write-Host "pinned in the Tech Support channel in the OGC Discord." -ForegroundColor Red
+        Write-Host "Pinned in the Tech Support channel in the OGC Discord." -ForegroundColor Red
         Start-Sleep -Seconds 5
         exit 1
     }
@@ -131,7 +174,7 @@ function Get-UserSelection {
         Write-Host "1. [NOT AVAILABLE] Utility Mode - Access the main utility menu" -ForegroundColor Red
         Write-Host "2. Wizard Mode - Step-by-step guided setup for new installations of Windows" -ForegroundColor Yellow
         Write-Host "3. Display useful system information" -ForegroundColor Yellow
-        $modeChoice = Read-Host "Enter 1 for Utility Mode, 2 for Wizard Mode, or 3 for System Info"
+        $modeChoice = Read-Host "Please make a selection"
 
         if ($modeChoice -eq "1") {
             Write-Host "Utility Mode not yet available. The wizard will start instead."
