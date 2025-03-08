@@ -149,12 +149,13 @@ Get-Scripts
 function Get-ScriptPath {
     param ($scriptKey)
     $scriptPaths = @{
-        "OGClaunch" = $ogclaunch
-        "OGCWin10" = $ogcwin10
-        "OGCWin11" = $ogcwin11
-        "OGCWiz10" = $ogcwiz10
-        "OGCWiz11" = $ogcwiz11
-        "SysInfo" = $sysinfo
+        $ogclaunch = "$parentFolder\launch.ps1"
+        $ogcwinbat = "$parentFolder\OGCWin.bat"
+        $ogcwin10 = "$scriptsFolder\OGCWin10.ps1"
+        $ogcwin11 = "$scriptsFolder\OGCWin11.ps1"
+        $ogcwiz10 = "$scriptsFolder\OGCWiz10.ps1"
+        $ogcwiz11 = "$scriptsFolder\OGCWiz11.ps1"
+        $sysinfo = "$scriptsFolder\sysinfo.ps1"
     }
 
     if ($scriptPaths.ContainsKey($scriptKey)) {
