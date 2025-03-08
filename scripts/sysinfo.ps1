@@ -57,7 +57,7 @@ function Get-MicrosoftRecallStatus {
             return "Not Found"
         }
     }
-    return "N/A (Windows 10 or Older)"
+    return "N/A (Recall not supported)"
 }
 
 # Function to get CPU information
