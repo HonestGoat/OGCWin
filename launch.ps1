@@ -137,13 +137,33 @@ function Get-Scripts {
         $scriptPath = $scripts[$script]
         $scriptUrl = Get-Url $script
 
-        # Always redownload and overwrite the scripts
+        # Always redownload and overwrite the scripts silently
         Start-Process -FilePath "curl.exe" -ArgumentList "-s -L -o `"$scriptPath`" `"$scriptUrl`"" -WindowStyle Hidden -Wait
     }
 }
 
 # Call function to update scripts
 Get-Scripts
+
+# Function to get script paths dynamically
+function Get-ScriptPath {
+    param ($scriptKey)
+    $scriptPaths = @{
+        "OGClaunch" = $OGClaunch
+        "OGCwin10" = $ogcwin10
+        "OGCWin11" = $ogcwin11
+        "OGCWiz10" = $ogcwiz10
+        "OGCWiz11" = $ogcwiz11
+        "SysInfo" = $sysinfo
+    }
+
+    if ($scriptPaths.ContainsKey($scriptKey)) {
+        return $scriptPaths[$scriptKey]
+    } else {
+        Write-Host "Warning: Script key '$scriptKey' not found in script paths" -ForegroundColor Red
+        return $null
+    }
+}
 
 # Function to create a desktop shortcut for OGCWin.bat
 function New-Shortcut {
