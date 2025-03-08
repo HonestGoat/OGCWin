@@ -113,8 +113,8 @@ function Get-Url {
 }
 
 # Define script names and locations
-$OGClaunch = "$parentFolder\launch.ps1"
-$OGCWinBatch = "$parentFolder\OGCWin.bat"
+$ogclaunch = "$parentFolder\launch.ps1"
+$ogcwinbat = "$parentFolder\OGCWin.bat"
 $ogcwin10 = "$scriptsFolder\OGCWin10.ps1"
 $ogcwin11 = "$scriptsFolder\OGCWin11.ps1"
 $ogcwiz10 = "$scriptsFolder\OGCWiz10.ps1"
@@ -124,12 +124,12 @@ $sysinfo = "$scriptsFolder\sysinfo.ps1"
 # Function to always update scripts from GitHub
 function Get-Scripts {
     $scripts = @{
-        "OGClaunch" = $OGClaunch
-        "OGCwin10" = $ogcwin10
+        "OGClaunch" = $ogclaunch
+        "OGCWin10" = $ogcwin10
         "OGCWin11" = $ogcwin11
         "OGCWiz10" = $ogcwiz10
         "OGCWiz11" = $ogcwiz11
-        "OGCWin" = $OGCWinBatch
+        "OGCWinBat" = $ogcwinbat
         "SysInfo" = $sysinfo
     }
 
@@ -149,8 +149,8 @@ Get-Scripts
 function Get-ScriptPath {
     param ($scriptKey)
     $scriptPaths = @{
-        "OGClaunch" = $OGClaunch
-        "OGCwin10" = $ogcwin10
+        "OGClaunch" = $ogclaunch
+        "OGCWin10" = $ogcwin10
         "OGCWin11" = $ogcwin11
         "OGCWiz10" = $ogcwiz10
         "OGCWiz11" = $ogcwiz11
@@ -191,7 +191,7 @@ $desktopPath = [System.IO.Path]::Combine([System.Environment]::GetFolderPath("De
 $windowsIcon = "C:\Windows\System32\imageres.dll,97"  # Windows-style system icon
 
 # Create the shortcut with the Windows icon
-New-Shortcut -TargetPath $OGCWinBatch -ShortcutPath $desktopPath -Description "Launch OGC Windows Utility" -IconPath $windowsIcon
+New-Shortcut -TargetPath $ogcwinbat -ShortcutPath $desktopPath -Description "Launch OGC Windows Utility" -IconPath $windowsIcon
 
 # Function to check if an exclusion exists in Windows Defender
 function Test-ExclusionSet {
@@ -211,7 +211,7 @@ $defenderExclusions = @(
     "$tempFolder",
     "$driversFolder",
     "$pythonFolder",
-    "$OGCWinBatch"
+    "$ogcwinbat"
 )
 
 foreach ($path in $defenderExclusions) {
@@ -393,7 +393,7 @@ function Get-UserSelection {
         Write-Host "What mode would you like to launch the OGC Windows Utility in:" -ForegroundColor Cyan
         Write-Host ""
         Write-Host "1. [NOT AVAILABLE YET] Utility Mode - Access the main utility menu" -ForegroundColor Red
-        # Write-Host "1. Utility Mode - Access the main utility menu" -ForegroundColor Yellow
+#        Write-Host "1. Utility Mode - Access the main utility menu" -ForegroundColor Yellow
         Write-Host "2. Wizard Mode - Step-by-step guided setup for new installations of Windows" -ForegroundColor Yellow
         Write-Host "3. Display useful system information" -ForegroundColor Yellow
         $modeChoice = Read-Host "Please make a selection"
@@ -401,19 +401,25 @@ function Get-UserSelection {
         if ($modeChoice -eq "1") {
             Write-Host "Utility Mode not yet available. Please select another option." -ForegroundColor Red
             Start-Sleep -Seconds 2
+            Clear-Host
             continue
+#            Write-Host "Starting OGC Windows Utility..." -ForegroundColor Magenta
+#            Start-Sleep -Seconds 1
+#            $scriptToRun = if ($windowsVersion -eq "Windows10") { Get-ScriptPath ($ogcwin10) } else { Get-ScriptPath ($ogcwin11) }
         } elseif ($modeChoice -eq "2") {
             Write-Host "Starting OGC New Windows Setup Wizard..." -ForegroundColor Magenta
             Start-Sleep -Seconds 1
-            $scriptToRun = if ($windowsVersion -eq "Windows10") { Get-ScriptPath "OGCWiz10" } else { Get-ScriptPath "OGCWiz11" }
+            $scriptToRun = if ($windowsVersion -eq "Windows10") { Get-ScriptPath ($ogcwiz10) } else { Get-ScriptPath ($ogcwiz11) }
         } elseif ($modeChoice -eq "3") {
             Write-Host "Gathering system information..." -ForegroundColor Cyan
             Start-Sleep -Seconds 1
-            $scriptToRun = Get-ScriptPath "SysInfo"
+            $scriptToRun = Get-ScriptPath ($sysinfo)
+            Write-Host ""
             continue
         } else {
             Write-Host "Invalid selection. Please try again." -ForegroundColor Red
             Start-Sleep -Seconds 2
+            Clear-Host
             continue
         }
 
