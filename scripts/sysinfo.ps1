@@ -1,6 +1,5 @@
 # OGC Windows System Information Tool by Honest Goat
-# Version: 0.1
-# This tool will display all useful system information.
+# Version: 0.4 (Fixed Unused Variable & Improved Storage Info)
 
 Write-Host "Gathering system information..." -ForegroundColor Cyan
 
@@ -22,15 +21,43 @@ function Get-WindowsInstallDate {
     return $os.InstallDate
 }
 
-# Function to retrieve Windows product key
+# Function to retrieve Windows product key (Tries both methods)
 function Get-WindowsProductKey {
     try {
+        # Method 1: Get-WmiObject
         $key = (Get-WmiObject -Query "SELECT * FROM SoftwareLicensingService").OA3xOriginalProductKey
-        if (-not $key) { return "Product key not found (OEM key may be stored in BIOS)" }
-        return $key
+        if ($key) { return $key }
+
+        # Method 2: WMIC
+        $key = (wmic path softwareLicensingService get OA3xOriginalProductKey | Select-Object -Skip 1)
+        if ($key -match "\w") { return $key.Trim() }
     } catch {
         return "Could not retrieve product key"
     }
+
+    return "Product key not found (OEM key may be stored in BIOS)"
+}
+
+# Function to check if Microsoft Recall is active (Windows 11 only)
+function Get-MicrosoftRecallStatus {
+    $os = (Get-CimInstance Win32_OperatingSystem).Caption
+    if ($os -match "Windows 11") {
+        # Check if Recall service is running
+        if (Get-Service -Name "Recall" -ErrorAction SilentlyContinue) {
+            return "Active"
+        }
+
+        # Check if Recall is available via DISM
+        $dismCheck = (DISM /Online /Get-FeatureInfo /FeatureName:Recall 2>&1)
+        if ($dismCheck -match "State : Enabled") {
+            return "Active"
+        } elseif ($dismCheck -match "State : Disabled") {
+            return "Available but Disabled"
+        } else {
+            return "Not Found"
+        }
+    }
+    return "N/A (Windows 10 or Older)"
 }
 
 # Function to get CPU information
@@ -52,12 +79,13 @@ function Get-RAMInfo {
     return "Installed RAM: ${totalRAM}GB"
 }
 
-# Function to get storage information (Model & Capacity only, excluding "Virtual Disk")
+# Function to get storage information (Manufacturer, Model & Capacity, excluding "Virtual Disk")
 function Get-StorageInfo {
-    $drives = Get-PhysicalDisk | Where-Object { $_.Model -ne "Virtual Disk" }
+    $drives = Get-CimInstance Win32_DiskDrive | Where-Object { $_.MediaType -ne "Removable Media" -and $_.Model -ne "Virtual Disk" }
     $output = "Drives:"
     foreach ($drive in $drives) {
-        $output += "`n  $($drive.Model) | Size: $([math]::Round($drive.Size / 1GB, 2)) GB"
+        $manufacturer = if ($drive.Manufacturer) { $drive.Manufacturer.Trim() } else { "Manufacturer" }
+        $output += "`n  $manufacturer $($drive.Model) | Size: $([math]::Round($drive.Size / 1GB, 2)) GB"
     }
     return $output
 }
@@ -94,6 +122,7 @@ $systemInfo = @"
 Windows Version   : $(Get-WindowsVersion)
 Windows Installed : $(Get-WindowsInstallDate)
 Product Key       : $(Get-WindowsProductKey)
+Microsoft Recall  : $(Get-MicrosoftRecallStatus)
 
 CPU              : $(Get-CPUInfo)
 Motherboard      : $(Get-MotherboardInfo)

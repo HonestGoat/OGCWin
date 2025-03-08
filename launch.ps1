@@ -81,7 +81,7 @@ Start-Sleep -Seconds 1
 
 # Download urls.cfg (Always overwrite to ensure updates)
 $urlsConfigPath = "$configurationsFolder\urls.cfg"
-$urlsConfigUrl = "https://raw.githubusercontent.com/HonestGoat/OGCWin/main/urls.cfg"
+$urlsConfigUrl = "https://raw.githubusercontent.com/HonestGoat/OGCWin/main/configs/urls.cfg"
 
 if (Test-Path $urlsConfigPath) {
     Write-Host "Updating OGCWin..." -ForegroundColor Yellow
@@ -113,12 +113,13 @@ function Get-Url {
 }
 
 # Define script names and locations
-$OGClaunch = "$scriptsFolder\launch.ps1"
+$OGClaunch = "$parentFolder\launch.ps1"
+$OGCWinBatch = "$parentFolder\OGCWin.bat"
 $ogcwin10 = "$scriptsFolder\OGCWin10.ps1"
 $ogcwin11 = "$scriptsFolder\OGCWin11.ps1"
 $ogcwiz10 = "$scriptsFolder\OGCWiz10.ps1"
 $ogcwiz11 = "$scriptsFolder\OGCWiz11.ps1"
-$OGCWinBatch = "$parentFolder\OGCWin.bat"
+$sysinfo = "$scriptsFolder\sysinfo.ps1"
 
 # Function to always update scripts from GitHub
 function Get-Scripts {
@@ -129,6 +130,7 @@ function Get-Scripts {
         "OGCWiz10" = $ogcwiz10
         "OGCWiz11" = $ogcwiz11
         "OGCWin" = $OGCWinBatch
+        "SysInfo" = $sysinfo
     }
 
     foreach ($script in $scripts.Keys) {
@@ -385,120 +387,9 @@ function Get-UserSelection {
             Start-Sleep -Seconds 1
             $scriptToRun = if ($windowsVersion -eq "Windows10") { Get-ScriptPath "OGCWiz10" } else { Get-ScriptPath "OGCWiz11" }
         } elseif ($modeChoice -eq "3") {
-            # SYSTEM INFORMATION SCRIPT
             Write-Host "Gathering system information..." -ForegroundColor Cyan
-            
-            # Define output path
-            $desktopPath = [System.Environment]::GetFolderPath("Desktop")
-            $outputFile = "$desktopPath\SystemInfo.txt"
-
-            # Function to get Windows version
-            function Get-WindowsVersionInfo {
-                $version = (Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion").DisplayVersion
-                $edition = (Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion").EditionID
-                $os = (Get-CimInstance Win32_OperatingSystem).Caption
-                return "$os $version ($edition)"
-            }
-
-            # Function to get Windows installation date
-            function Get-WindowsInstallDate {
-                $os = Get-CimInstance Win32_OperatingSystem
-                return $os.InstallDate
-            }
-
-            # Function to retrieve Windows product key
-            function Get-WindowsProductKey {
-                try {
-                    $key = (Get-WmiObject -Query "SELECT * FROM SoftwareLicensingService").OA3xOriginalProductKey
-                    if (-not $key) { return "Product key not found (OEM key may be stored in BIOS)" }
-                    return $key
-                } catch {
-                    return "Could not retrieve product key"
-                }
-            }
-
-            # Function to get CPU information
-            function Get-CPUInfo {
-                $cpu = Get-CimInstance Win32_Processor
-                return "$($cpu.Name) | $($cpu.NumberOfCores) Cores, $($cpu.L3CacheSize) KB L3 Cache"
-            }
-
-            # Function to get motherboard information
-            function Get-MotherboardInfo {
-                $board = Get-CimInstance Win32_BaseBoard
-                return "$($board.Manufacturer) $($board.Product)"
-            }
-
-            # Function to get RAM information
-            function Get-RAMInfo {
-                $ram = Get-CimInstance Win32_PhysicalMemory
-                $totalRAM = ($ram | Measure-Object -Property Capacity -Sum).Sum / 1GB
-                return "Installed RAM: ${totalRAM}GB"
-            }
-
-            # Function to get storage information (Model & Capacity only, excluding "Virtual Disk")
-            function Get-StorageInfo {
-                $drives = Get-PhysicalDisk | Where-Object { $_.Model -ne "Virtual Disk" }
-                $output = "Drives:"
-                foreach ($drive in $drives) {
-                    $output += "`n  $($drive.Model) | Size: $([math]::Round($drive.Size / 1GB, 2)) GB"
-                }
-                return $output
-            }
-
-            # Function to get GPU information (List each GPU separately)
-            function Get-GPUInfo {
-                $gpus = Get-CimInstance Win32_VideoController
-                $output = "GPUs:"
-                foreach ($gpu in $gpus) {
-                    $output += "`n  $($gpu.Name)"
-                }
-                return $output
-            }
-
-            # Function to get display information (Brand & Model only)
-            function Get-DisplayInfo {
-                $monitors = Get-CimInstance WmiMonitorID -Namespace root\wmi
-                $output = "Connected Displays:"
-                foreach ($monitor in $monitors) {
-                    $brand = [System.Text.Encoding]::ASCII.GetString($monitor.ManufacturerName) -replace '\0'
-                    $model = [System.Text.Encoding]::ASCII.GetString($monitor.UserFriendlyName) -replace '\0'
-                    if ($brand -and $model) {
-                        $output += "`n  $brand $model"
-                    }
-                }
-                return $output
-            }
-
-            # Collect system information
-            $systemInfo = @"
-===================================
-    SYSTEM INFORMATION REPORT
-===================================
-Windows Version   : $(Get-WindowsVersionInfo)
-Windows Installed : $(Get-WindowsInstallDate)
-Product Key       : $(Get-WindowsProductKey)
-
-CPU              : $(Get-CPUInfo)
-Motherboard      : $(Get-MotherboardInfo)
-RAM              : $(Get-RAMInfo)
-Storage          : $(Get-StorageInfo)
-
-$(Get-GPUInfo)
-$(Get-DisplayInfo)
-
-===================================
-"@
-
-            # Display system information
-            Write-Host $systemInfo -ForegroundColor Cyan
-
-            # Automatically save to file on Desktop
-            $systemInfo | Out-File -Encoding utf8 $outputFile
-            Write-Host "`nSystem information saved to: $outputFile" -ForegroundColor Green
-            Start-Sleep -Seconds 3
-            
-            # **Return to menu instead of executing a script**
+            Start-Sleep -Seconds 1
+            $scriptToRun = Get-ScriptPath "SysInfo"
             continue
         } else {
             Write-Host "Invalid selection. Please try again." -ForegroundColor Red
@@ -506,7 +397,7 @@ $(Get-DisplayInfo)
             continue
         }
 
-        # **Execute the selected script in a new PowerShell window with black background**
+        # Execute the selected script in a new PowerShell window with black background
         if ($scriptToRun) {
             if (Test-Path $scriptToRun) {
                 Write-Host "Launching selected mode..." -ForegroundColor Green
