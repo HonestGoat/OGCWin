@@ -122,16 +122,17 @@ function Get-WindowsProductKey {
         & $produKeyExePath /WindowsKeys /stext $tempKeyFile
 
         if (Test-Path $tempKeyFile) {
-            # Extract the product key only if the label is "Windows" or "Internet Explorer"
-            $keyLines = Get-Content $tempKeyFile | Select-String -Pattern "^(Windows|Internet Explorer)" | ForEach-Object {
-                ($_ -split "`t")[-1]  # Extract the last column which contains the product key
-            }
+            $fileContent = Get-Content $tempKeyFile
 
-            # Ensure key format is valid (25 characters with hyphens)
-            foreach ($key in $keyLines) {
-                if ($key -match "^[A-Z0-9]{5}-[A-Z0-9]{5}-[A-Z0-9]{5}-[A-Z0-9]{5}-[A-Z0-9]{5}$") {
-                    $productKey = $key
-                    break  # Stop after finding the first valid key
+            # Search for the line that contains "Product Key" and extract key after the colon
+            $keyLine = $fileContent | Where-Object { $_ -match "^Product Key\s+:\s+(.+)$" }
+
+            if ($keyLine) {
+                $extractedKey = ($keyLine -split ":\s+")[1]  # Extract key after colon
+                
+                # Validate key format (XXXXX-XXXXX-XXXXX-XXXXX-XXXXX)
+                if ($extractedKey -match "^[A-Z0-9]{5}-[A-Z0-9]{5}-[A-Z0-9]{5}-[A-Z0-9]{5}-[A-Z0-9]{5}$") {
+                    $productKey = $extractedKey
                 }
             }
 
