@@ -390,10 +390,12 @@ function Get-UserSelection {
 #            Write-Host "Starting OGC Windows Utility..." -ForegroundColor Magenta
 #            Start-Sleep -Seconds 1
 #            $scriptToRun = if ($windowsVersion -eq "Windows10") { "$scriptsFolder\OGCWin10.ps1" } else { "$scriptsFolder\OGCWin11.ps1" }
+#            exit            
         } elseif ($modeChoice -eq "2") {
-            Write-Host "Starting OGC New Windows Setup Wizard..." -ForegroundColor Magenta
+            Write-Host "Starting OGC New Installation Setup Wizard..." -ForegroundColor Magenta
             Start-Sleep -Seconds 1
             $scriptToRun = if ($windowsVersion -eq "Windows10") { "$scriptsFolder\OGCWiz10.ps1" } else { "$scriptsFolder\OGCWiz11.ps1" }
+            exit
         } elseif ($modeChoice -eq "3") {
             Write-Host "Gathering system information..." -ForegroundColor Cyan
             Start-Sleep -Seconds 1
