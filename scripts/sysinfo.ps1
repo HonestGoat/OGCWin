@@ -42,7 +42,7 @@ if (-Not (Test-ExclusionSet $parentFolder)) {
 $urlsConfigPath = "$configurationsFolder\urls.cfg"
 $urlsConfigUrl = "https://raw.githubusercontent.com/HonestGoat/OGCWin/main/configs/urls.cfg"
 
-Start-Process -FilePath "curl.exe" -ArgumentList "-L -o `"$urlsConfigPath`" `"$urlsConfigUrl`"" -NoNewWindow -Wait
+Start-Process -FilePath "curl.exe" -ArgumentList "-s -L -o `"$urlsConfigPath`" `"$urlsConfigUrl`"" -NoNewWindow -Wait
 
 # Function to load URLs from urls.cfg
 function Get-Url {

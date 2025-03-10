@@ -54,9 +54,6 @@ function Get-WindowsVersion {
 }
 
 # Install OGCWin to ProgramData folder on C Drive.
-Write-Host "Setting up OGCWin..." -ForegroundColor Cyan
-Start-sleep -Seconds 1
-
 # Define OGCWin folder paths
 $parentFolder = "C:\ProgramData\OGC Windows Utility"
 $downloadsFolder = "$parentFolder\downloads"
@@ -96,10 +93,12 @@ $urlsConfigUrl = "https://raw.githubusercontent.com/HonestGoat/OGCWin/main/confi
 if (Test-Path $urlsConfigPath) {
     Write-Host "Updating OGCWin..." -ForegroundColor Yellow
 } else {
+    Write-Host "Downloading OGCWin..." -ForegroundColor Yellow
+    Start-Sleep -Seconds 1
     Write-Host "Installing OGCWin..." -ForegroundColor Yellow
 }
 
-Start-Process -FilePath "curl.exe" -ArgumentList "-L -o `"$urlsConfigPath`" `"$urlsConfigUrl`"" -NoNewWindow -Wait
+Start-Process -FilePath "curl.exe" -ArgumentList "-s -L -o `"$urlsConfigPath`" `"$urlsConfigUrl`"" -NoNewWindow -Wait
 
 # Function to load URLs from urls.cfg
 function Get-Url {
@@ -208,7 +207,7 @@ Write-Host "OGCWin setup complete. In future you can launch OGCWin from the desk
 
 # Check for dependencies for OGCWin
 Start-Sleep -Seconds 1
-Write-Host "Checking for dependencies..." -ForegroundColor Cyan
+Write-Host "Checking for OGCWin dependencies..." -ForegroundColor Cyan
 Start-Sleep -Seconds 2
 
 # Function to check if WinGet is installed
