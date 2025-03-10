@@ -1,6 +1,84 @@
 # OGC Windows System Information Tool by Honest Goat
-# Version: 0.4 (Fixed Unused Variable & Improved Storage Info)
+# Version: 0.6 (Added Cleanup & Renamed $bin to $binFolder)
 
+# Force the script to run as Administrator
+$CurrentUser = [Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()
+$AdminRole = [Security.Principal.WindowsBuiltInRole]::Administrator
+
+if (-Not $CurrentUser.IsInRole($AdminRole)) {
+    Write-Host "Elevating to Administrator privileges..." -ForegroundColor Yellow
+    Start-Process powershell -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`"" -Verb RunAs
+    exit
+}
+
+# Define OGCWin folder paths
+$parentFolder = "C:\ProgramData\OGC Windows Utility"
+$downloadsFolder = "$parentFolder\downloads"
+$configurationsFolder = "$parentFolder\configs"
+$binFolder = "$parentFolder\bin"
+$tempFolder = "$parentFolder\temp"
+
+# Ensure all necessary folders exist
+$folders = @($parentFolder, $downloadsFolder, $configurationsFolder, $binFolder, $tempFolder)
+foreach ($folder in $folders) {
+    if (-not (Test-Path $folder)) { 
+        New-Item -Path $folder -ItemType Directory -Force | Out-Null 
+    }
+}
+
+# Function to check if an exclusion exists in Windows Defender
+function Test-ExclusionSet {
+    param ([string]$path)
+    $existingExclusions = Get-MpPreference | Select-Object -ExpandProperty ExclusionPath
+    return $existingExclusions -contains $path
+}
+
+# Add Windows Defender exclusion for OGCWin parent folder only
+if (-Not (Test-ExclusionSet $parentFolder)) {
+    Add-MpPreference -ExclusionPath "$parentFolder" -ErrorAction SilentlyContinue
+}
+
+# Download urls.cfg (Always overwrite to ensure updates)
+$urlsConfigPath = "$configurationsFolder\urls.cfg"
+$urlsConfigUrl = "https://raw.githubusercontent.com/HonestGoat/OGCWin/main/configs/urls.cfg"
+
+Start-Process -FilePath "curl.exe" -ArgumentList "-L -o `"$urlsConfigPath`" `"$urlsConfigUrl`"" -NoNewWindow -Wait
+
+# Function to load URLs from urls.cfg
+function Get-Url {
+    param ($key)
+    $configData = Get-Content -Path $urlsConfigPath | Where-Object { $_ -match "=" }
+    $urlMap = @{}
+
+    foreach ($line in $configData) {
+        $parts = $line -split "=", 2
+        if ($parts.Count -eq 2) {
+            $urlMap[$parts[0].Trim()] = $parts[1].Trim()
+        }
+    }
+
+    if ($urlMap.ContainsKey($key)) {
+        return $urlMap[$key]
+    } else {
+        Write-Host "Warning: URL key '$key' not found in urls.cfg" -ForegroundColor Red
+        return $null
+    }
+}
+
+# Ensure ProduKey is downloaded and extracted
+$produKeyZipUrl = Get-Url "ProduKey"
+$produKeyZipPath = "$downloadsFolder\ProduKey.zip"
+$produKeyExePath = "$binFolder\ProduKey.exe"
+
+if (-not (Test-Path $produKeyExePath)) {
+    Write-Host "Downloading ProduKey..." -ForegroundColor Cyan
+    Start-Process -FilePath "curl.exe" -ArgumentList "-L -o `"$produKeyZipPath`" `"$produKeyZipUrl`"" -NoNewWindow -Wait
+
+    Write-Host "Extracting ProduKey..." -ForegroundColor Cyan
+    Expand-Archive -Path $produKeyZipPath -DestinationPath $binFolder -Force
+}
+
+# Gather System Information
 Write-Host "Gathering system information..." -ForegroundColor Cyan
 
 # PowerShell script to display system information
@@ -21,43 +99,22 @@ function Get-WindowsInstallDate {
     return $os.InstallDate
 }
 
-# Function to retrieve Windows product key (Tries both methods)
+# Function to retrieve Windows product key using ProduKey
 function Get-WindowsProductKey {
-    try {
-        # Method 1: Get-WmiObject
-        $key = (Get-WmiObject -Query "SELECT * FROM SoftwareLicensingService").OA3xOriginalProductKey
-        if ($key) { return $key }
+    if (Test-Path $produKeyExePath) {
+        $tempKeyFile = "$tempFolder\WindowsKey.txt"
+        & $produKeyExePath /WindowsKeys /stext $tempKeyFile
 
-        # Method 2: WMIC
-        $key = (wmic path softwareLicensingService get OA3xOriginalProductKey | Select-Object -Skip 1)
-        if ($key -match "\w") { return $key.Trim() }
-    } catch {
-        return "Could not retrieve product key"
-    }
-
-    return "Product key not found (OEM key may be stored in BIOS)"
-}
-
-# Function to check if Microsoft Recall is active (Windows 11 only)
-function Get-MicrosoftRecallStatus {
-    $os = (Get-CimInstance Win32_OperatingSystem).Caption
-    if ($os -match "Windows 11") {
-        # Check if Recall service is running
-        if (Get-Service -Name "Recall" -ErrorAction SilentlyContinue) {
-            return "Active"
-        }
-
-        # Check if Recall is available via DISM
-        $dismCheck = (DISM /Online /Get-FeatureInfo /FeatureName:Recall 2>&1)
-        if ($dismCheck -match "State : Enabled") {
-            return "Active"
-        } elseif ($dismCheck -match "State : Disabled") {
-            return "Available but Disabled"
+        if (Test-Path $tempKeyFile) {
+            $productKey = Get-Content $tempKeyFile | Select-String "Windows" | ForEach-Object { ($_ -split "`t")[1] }
+            Remove-Item -Path $tempKeyFile -Force
+            return $productKey
         } else {
-            return "Not Found"
+            return "Could not retrieve product key"
         }
+    } else {
+        return "ProduKey not found in $binFolder"
     }
-    return "N/A (Recall not supported)"
 }
 
 # Function to get CPU information
@@ -79,13 +136,12 @@ function Get-RAMInfo {
     return "Installed RAM: ${totalRAM}GB"
 }
 
-# Function to get storage information (Manufacturer, Model & Capacity, excluding "Virtual Disk")
+# Function to get storage information (Model & Capacity, excluding "Virtual Disk")
 function Get-StorageInfo {
-    $drives = Get-CimInstance Win32_DiskDrive | Where-Object { $_.MediaType -ne "Removable Media" -and $_.Model -ne "Virtual Disk" }
+    $drives = Get-CimInstance Win32_DiskDrive | Where-Object { $_.Model -ne "Virtual Disk" }
     $output = "Drives:"
     foreach ($drive in $drives) {
-        $manufacturer = if ($drive.Manufacturer) { $drive.Manufacturer.Trim() } else { "Manufacturer" }
-        $output += "`n  $manufacturer $($drive.Model) | Size: $([math]::Round($drive.Size / 1GB, 2)) GB"
+        $output += "`n  $($drive.Model) | Size: $([math]::Round($drive.Size / 1GB, 2)) GB"
     }
     return $output
 }
@@ -122,7 +178,6 @@ $systemInfo = @"
 Windows Version   : $(Get-WindowsVersion)
 Windows Installed : $(Get-WindowsInstallDate)
 Product Key       : $(Get-WindowsProductKey)
-Microsoft Recall  : $(Get-MicrosoftRecallStatus)
 
 CPU              : $(Get-CPUInfo)
 Motherboard      : $(Get-MotherboardInfo)
@@ -137,6 +192,15 @@ $(Get-DisplayInfo)
 
 # Display system information
 Write-Host $systemInfo -ForegroundColor Cyan
+
+# Clean up $downloadsFolder and $tempFolder after extraction
+if (Test-Path $produKeyZipPath) {
+    Remove-Item -Path $produKeyZipPath -Force
+}
+if (Test-Path $tempFolder) {
+    Get-ChildItem -Path $tempFolder -File | Remove-Item -Force
+    Write-Host "Cleaned up temporary files." -ForegroundColor Green
+}
 
 # Prompt user if they want to save to a file
 $saveToFile = Read-Host "Do you want to save this report to your desktop? (y/n)"

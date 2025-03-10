@@ -67,13 +67,26 @@ $tempFolder = "$parentFolder\temp"
 $driversFolder = "$parentFolder\drivers"
 $pythonFolder = "$parentFolder\python"
 $scriptsFolder = "$parentFolder\scripts"
+$bin = "$parentFolder\bin"
 
 # Ensure all necessary folders exist
-$folders = @($parentFolder, $downloadsFolder, $redistributableFolder, $configurationsFolder, $imagesFolder, $tempFolder, $driversFolder, $pythonFolder, $scriptsFolder)
+$folders = @($parentFolder, $downloadsFolder, $redistributableFolder, $configurationsFolder, $imagesFolder, $tempFolder, $driversFolder, $pythonFolder, $scriptsFolder, $bin)
 foreach ($folder in $folders) {
     if (-not (Test-Path $folder)) { 
         New-Item -Path $folder -ItemType Directory -Force | Out-Null 
     }
+}
+
+# Function to check if an exclusion exists in Windows Defender
+function Test-ExclusionSet {
+    param ([string]$path)
+    $existingExclusions = Get-MpPreference | Select-Object -ExpandProperty ExclusionPath
+    return $existingExclusions -contains $path
+}
+
+# Add Windows Defender exclusion for OGCWin parent folder only
+if (-Not (Test-ExclusionSet $parentFolder)) {
+    Add-MpPreference -ExclusionPath "$parentFolder" -ErrorAction SilentlyContinue
 }
 
 Write-Host "Downloading OGCWin files..." -ForegroundColor Yellow
@@ -112,7 +125,7 @@ function Get-Url {
     }
 }
 
-# Define script names and locations
+# Define file names and locations
 $ogclaunch = "$parentFolder\launch.ps1"
 $ogcwinbat = "$parentFolder\OGCWin.bat"
 $ogcwin10 = "$scriptsFolder\OGCWin10.ps1"
@@ -121,7 +134,7 @@ $ogcwiz10 = "$scriptsFolder\OGCWiz10.ps1"
 $ogcwiz11 = "$scriptsFolder\OGCWiz11.ps1"
 $sysinfo = "$scriptsFolder\sysinfo.ps1"
 
-# Function to always update scripts from GitHub
+# Function to always update files from GitHub
 function Get-Scripts {
     $scripts = @{
         "OGClaunch" = $ogclaunch
@@ -193,33 +206,6 @@ $windowsIcon = "C:\Windows\System32\imageres.dll,97"  # Windows-style system ico
 
 # Create the shortcut with the Windows icon
 New-Shortcut -TargetPath $ogcwinbat -ShortcutPath $desktopPath -Description "Launch OGC Windows Utility" -IconPath $windowsIcon
-
-# Function to check if an exclusion exists in Windows Defender
-function Test-ExclusionSet {
-    param ([string]$path)
-    $existingExclusions = Get-MpPreference | Select-Object -ExpandProperty ExclusionPath
-    return $existingExclusions -contains $path
-}
-
-# Add Windows Defender exclusions for OGCWin
-$defenderExclusions = @(
-    "$parentFolder",
-    "$scriptsFolder",
-    "$downloadsFolder",
-    "$redistributableFolder",
-    "$configurationsFolder",
-    "$imagesFolder",
-    "$tempFolder",
-    "$driversFolder",
-    "$pythonFolder",
-    "$ogcwinbat"
-)
-
-foreach ($path in $defenderExclusions) {
-    if (-Not (Test-ExclusionSet $path)) {
-        Add-MpPreference -ExclusionPath "$path" -ErrorAction SilentlyContinue
-    }
-}
 
 Write-Host "OGCWin setup complete. In future you can launch OGCWin from the desktop shortcut." -ForegroundColor Green
 
