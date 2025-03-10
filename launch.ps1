@@ -89,9 +89,6 @@ if (-Not (Test-ExclusionSet $parentFolder)) {
     Add-MpPreference -ExclusionPath "$parentFolder" -ErrorAction SilentlyContinue
 }
 
-Write-Host "Downloading OGCWin files..." -ForegroundColor Yellow
-Start-Sleep -Seconds 1
-
 # Download urls.cfg (Always overwrite to ensure updates)
 $urlsConfigPath = "$configurationsFolder\urls.cfg"
 $urlsConfigUrl = "https://raw.githubusercontent.com/HonestGoat/OGCWin/main/configs/urls.cfg"
@@ -155,20 +152,17 @@ function Get-Scripts {
     }
 }
 
-# Call function to update scripts
-Get-Scripts
-
 # Function to get script paths dynamically
 function Get-ScriptPath {
     param ($scriptKey)
     $scriptPaths = @{
-        $ogclaunch = "$parentFolder\launch.ps1"
-        $ogcwinbat = "$parentFolder\OGCWin.bat"
-        $ogcwin10 = "$scriptsFolder\OGCWin10.ps1"
-        $ogcwin11 = "$scriptsFolder\OGCWin11.ps1"
-        $ogcwiz10 = "$scriptsFolder\OGCWiz10.ps1"
-        $ogcwiz11 = "$scriptsFolder\OGCWiz11.ps1"
-        $sysinfo = "$scriptsFolder\sysinfo.ps1"
+        "OGClaunch" = "$parentFolder\launch.ps1"
+        "OGCWinBat" = "$parentFolder\OGCWin.bat"
+        "OGCWin10" = "$scriptsFolder\OGCWin10.ps1"
+        "OGCWin11" = "$scriptsFolder\OGCWin11.ps1"
+        "OGCWiz10" = "$scriptsFolder\OGCWiz10.ps1"
+        "OGCWiz11" = "$scriptsFolder\OGCWiz11.ps1"
+        "SysInfo" = "$scriptsFolder\sysinfo.ps1"
     }
 
     if ($scriptPaths.ContainsKey($scriptKey)) {
@@ -178,6 +172,9 @@ function Get-ScriptPath {
         return $null
     }
 }
+
+# Call function to update scripts
+Get-Scripts
 
 # Function to create a desktop shortcut for OGCWin.bat
 function New-Shortcut {
@@ -392,15 +389,15 @@ function Get-UserSelection {
             continue
 #            Write-Host "Starting OGC Windows Utility..." -ForegroundColor Magenta
 #            Start-Sleep -Seconds 1
-#            $scriptToRun = if ($windowsVersion -eq "Windows10") { Get-ScriptPath $ogcwin10 } else { Get-ScriptPath $ogcwin11 }
+#            $scriptToRun = if ($windowsVersion -eq "Windows10") { Get-ScriptPath "OGCWin10" } else { Get-ScriptPath "OGCWin11" }
         } elseif ($modeChoice -eq "2") {
             Write-Host "Starting OGC New Windows Setup Wizard..." -ForegroundColor Magenta
             Start-Sleep -Seconds 1
-            $scriptToRun = if ($windowsVersion -eq "Windows10") { Get-ScriptPath $ogcwiz10 } else { Get-ScriptPath $ogcwiz11 }
+            $scriptToRun = if ($windowsVersion -eq "Windows10") { Get-ScriptPath "OGCWiz10" } else { Get-ScriptPath "OGCWiz11" }
         } elseif ($modeChoice -eq "3") {
             Write-Host "Gathering system information..." -ForegroundColor Cyan
             Start-Sleep -Seconds 1
-            $scriptToRun = Get-ScriptPath $sysinfo
+            $sysInfoScript = Get-ScriptPath "SysInfo"
             Write-Host ""
             continue
         } else {
