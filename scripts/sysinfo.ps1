@@ -71,10 +71,7 @@ $produKeyZipPath = "$downloadsFolder\ProduKey.zip"
 $produKeyExePath = "$binFolder\ProduKey.exe"
 
 if (-not (Test-Path $produKeyExePath)) {
-    Write-Host "Downloading ProduKey..." -ForegroundColor Cyan
     Start-Process -FilePath "curl.exe" -ArgumentList "-L -o `"$produKeyZipPath`" `"$produKeyZipUrl`"" -NoNewWindow -Wait
-
-    Write-Host "Extracting ProduKey..." -ForegroundColor Cyan
     Expand-Archive -Path $produKeyZipPath -DestinationPath $binFolder -Force
 }
 
@@ -99,21 +96,42 @@ function Get-WindowsInstallDate {
     return $os.InstallDate
 }
 
-# Function to retrieve Windows product key using ProduKey
+# Function to retrieve Windows product key using multiple methods (WMIC & WMI first, then ProduKey)
 function Get-WindowsProductKey {
-    if (Test-Path $produKeyExePath) {
+    $productKey = $null
+
+    # Method 1: WMIC (Command-line method)
+    $wmicKey = (wmic path softwareLicensingService get OA3xOriginalProductKey | Select-Object -Skip 1) -match "\w"
+    if ($wmicKey) {
+        $productKey = $wmicKey.Trim()
+    }
+
+    # Method 2: Get-WmiObject (PowerShell WMI method) if WMIC fails
+    if (-not $productKey) {
+        try {
+            $wmiKey = (Get-WmiObject -Query "SELECT * FROM SoftwareLicensingService").OA3xOriginalProductKey
+            if ($wmiKey) {
+                $productKey = $wmiKey
+            }
+        } catch { }
+    }
+
+    # Method 3: ProduKey (External tool) if both WMIC and Get-WmiObject fail
+    if (-not $productKey -and (Test-Path $produKeyExePath)) {
         $tempKeyFile = "$tempFolder\WindowsKey.txt"
         & $produKeyExePath /WindowsKeys /stext $tempKeyFile
 
         if (Test-Path $tempKeyFile) {
             $productKey = Get-Content $tempKeyFile | Select-String "Windows" | ForEach-Object { ($_ -split "`t")[1] }
             Remove-Item -Path $tempKeyFile -Force
-            return $productKey
-        } else {
-            return "Could not retrieve product key"
         }
+    }
+
+    # Return the best available product key
+    if ($productKey) {
+        return $productKey
     } else {
-        return "ProduKey not found in $binFolder"
+        return "Unable to retrieve product key"
     }
 }
 
@@ -197,10 +215,10 @@ Write-Host $systemInfo -ForegroundColor Cyan
 if (Test-Path $produKeyZipPath) {
     Remove-Item -Path $produKeyZipPath -Force
 }
-#if (Test-Path $tempFolder) {
-#    Get-ChildItem -Path $tempFolder -File | Remove-Item -Force
-#    Write-Host "Cleaned up temporary files." -ForegroundColor Green
-#}
+if (Test-Path $tempFolder) {
+    Get-ChildItem -Path $tempFolder -File | Remove-Item -Force
+    Write-Host "Cleaned up temporary files." -ForegroundColor Green
+}
 
 # Prompt user if they want to save to a file
 $saveToFile = Read-Host "Do you want to save this report to your desktop? (y/n)"
