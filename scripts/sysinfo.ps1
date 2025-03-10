@@ -215,10 +215,10 @@ Write-Host $systemInfo -ForegroundColor Cyan
 if (Test-Path $produKeyZipPath) {
     Remove-Item -Path $produKeyZipPath -Force
 }
-if (Test-Path $tempFolder) {
-    Get-ChildItem -Path $tempFolder -File | Remove-Item -Force
-    Write-Host "Cleaned up temporary files." -ForegroundColor Green
-}
+#if (Test-Path $tempFolder) {
+#    Get-ChildItem -Path $tempFolder -File | Remove-Item -Force
+#    Write-Host "Cleaned up temporary files." -ForegroundColor Green
+#}
 
 # Prompt user if they want to save to a file
 $saveToFile = Read-Host "Do you want to save this report to your desktop? (y/n)"

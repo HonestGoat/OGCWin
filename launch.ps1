@@ -371,7 +371,6 @@ function Get-WindowsVersion {
 # Function to prompt user for mode selection
 function Get-UserSelection {
     $windowsVersion = Get-WindowsVersion
-    $scriptToRun = $null
 
     while ($true) {
         Write-Host "What mode would you like to launch the OGC Windows Utility in:" -ForegroundColor Cyan
@@ -389,12 +388,22 @@ function Get-UserSelection {
             continue
 #            Write-Host "Starting OGC Windows Utility..." -ForegroundColor Magenta
 #            Start-Sleep -Seconds 1
-#            $scriptToRun = if ($windowsVersion -eq "Windows10") { "$scriptsFolder\OGCWin10.ps1" } else { "$scriptsFolder\OGCWin11.ps1" }
-#            exit            
+#            $scriptPath = if ($windowsVersion -eq "Windows10") { "$scriptsFolder\OGCWin10.ps1" } else { "$scriptsFolder\OGCWin11.ps1" }
+#            Start-Process powershell.exe -ArgumentList "-NoExit -ExecutionPolicy Bypass -NoProfile -WindowStyle Normal -Command `" 
+#                `$host.UI.RawUI.BackgroundColor = 'Black'; 
+#                `$host.UI.RawUI.ForegroundColor = 'White'; 
+#                Clear-Host; 
+#                & '$scriptPath'`"" -Verb RunAs
+#            exit
         } elseif ($modeChoice -eq "2") {
             Write-Host "Starting OGC New Installation Setup Wizard..." -ForegroundColor Magenta
             Start-Sleep -Seconds 1
-            $scriptToRun = if ($windowsVersion -eq "Windows10") { "$scriptsFolder\OGCWiz10.ps1" } else { "$scriptsFolder\OGCWiz11.ps1" }
+            $scriptPath = if ($windowsVersion -eq "Windows10") { "$scriptsFolder\OGCWiz10.ps1" } else { "$scriptsFolder\OGCWiz11.ps1" }
+            Start-Process powershell.exe -ArgumentList "-NoExit -ExecutionPolicy Bypass -NoProfile -WindowStyle Normal -Command `" 
+                `$host.UI.RawUI.BackgroundColor = 'Black'; 
+                `$host.UI.RawUI.ForegroundColor = 'White'; 
+                Clear-Host; 
+                & '$scriptPath'`"" -Verb RunAs
             exit
         } elseif ($modeChoice -eq "3") {
             Write-Host "Gathering system information..." -ForegroundColor Cyan
@@ -407,27 +416,6 @@ function Get-UserSelection {
             Start-Sleep -Seconds 2
             Clear-Host
             continue
-        }
-
-        # Execute the selected script in a new PowerShell window with black background
-        if ($scriptToRun) {
-            if (Test-Path $scriptToRun) {
-                Start-Sleep -Seconds 1
-
-                # Start the script in a new PowerShell window with black background and close original window
-                $psCommand = @"
-                `$host.UI.RawUI.BackgroundColor = 'Black'
-                `$host.UI.RawUI.ForegroundColor = 'White'
-                Clear-Host
-                Start-Process powershell.exe -ArgumentList '-NoExit -ExecutionPolicy Bypass -NoProfile -File `"$scriptToRun`""' -Verb RunAs
-                exit
-"@
-                Start-Process powershell.exe -ArgumentList "-NoExit -ExecutionPolicy Bypass -NoProfile -Command `"$psCommand`"" -Verb RunAs
-                exit
-            } else {
-                Write-Host "Error: Script not found. Please check if the script exists in the scripts folder." -ForegroundColor Red
-                Start-Sleep -Seconds 3
-            }
         }
     }
 }
