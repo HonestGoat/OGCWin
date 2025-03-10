@@ -389,15 +389,15 @@ function Get-UserSelection {
             continue
 #            Write-Host "Starting OGC Windows Utility..." -ForegroundColor Magenta
 #            Start-Sleep -Seconds 1
-#            $scriptToRun = if ($windowsVersion -eq "Windows10") { Get-ScriptPath "OGCWin10" } else { Get-ScriptPath "OGCWin11" }
+#            $scriptToRun = if ($windowsVersion -eq "Windows10") { "$scriptsFolder\OGCWin10.ps1" } else { "$scriptsFolder\OGCWin11.ps1" }
         } elseif ($modeChoice -eq "2") {
             Write-Host "Starting OGC New Windows Setup Wizard..." -ForegroundColor Magenta
             Start-Sleep -Seconds 1
-            $scriptToRun = if ($windowsVersion -eq "Windows10") { Get-ScriptPath "OGCWiz10" } else { Get-ScriptPath "OGCWiz11" }
+            $scriptToRun = if ($windowsVersion -eq "Windows10") { "$scriptsFolder\OGCWiz10.ps1" } else { "$scriptsFolder\OGCWiz11.ps1" }
         } elseif ($modeChoice -eq "3") {
             Write-Host "Gathering system information..." -ForegroundColor Cyan
             Start-Sleep -Seconds 1
-            $sysInfoScript = Get-ScriptPath "SysInfo"
+            & "$scriptsFolder\sysinfo.ps1"
             Write-Host ""
             continue
         } else {
@@ -410,7 +410,6 @@ function Get-UserSelection {
         # Execute the selected script in a new PowerShell window with black background
         if ($scriptToRun) {
             if (Test-Path $scriptToRun) {
-                Write-Host "Launching selected mode..." -ForegroundColor Green
                 Start-Sleep -Seconds 1
 
                 # Start the script in a new PowerShell window with black background and close original window
