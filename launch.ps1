@@ -408,7 +408,7 @@ function Get-UserSelection {
         } elseif ($modeChoice -eq "3") {
             Write-Host "Gathering system information..." -ForegroundColor Cyan
             Start-Sleep -Seconds 1
-            & "$scriptsFolder\sysinfo.ps1"
+            powershell.exe -ExecutionPolicy Bypass -NoProfile -File "$scriptsFolder\sysinfo.ps1"
             Write-Host ""
             continue
         } else {
