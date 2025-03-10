@@ -217,6 +217,7 @@ RAM              : $(Get-RAMInfo)
 Storage          : $(Get-StorageInfo)
 
 $(Get-GPUInfo)
+
 $(Get-DisplayInfo)
 
 ===================================
@@ -225,18 +226,18 @@ $(Get-DisplayInfo)
 # Display system information
 Write-Host $systemInfo -ForegroundColor Cyan
 
-# Clean up $downloadsFolder and $tempFolder after extraction
-if (Test-Path $produKeyZipPath) {
-    Remove-Item -Path $produKeyZipPath -Force
-}
-if (Test-Path $tempFolder) {
-    Get-ChildItem -Path $tempFolder -File | Remove-Item -Force
-    Write-Host "Cleaned up temporary files." -ForegroundColor Green
-}
-
 # Prompt user if they want to save to a file
 $saveToFile = Read-Host "Do you want to save this report to your desktop? (y/n)"
 if ($saveToFile -eq "y") {
     $systemInfo | Out-File -Encoding utf8 $outputFile
     Write-Host "`nSystem information saved to: $outputFile" -ForegroundColor Green
 }
+
+# Clean up $downloadsFolder and $tempFolder after extraction
+if (Test-Path $produKeyZipPath) {
+    Remove-Item -Path $produKeyZipPath -Force
+}
+#if (Test-Path $tempFolder) {
+#    Get-ChildItem -Path $tempFolder -File | Remove-Item -Force
+#    Write-Host "Cleaned up temporary files." -ForegroundColor Green
+#}
