@@ -96,17 +96,19 @@ function Get-WindowsInstallDate {
     return $os.InstallDate
 }
 
-# Function to retrieve Windows product key using multiple methods (WMIC & WMI first, then ProduKey)
+# Function to retrieve Windows product key using multiple methods (Conditional WMIC for non-Windows 11)
 function Get-WindowsProductKey {
     $productKey = $null
 
-    # Method 1: WMIC (Command-line method)
-    $wmicKey = (wmic path softwareLicensingService get OA3xOriginalProductKey | Select-Object -Skip 1) -match "\w"
-    if ($wmicKey) {
-        $productKey = $wmicKey.Trim()
+    # If not Windows 11, attempt WMIC method first
+    if ($os -notmatch "Windows 11") {
+        $wmicKey = (wmic path softwareLicensingService get OA3xOriginalProductKey | Select-Object -Skip 1) -match "\w"
+        if ($wmicKey) {
+            $productKey = $wmicKey.Trim()
+        }
     }
 
-    # Method 2: Get-WmiObject (PowerShell WMI method) if WMIC fails
+    # If WMIC was skipped (Windows 11) or failed, attempt WMIObject method
     if (-not $productKey) {
         try {
             $wmiKey = (Get-WmiObject -Query "SELECT * FROM SoftwareLicensingService").OA3xOriginalProductKey
@@ -116,7 +118,7 @@ function Get-WindowsProductKey {
         } catch { }
     }
 
-    # Method 3: ProduKey (External tool) if both WMIC and Get-WmiObject fail
+    # If still no key, attempt ProduKey
     if (-not $productKey -and (Test-Path $produKeyExePath)) {
         $tempKeyFile = "$tempFolder\WindowsKey.txt"
         & $produKeyExePath /WindowsKeys /stext $tempKeyFile
@@ -124,8 +126,8 @@ function Get-WindowsProductKey {
         if (Test-Path $tempKeyFile) {
             $fileContent = Get-Content $tempKeyFile
 
-            # Search for the line that contains "Product Key" and extract key after the colon
-            $keyLine = $fileContent | Where-Object { $_ -match "^Product Key\s+:\s+(.+)$" }
+            # Search for the first occurrence of "Product Key" and extract key after the colon
+            $keyLine = $fileContent | Where-Object { $_ -match "^Product Key\s+:\s+(.+)$" } | Select-Object -First 1
 
             if ($keyLine) {
                 $extractedKey = ($keyLine -split ":\s+")[1]  # Extract key after colon

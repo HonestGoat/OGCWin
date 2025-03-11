@@ -203,7 +203,7 @@ $windowsIcon = "C:\Windows\System32\imageres.dll,97"  # Windows-style system ico
 # Create the shortcut with the Windows icon
 New-Shortcut -TargetPath $ogcwinbat -ShortcutPath $desktopPath -Description "Launch OGC Windows Utility" -IconPath $windowsIcon
 
-Write-Host "OGCWin setup complete. In future you can launch OGCWin from the desktop shortcut." -ForegroundColor Green
+Write-Host "OGCWin setup complete. In the future you can launch OGCWin from the desktop shortcut." -ForegroundColor Green
 
 # Check for dependencies for OGCWin
 Start-Sleep -Seconds 1

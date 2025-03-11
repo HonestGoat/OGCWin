@@ -60,7 +60,7 @@ if ($winVer -match "Windows 10 Home" -or $winVer -match "Windows 10 Pro") {
     exit
 }
 
-# Welcome & Instructions
+# Welcome and Instructions
 Write-Host "Welcome to the OGC Windows Gaming Utility!" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "This utility will help you optimize your Windows installation by:" -ForegroundColor Yellow
@@ -173,15 +173,15 @@ if ($removeCortana -eq "y") {
     Set-ItemProperty -Path $gpCortanaKey -Name "AllowCortana" -Type DWord -Value 0 -Force
     Write-Host "Cortana disabled via Group Policy." -ForegroundColor Green
 
-    # Disable Cortana & Bing Search in User's Search Settings
-    Write-Host "Disabling Cortana & Bing Search in User Settings..." -ForegroundColor Yellow
+    # Disable Cortana and Bing Search in User's Search Settings
+    Write-Host "Disabling Cortana and Bing Search in User Settings..." -ForegroundColor Yellow
     $searchKey = "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Search"
     if (!(Test-Path $searchKey)) { New-Item -Path $searchKey -Force | Out-Null }
     Set-ItemProperty -Path $searchKey -Name "CortanaConsent" -Type DWord -Value 0 -Force
     Set-ItemProperty -Path $searchKey -Name "BingSearchEnabled" -Type DWord -Value 0 -Force
     Write-Host "Cortana and Bing Search disabled in User Settings." -ForegroundColor Green
 
-    # Stop & Kill Cortana Process
+    # Stop and Kill Cortana Process
     Write-Host "Stopping and killing Cortana processes..." -ForegroundColor Yellow
     Stop-Process -Name "Cortana" -Force -ErrorAction SilentlyContinue
     Stop-Process -Name "SearchUI" -Force -ErrorAction SilentlyContinue
@@ -450,7 +450,7 @@ if ($removeBloatware -eq "y") {
         "Microsoft.WindowsFeedbackHub",
         "Microsoft.WindowsMaps",
         "Microsoft.WindowsSoundRecorder",
-        "Microsoft.WindowsCommunicationsApps",   # Mail & Calendar
+        "Microsoft.WindowsCommunicationsApps",   # Mail and Calendar
         "Microsoft.Windows.Photos"
     )
 
@@ -553,7 +553,7 @@ $removeOneDrive = Read-Host "Do you want to completely remove Microsoft OneDrive
 if ($removeOneDrive -eq "y") {
     Write-Host "Forcefully removing Microsoft OneDrive..." -ForegroundColor Magenta
 
-    # Stop & kill any running OneDrive processes
+    # Stop and kill any running OneDrive processes
     Write-Host "Stopping and killing OneDrive processes..." -ForegroundColor Yellow
     Stop-Process -Name "OneDrive" -Force -ErrorAction SilentlyContinue
     Stop-Process -Name "explorer" -Force -ErrorAction SilentlyContinue
@@ -619,7 +619,7 @@ $removeTeams = Read-Host "Do you want to completely remove Microsoft Teams? [Rec
 if ($removeTeams -eq "y") {
     Write-Host "Forcefully removing Microsoft Teams..." -ForegroundColor Magenta
 
-    # Stop & Kill Any Running Microsoft Teams Processes
+    # Stop and Kill Any Running Microsoft Teams Processes
     Write-Host "Stopping and killing Microsoft Teams processes..." -ForegroundColor Yellow
     Stop-Process -Name "Teams" -Force -ErrorAction SilentlyContinue
     Stop-Process -Name "Teams.exe" -Force -ErrorAction SilentlyContinue
@@ -697,7 +697,7 @@ if ($removeCopilot -eq "y") {
     reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" /v "ShowCopilotButton" /t REG_DWORD /d 0 /f
     Write-Host "Microsoft Copilot icon removed from Taskbar." -ForegroundColor Green
 
-    # Stop & Kill Microsoft Copilot Processes
+    # Stop and Kill Microsoft Copilot Processes
     Write-Host "Stopping and killing Microsoft Copilot processes..." -ForegroundColor Yellow
     Stop-Process -Name "Copilot" -Force -ErrorAction SilentlyContinue
     Stop-Process -Name "Copilot.exe" -Force -ErrorAction SilentlyContinue
@@ -844,8 +844,8 @@ if ($debloatTaskbar -eq "y") {
     # Remove "Meet Now" from Taskbar
     Set-RegistryValue -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer" -Name "HideSCAMeetNow" -Value 1  
 
-    # Unpin Microsoft Store & Mail from Taskbar
-    Write-Host "Unpinning Microsoft Store & Mail from Taskbar..." -ForegroundColor Yellow
+    # Unpin Microsoft Store and Mail from Taskbar
+    Write-Host "Unpinning Microsoft Store and Mail from Taskbar..." -ForegroundColor Yellow
     $appsToUnpin = @("Microsoft Store", "Mail")
     foreach ($app in $appsToUnpin) {
         $lnk = "$env:APPDATA\Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar\$app.lnk"
@@ -855,8 +855,8 @@ if ($debloatTaskbar -eq "y") {
         }
     }
 
-    # Fully Disable the Weather & News Widget
-    Write-Host "Disabling Weather & News Widget..." -ForegroundColor Magenta
+    # Fully Disable the Weather and News Widget
+    Write-Host "Disabling Weather and News Widget..." -ForegroundColor Magenta
 
     # Take Ownership of Windows Feeds Registry Key (Fix Unauthorized Error)
     $regPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Feeds"
@@ -866,7 +866,7 @@ if ($debloatTaskbar -eq "y") {
     # Disable Windows Feeds
     Set-RegistryValue -Path $regPath -Name "EnableFeeds" -Value 0
 
-    # Disable Weather & News in Windows 10 & 11
+    # Disable Weather and News in Windows 10 and 11
     Set-RegistryValue -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Feeds" -Name "ShellFeedsTaskbarViewMode" -Value 2  
     Set-RegistryValue -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Feeds" -Name "EnableFeeds" -Value 0  
 
@@ -875,7 +875,7 @@ if ($debloatTaskbar -eq "y") {
         Set-RegistryValue -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name TaskbarDa -Value 0
     }
 
-    # Disable News & Interests via Taskbar settings
+    # Disable News and Interests via Taskbar settings
     Set-RegistryValue -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "TaskbarMn" -Value 0  
 
     # Disable Widgets Service in Windows 11
@@ -939,7 +939,7 @@ if ($winVer -match "Windows 11") {
     $disableMemoryIsolation = Read-Host "Do you want to disable Memory Core Isolation for better gaming performance? (Recommended) (y/n)"
 
     if ($disableMemoryIsolation -eq "y") {
-        Write-Host "Disabling Memory Core Isolation & Related Features..." -ForegroundColor Magenta
+        Write-Host "Disabling Memory Core Isolation and Related Features..." -ForegroundColor Magenta
 
         # Ensure PowerShell is Running as Admin
         if (-Not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")) {
@@ -951,7 +951,7 @@ if ($winVer -match "Windows 11") {
         reg add "HKLM\SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\HypervisorEnforcedCodeIntegrity" /v "Enabled" /t REG_DWORD /d 0 /f
         Write-Host "Memory Core Isolation (HVCI) disabled." -ForegroundColor Green
 
-        # Disable Virtualization-Based Security (VBS) & Device Guard
+        # Disable Virtualization-Based Security (VBS) and Device Guard
         reg add "HKLM\SYSTEM\CurrentControlSet\Control\DeviceGuard" /v "EnableVirtualizationBasedSecurity" /t REG_DWORD /d 0 /f
         reg add "HKLM\SYSTEM\CurrentControlSet\Control\DeviceGuard" /v "RequirePlatformSecurityFeatures" /t REG_DWORD /d 0 /f
         Write-Host "Virtualization-Based Security (VBS) disabled." -ForegroundColor Green
@@ -1250,7 +1250,7 @@ if ($installGPUDrivers -eq "y") {
 
     $gpuChoice = Read-Host "Enter the number of your choice (1/2/3/4)"
 
-    # Function to Download & Install Driver Using curl.exe
+    # Function to Download and Install Driver Using curl.exe
     function Install-Driver {
         param (
             [string]$DriverURL,
