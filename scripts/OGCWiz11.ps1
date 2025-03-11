@@ -913,7 +913,7 @@ if ($enableDarkMode -eq "y") {
 }
 
 # Ask if user wants to debloat Edge
-$debloatEdge = Read-Host "Do you want to remove Edge's forced features? [Recommended] (y/n)"
+$debloatEdge = Read-Host "Do you want to remove Edges forced features? [Recommended] (y/n)"
 if ($debloatEdge -eq "y") {
     Write-Host "Disabling Edge forced features..." -ForegroundColor Magenta
     reg add "HKLM\SOFTWARE\Policies\Microsoft\Edge" /v "RestorePdfAssociationsEnabled" /t REG_DWORD /d 0 /f
