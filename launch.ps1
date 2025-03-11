@@ -3,6 +3,11 @@
 # This script will check for software dependencies, update powershell,
 # create the folder structure for the Utility and then launch the Utility.
 
+# Force Black Background and White Text
+$Host.UI.RawUI.BackgroundColor = "Black"
+$Host.UI.RawUI.ForegroundColor = "White"
+Clear-Host
+
 # Detect Banner Version
 $winVer = (Get-CimInstance Win32_OperatingSystem).Caption
 if ($winVer -match "Windows 10 Home" -or $winVer -match "Windows 10 Pro") {

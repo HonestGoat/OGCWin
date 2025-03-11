@@ -1,13 +1,16 @@
-# OGC Windows Utility by Honest Goat
+# OGC New Windows Setup Wizard by Honest Goat
 # Version: 0.1
-# This utility allows the user to disable tracking and data collection, optimize Windows for gaming, remove bloatware,
-# disable invasive and annoying features like CoPilot and Recall, remove Edge integrations and annoyances
-# and install a host of common applications drivers. It also allows the user to run a bettery of scripted
-# scripted troubleshooting and repair processes to detect isuues and repair Windows.
+# This wizard disables tracking and data collection, optimizes Windows for gaming, removes bloatware,
+# disables invasive and annoying features like CoPilot and Recall, removes Edge integrations and annoyances
+# and allows the user to install a host of common applications drivers.
 
 # Set PowerShell Execution Policy to allow scripts (requires admin)
 Set-ExecutionPolicy Bypass -Scope Process -Force
 
+# Force Black Background and White Text
+$Host.UI.RawUI.BackgroundColor = "Black"
+$Host.UI.RawUI.ForegroundColor = "White"
+Clear-Host
 # Define color functions for better visibility
 function Write-Color {
     param (

@@ -11,6 +11,11 @@ if (-Not $CurrentUser.IsInRole($AdminRole)) {
     exit
 }
 
+# Force Black Background and White Text
+$Host.UI.RawUI.BackgroundColor = "Black"
+$Host.UI.RawUI.ForegroundColor = "White"
+Clear-Host
+
 # Define OGCWin folder paths
 $parentFolder = "C:\ProgramData\OGC Windows Utility"
 $downloadsFolder = "$parentFolder\downloads"

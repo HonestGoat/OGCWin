@@ -7,6 +7,10 @@
 # Set PowerShell Execution Policy to allow scripts (requires admin)
 Set-ExecutionPolicy Bypass -Scope Process -Force
 
+# Force Black Background and White Text
+$Host.UI.RawUI.BackgroundColor = "Black"
+$Host.UI.RawUI.ForegroundColor = "White"
+Clear-Host
 # Define color functions for better visibility
 function Write-Color {
     param (
