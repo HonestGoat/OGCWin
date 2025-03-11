@@ -82,33 +82,32 @@ Write-Host "Gathering system information..." -ForegroundColor Cyan
 $desktopPath = [System.Environment]::GetFolderPath("Desktop")
 $outputFile = "$desktopPath\SystemInfo.txt"
 
-# Function to get Windows version
+# Function to get Windows version (for report output)
+$os = (Get-CimInstance Win32_OperatingSystem).Caption
 function Get-WindowsVersion {
     $version = (Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion").DisplayVersion
     $edition = (Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion").EditionID
-    $os = (Get-CimInstance Win32_OperatingSystem).Caption
     return "$os $version ($edition)"
 }
 
 # Function to get Windows installation date
 function Get-WindowsInstallDate {
-    $os = Get-CimInstance Win32_OperatingSystem
-    return $os.InstallDate
+    return (Get-CimInstance Win32_OperatingSystem).InstallDate
 }
 
 # Function to retrieve Windows product key using multiple methods (Conditional WMIC for non-Windows 11)
 function Get-WindowsProductKey {
     $productKey = $null
 
-    # If not Windows 11, attempt WMIC method first
-    if ($os -notmatch "Windows 11") {
+    # Runs wmic command only if Windows 10 is detected
+    if ($os -match "Windows 10") {
         $wmicKey = (wmic path softwareLicensingService get OA3xOriginalProductKey | Select-Object -Skip 1) -match "\w"
         if ($wmicKey) {
             $productKey = $wmicKey.Trim()
         }
     }
 
-    # If WMIC was skipped (Windows 11) or failed, attempt WMIObject method
+    # If WMIC failed, attempt WMIObject method
     if (-not $productKey) {
         try {
             $wmiKey = (Get-WmiObject -Query "SELECT * FROM SoftwareLicensingService").OA3xOriginalProductKey
