@@ -210,12 +210,14 @@ Start-Sleep -Seconds 1
 Write-Host "Checking for OGCWin dependencies..." -ForegroundColor Cyan
 Start-Sleep -Seconds 2
 
-# Function to check if WinGet is installed
+# Function to check if WinGet is installed properly
 function Test-WinGet {
-    try {
-        winget --version
+    $wingetPath = Get-Command winget -ErrorAction SilentlyContinue
+    if ($wingetPath) {
+        Write-Host "WinGet found: $($wingetPath.Source)" -ForegroundColor Green
         return $true
-    } catch {
+    } else {
+        Write-Host "WinGet is NOT installed or not in PATH!" -ForegroundColor Red
         return $false
     }
 }
@@ -223,7 +225,14 @@ function Test-WinGet {
 # Function to check if an Appx package is installed
 function Test-AppxInstalled {
     param ($PackageName)
-    return $null -ne (Get-AppxPackage | Where-Object { $_.Name -eq $PackageName })
+    $installed = Get-AppxPackage | Where-Object { $_.Name -eq $PackageName }
+    if ($installed) {
+        Write-Host "Dependency found: $PackageName" -ForegroundColor Green
+        return $true
+    } else {
+        Write-Host "Dependency MISSING: $PackageName" -ForegroundColor Red
+        return $false
+    }
 }
 
 # Function to install dependencies and WinGet
@@ -239,51 +248,35 @@ function Install-WinGet {
 
     # Install Microsoft.VCLibs
     if (-not (Test-AppxInstalled "Microsoft.VCLibs.140.00.UWPDesktop")) {
-        if (-not (Test-Path $vclibsPath)) {
-            Write-Host "Downloading Microsoft.VCLibs.140.00.UWPDesktop..." -ForegroundColor Yellow
-            Start-Process -FilePath "curl.exe" -ArgumentList "-L -o `"$vclibsPath`" `"$vclibsUrl`"" -NoNewWindow -Wait
-        }
-        Write-Host "Installing Microsoft.VCLibs.140.00.UWPDesktop..." -ForegroundColor Cyan
+        Write-Host "Downloading and Installing Microsoft.VCLibs.140.00.UWPDesktop..." -ForegroundColor Yellow
+        Start-Process -FilePath "curl.exe" -ArgumentList "-L -o `"$vclibsPath`" `"$vclibsUrl`"" -NoNewWindow -Wait
         Add-AppxPackage -Path $vclibsPath
-    } else {
-        Write-Host "Microsoft.VCLibs.140.00.UWPDesktop is already installed." -ForegroundColor Green
     }
 
     # Install Microsoft.UI.Xaml
     if (-not (Test-AppxInstalled "Microsoft.UI.Xaml.2.8")) {
-        if (-not (Test-Path $xamlPath)) {
-            Write-Host "Downloading Microsoft.UI.Xaml.2.8..." -ForegroundColor Yellow
-            Start-Process -FilePath "curl.exe" -ArgumentList "-L -o `"$xamlPath`" `"$xamlUrl`"" -NoNewWindow -Wait
-        }
-        Write-Host "Installing Microsoft.UI.Xaml.2.8..." -ForegroundColor Cyan
+        Write-Host "Downloading and Installing Microsoft.UI.Xaml.2.8..." -ForegroundColor Yellow
+        Start-Process -FilePath "curl.exe" -ArgumentList "-L -o `"$xamlPath`" `"$xamlUrl`"" -NoNewWindow -Wait
         Add-AppxPackage -Path $xamlPath
-    } else {
-        Write-Host "Microsoft.UI.Xaml.2.8 is already installed." -ForegroundColor Green
     }
 
     # Install WinGet
-    Write-Host "Fetching latest WinGet release information..." -ForegroundColor Yellow
-    $latestRelease = Invoke-RestMethod -Uri $wingetApiUrl
-    $wingetAsset = $latestRelease.assets | Where-Object { $_.name -like "*.msixbundle" }
-    $wingetUrl = $wingetAsset.browser_download_url
-    $wingetPath = "$downloadsFolder\$($wingetAsset.name)"
-
     if (-not (Test-WinGet)) {
-        if (-not (Test-Path $wingetPath)) {
-            Write-Host "Downloading WinGet..." -ForegroundColor Yellow
-            Start-Process -FilePath "curl.exe" -ArgumentList "-L -o `"$wingetPath`" `"$wingetUrl`"" -NoNewWindow -Wait
-        }
-        Write-Host "Installing WinGet..." -ForegroundColor Cyan
+        Write-Host "Downloading and Installing WinGet..." -ForegroundColor Yellow
+        $latestRelease = Invoke-RestMethod -Uri $wingetApiUrl
+        $wingetAsset = $latestRelease.assets | Where-Object { $_.name -like "*.msixbundle" }
+        $wingetUrl = $wingetAsset.browser_download_url
+        $wingetPath = "$downloadsFolder\$($wingetAsset.name)"
+
+        Start-Process -FilePath "curl.exe" -ArgumentList "-L -o `"$wingetPath`" `"$wingetUrl`"" -NoNewWindow -Wait
         Add-AppxPackage -Path $wingetPath
-    } else {
-        Write-Host "WinGet is already installed." -ForegroundColor Green
     }
 
-    # Clean up downloaded files
+    # Confirm installations
     if (Test-AppxInstalled "Microsoft.VCLibs.140.00.UWPDesktop" -and `
         Test-AppxInstalled "Microsoft.UI.Xaml.2.8" -and `
         Test-WinGet) {
-        Write-Host "Cleaning up installation files..." -ForegroundColor Cyan
+        Write-Host "All dependencies installed successfully." -ForegroundColor Green
         Remove-Item -Path "$downloadsFolder\*" -Force -ErrorAction SilentlyContinue
     } else {
         Write-Host "Some dependencies failed to install." -ForegroundColor Red
@@ -303,6 +296,8 @@ if (-not (Test-WinGet)) {
         Start-Sleep -Seconds 5
         exit
     }
+} else {
+    Write-Host "All required dependencies are already installed." -ForegroundColor Green
 }
 
 # Check PowerShell version
