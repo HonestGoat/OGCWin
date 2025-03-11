@@ -120,9 +120,18 @@ function Get-WindowsProductKey {
     # If still no key, attempt ProduKey
     if (-not $productKey -and (Test-Path $produKeyExePath)) {
         $tempKeyFile = "$tempFolder\WindowsKey.txt"
-        & $produKeyExePath /WindowsKeys /stext $tempKeyFile
 
+        # Run ProduKey and wait for up to 5 secs to read key
+        & $produKeyExePath /WindowsKeys /stext $tempKeyFile
+        $timeout = 5
+        while (!(Test-Path $tempKeyFile) -and $timeout -gt 0) {
+            Start-Sleep -Seconds 1
+            $timeout--
+        }
+
+        # Once key available, extract the key
         if (Test-Path $tempKeyFile) {
+            Start-Sleep -Seconds 1  # add a second to allow file to write properly
             $fileContent = Get-Content $tempKeyFile
 
             # Search for the first occurrence of "Product Key" and extract key after the colon
