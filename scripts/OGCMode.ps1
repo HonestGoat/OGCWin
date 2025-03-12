@@ -136,6 +136,53 @@ function Get-WindowsVersion {
     }
 }
 
+# Check OGCWin Version and update if old
+
+# Define folder paths
+$parentFolder = "C:\ProgramData\OGC Windows Utility"
+$configsFolder = "$parentFolder\configs"
+$localVersionFile = "$configsFolder\version.cfg"
+$remoteVersionURL = "https://raw.githubusercontent.com/HonestGoat/OGCWin/main/configs/version.cfg"
+$updateScript = "$parentFolder\Update.bat"
+
+# Function to extract version number from version.cfg
+function Get-VersionNumber {
+    param ($fileContent)
+    if ($fileContent -match "Version=([\d\.]+)") {
+        return [version]$matches[1]
+    } else {
+        return $null
+    }
+}
+
+# Check if local version file exists
+if (Test-Path $localVersionFile) {
+    $localVersionContent = Get-Content $localVersionFile -Raw
+    $localVersion = Get-VersionNumber $localVersionContent
+} else {
+    Write-Host "Local version.cfg file not found. Assuming outdated version."
+    $localVersion = [version]"0.0"
+}
+
+# Download remote version file
+try {
+    $remoteVersionContent = Invoke-RestMethod -Uri $remoteVersionURL -UseBasicParsing
+    $remoteVersion = Get-VersionNumber $remoteVersionContent
+} catch {
+    Write-Host "Failed to retrieve remote version information. Check internet connection."
+    exit
+}
+
+# Compare versions
+if ($localVersion -lt $remoteVersion) {
+    Write-Host "OGCWin is out of date. Updating to version $remoteVersion..."
+    Start-Process -FilePath $updateScript -NoNewWindow
+    Start-Sleep -Seconds 2
+    exit
+} else {
+    Write-Host "OGCWin is up to date (Version $localVersion)."
+}
+
 # Function to prompt user for mode selection
 function Get-UserSelection {
     $windowsVersion = Get-WindowsVersion

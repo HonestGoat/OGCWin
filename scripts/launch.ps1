@@ -99,7 +99,7 @@ function Get-WindowsVersion {
 $parentFolder = "C:\ProgramData\OGC Windows Utility"
 $downloadsFolder = "$parentFolder\downloads"
 #$redistributableFolder = "$parentFolder\redist"
-$configurationsFolder = "$parentFolder\configs"
+$configsFolder = "$parentFolder\configs"
 #$imagesFolder = "$parentFolder\images"
 $tempFolder = "$parentFolder\temp"
 #$driversFolder = "$parentFolder\drivers"
@@ -108,7 +108,7 @@ $scriptsFolder = "$parentFolder\scripts"
 #$bin = "$parentFolder\bin"
 
 # Ensure all necessary folders exist
-$folders = @($parentFolder, $downloadsFolder, $configurationsFolder, $tempFolder, $scriptsFolder) # add ass needed $redistributableFolder, $imagesFolder, $driversFolder, $pythonFolder, $bin
+$folders = @($parentFolder, $downloadsFolder, $configsFolder, $tempFolder, $scriptsFolder) # add ass needed $redistributableFolder, $imagesFolder, $driversFolder, $pythonFolder, $bin
 foreach ($folder in $folders) {
     if (-not (Test-Path $folder)) { 
         New-Item -Path $folder -ItemType Directory -Force | Out-Null 
@@ -128,7 +128,7 @@ if (-Not (Test-ExclusionSet $parentFolder)) {
 }
 
 # Download urls.cfg (Always overwrite to ensure updates)
-$urlsConfigPath = "$configurationsFolder\urls.cfg"
+$urlsConfigPath = "$configsFolder\urls.cfg"
 $urlsConfigUrl = "https://raw.githubusercontent.com/HonestGoat/OGCWin/main/configs/urls.cfg"
 
 if (Test-Path $urlsConfigPath) {
@@ -140,6 +140,20 @@ if (Test-Path $urlsConfigPath) {
 }
 
 Start-Process -FilePath "curl.exe" -ArgumentList "-s -L -o `"$urlsConfigPath`" `"$urlsConfigUrl`"" -NoNewWindow -Wait
+
+# Download version.cfg (Always overwrite to ensure updates)
+$versionConfigPath = "$configsFolder\version.cfg"
+$versionConfigUrl = "https://raw.githubusercontent.com/HonestGoat/OGCWin/main/configs/version.cfg"
+
+if (Test-Path $versionConfigPath) {
+    Write-Host "Updating version.cfg..." -ForegroundColor Yellow
+} else {
+    Write-Host "Downloading version.cfg..." -ForegroundColor Yellow
+    Start-Sleep -Seconds 1
+    Write-Host "Installing version.cfg..." -ForegroundColor Yellow
+}
+
+Start-Process -FilePath "curl.exe" -ArgumentList "-s -L -o `"$versionConfigPath`" `"$versionConfigUrl`"" -NoNewWindow -Wait
 
 # Function to load URLs from urls.cfg
 function Get-Url {
