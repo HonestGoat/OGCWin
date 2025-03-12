@@ -362,7 +362,7 @@ Start-Sleep -Seconds 1
 Write-Host ""
 
 # Launch OGCWin mode selector
-Start-Process powershell.exe -ArgumentList "-NoExit -ExecutionPolicy Bypass -NoProfile -Command `" `
+powershell.exe -ArgumentList "-NoExit -ExecutionPolicy Bypass -NoProfile -Command `" `
     `$host.UI.RawUI.BackgroundColor = 'Black'; `
     `$host.UI.RawUI.ForegroundColor = 'White'; `
     `Clear-Host; `
