@@ -46,6 +46,7 @@ function Show-Progress {
 $winVer = (Get-CimInstance Win32_OperatingSystem).Caption
 if ($winVer -match "Windows 10 Home" -or $winVer -match "Windows 10 Pro") {
     # Windows 10 Banner
+    Write-Host ""
     Write-Host "=======================================" -ForegroundColor DarkBlue
     Write-Host "       OOOOOO    GGGGGG    CCCCCC      " -ForegroundColor Cyan
     Write-Host "      OO    OO  GG        CC           " -ForegroundColor Cyan
@@ -59,6 +60,7 @@ if ($winVer -match "Windows 10 Home" -or $winVer -match "Windows 10 Pro") {
     Write-Host "=======================================" -ForegroundColor DarkBlue
 } elseif ($winVer -match "Windows 11 Home" -or $winVer -match "Windows 11 Pro") {
     # Windows 11 Banner
+    Write-Host ""
     Write-Host "=======================================" -ForegroundColor DarkBlue
     Write-Host "       OOOOOO    GGGGGG    CCCCCC      " -ForegroundColor Cyan
     Write-Host "      OO    OO  GG        CC           " -ForegroundColor Cyan
@@ -358,6 +360,7 @@ Clear-Host
 $winVer = (Get-CimInstance Win32_OperatingSystem).Caption
 if ($winVer -match "Windows 10 Home" -or $winVer -match "Windows 10 Pro") {
     # Windows 10 Banner
+    Write-Host ""
     Write-Host "=======================================" -ForegroundColor DarkBlue
     Write-Host "       OOOOOO    GGGGGG    CCCCCC      " -ForegroundColor Cyan
     Write-Host "      OO    OO  GG        CC           " -ForegroundColor Cyan
