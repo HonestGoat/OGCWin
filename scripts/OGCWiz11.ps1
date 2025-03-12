@@ -1395,74 +1395,14 @@ if ($installedDrivers -match "AMD") {
 }
 
 Write-Host "GPU tracking and telemetry disabled where applicable." -ForegroundColor Green
-
-# Ensure the script runs with administrator privileges
-if (-Not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")) {
-    Write-Host "Re-running script as administrator..." -ForegroundColor Yellow
-    Start-Process powershell.exe -ArgumentList "-ExecutionPolicy Bypass -NoProfile -File `"$PSCommandPath`"" -Verb RunAs
-    exit
-}
-# Create OGCWin shortcut on desktop
-# Define the desktop path for the OGCWin shortcut
-$desktopPath = [System.IO.Path]::Combine([System.Environment]::GetFolderPath("Desktop"), "OGCWin.lnk")
-
-# Define the shortcut target
-$shortcutTarget = "C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe"
-$shortcutArguments = "-ExecutionPolicy Bypass -WindowStyle Hidden -Command `"irm https://raw.githubusercontent.com/HonestGoat/OGCWin/main/launch.ps1 | iex`""
-
-# Check if the shortcut already exists
-if (-Not (Test-Path $desktopPath)) {
-    Write-Host "OGCWin shortcut not found. Creating one now..." -ForegroundColor Yellow
-
-    # Create a new WScript Shell object
-    $WScriptShell = New-Object -ComObject WScript.Shell
-    $Shortcut = $WScriptShell.CreateShortcut($desktopPath)
-    $Shortcut.TargetPath = $shortcutTarget
-    $Shortcut.Arguments = $shortcutArguments
-    $Shortcut.Description = "Run OGCWin Script"
-    $Shortcut.IconLocation = "C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe"  # Optional: Set an icon
-    $Shortcut.Save()
-
-    Write-Host "OGCWin shortcut created successfully on the desktop." -ForegroundColor Green
-} else {
-    Write-Host "OGCWin shortcut already exists. Checking Defender exclusions..." -ForegroundColor Cyan
-}
-
-# Define exclusions
-$exclusions = @(
-    "$desktopPath",  # Exclude the shortcut
-    "powershell.exe",  # Exclude PowerShell
-    "cmd.exe",  # Exclude Command Prompt (cmd might be used by scripts)
-    "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Startup\OGCWin.lnk"  # If a startup shortcut exists
-)
-
-# Function to check if an exclusion exists
-function Test-ExclusionSet {
-    param (
-        [string]$path
-    )
-    $existingExclusions = Get-MpPreference | Select-Object -ExpandProperty ExclusionPath
-    return $existingExclusions -contains $path
-}
-
-# Add exclusions only if they are not already set
-Write-Host "Checking and adding missing exclusions to Windows Defender..." -ForegroundColor Magenta
-foreach ($item in $exclusions) {
-    if (-Not (Test-ExclusionSet $item)) {
-        Add-MpPreference -ExclusionPath "$item" -ErrorAction SilentlyContinue
-        Add-MpPreference -ExclusionProcess "$item" -ErrorAction SilentlyContinue
-        Write-Host "Added exclusion for: $item" -ForegroundColor Green
-    } else {
-        Write-Host "Exclusion already exists for: $item" -ForegroundColor Cyan
-    }
-}
-
-Write-Host "Windows Defender exclusions are now up to date." -ForegroundColor Green
-
+Start-Sleep -Seconds 2
+Write-Host ""
+Write-Host ""
 Write-Host "===========================================" -ForegroundColor Green
 Write-Host "  OGC New Windows Wizard is complete!      " -ForegroundColor Cyan
 Write-Host "  Enjoy your optimized Windows experience. " -ForegroundColor Cyan
 Write-Host "===========================================" -ForegroundColor Green
 Write-Host ""
+Write-Host "This window will now close"
 Start-Sleep -Seconds 5
 exit
