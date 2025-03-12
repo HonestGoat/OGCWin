@@ -131,7 +131,6 @@ if (-Not (Test-ExclusionSet $parentFolder)) {
 $ogclaunch = "$scriptsFolder\launch.ps1"
 $ogcwinbat = "$parentFolder\OGCWin.bat"
 $ogcmode = "$scriptsFolder\OGCMode.ps1"
-$ogcupdate = "$parentFolder\Update.bat"
 $ogcwin10 = "$scriptsFolder\OGCWin10.ps1"
 $ogcwin11 = "$scriptsFolder\OGCWin11.ps1"
 $ogcwiz10 = "$scriptsFolder\OGCWiz10.ps1"
@@ -181,7 +180,6 @@ function Get-Scripts {
     $scripts = @{
         "OGClaunch" = $ogclaunch
         "OGCMode" = $ogcmode
-        "OGCUpdate" = $ogcupdate
         "OGCWin10" = $ogcwin10
         "OGCWin11" = $ogcwin11
         "OGCWiz10" = $ogcwiz10
@@ -204,7 +202,6 @@ function Get-ScriptPath {
     param ($scriptKey)
     $scriptPaths = @{
         "OGClaunch" = "$parentFolder\launch.ps1"
-        "OGCUpdate" = "$parentFolder\Update.bat"
         "OGCWinBat" = "$parentFolder\OGCWin.bat"
         "OGCWin10" = "$scriptsFolder\OGCWin10.ps1"
         "OGCWin11" = "$scriptsFolder\OGCWin11.ps1"

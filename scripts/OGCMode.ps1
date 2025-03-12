@@ -141,9 +141,10 @@ function Get-WindowsVersion {
 # Define folder paths
 $parentFolder = "C:\ProgramData\OGC Windows Utility"
 $configsFolder = "$parentFolder\configs"
+$scriptsFolder = "$parentFolder\scripts"
 $localVersionFile = "$configsFolder\version.cfg"
 $remoteVersionURL = "https://raw.githubusercontent.com/HonestGoat/OGCWin/main/configs/version.cfg"
-$updateScript = "$parentFolder\Update.bat"
+$updateScript = "$scriptsFolder\launch.ps1"  # Now launching launch.ps1 directly
 
 # Function to extract version number from version.cfg
 function Get-VersionNumber {
@@ -177,7 +178,14 @@ try {
 # Compare versions
 if ($localVersion -lt $remoteVersion) {
     Write-Host "OGCWin is out of date. Updating to version $remoteVersion..." -ForegroundColor Cyan
-    Start-Process -FilePath $updateScript -NoNewWindow
+    
+    # Run launch.ps1 in the **same window** with admin rights, black background, and execution policy bypass
+    powershell.exe -ExecutionPolicy Bypass -NoProfile -Command "
+        `$host.UI.RawUI.BackgroundColor = 'Black'; 
+        `$host.UI.RawUI.ForegroundColor = 'White'; 
+        Clear-Host;
+        Start-Process powershell.exe -ArgumentList '-ExecutionPolicy Bypass -NoProfile -File `"$updateScript`"' -Verb RunAs"
+    
     Start-Sleep -Seconds 1
     exit
 } else {
