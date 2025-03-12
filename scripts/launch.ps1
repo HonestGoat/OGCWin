@@ -127,33 +127,33 @@ if (-Not (Test-ExclusionSet $parentFolder)) {
     Add-MpPreference -ExclusionPath "$parentFolder" -ErrorAction SilentlyContinue
 }
 
-# Download urls.cfg (Always overwrite to ensure updates)
+# Define file names and locations
+$ogclaunch = "$scriptsFolder\launch.ps1"
+$ogcwinbat = "$parentFolder\OGCWin.bat"
+$ogcmode = "$scriptsFolder\OGCMode.ps1"
+$ogcupdate = "$parentFolder\Update.bat"
+$ogcwin10 = "$scriptsFolder\OGCWin10.ps1"
+$ogcwin11 = "$scriptsFolder\OGCWin11.ps1"
+$ogcwiz10 = "$scriptsFolder\OGCWiz10.ps1"
+$ogcwiz11 = "$scriptsFolder\OGCWiz11.ps1"
+$sysinfo = "$scriptsFolder\sysinfo.ps1"
+
+# Download config files (Always overwrite to ensure updates)
 $urlsConfigPath = "$configsFolder\urls.cfg"
 $urlsConfigUrl = "https://raw.githubusercontent.com/HonestGoat/OGCWin/main/configs/urls.cfg"
-
+$versionConfigPath = "$configsFolder\version.cfg"
+$versionConfigUrl = "https://raw.githubusercontent.com/HonestGoat/OGCWin/main/configs/version.cfg"
 if (Test-Path $urlsConfigPath) {
     Write-Host "Updating OGCWin..." -ForegroundColor Yellow
+    Start-Process -FilePath "curl.exe" -ArgumentList "-s -L -o `"$urlsConfigPath`" `"$urlsConfigUrl`"" -NoNewWindow -Wait
+    Start-Process -FilePath "curl.exe" -ArgumentList "-s -L -o `"$versionConfigPath`" `"$versionConfigUrl`"" -NoNewWindow -Wait
 } else {
     Write-Host "Downloading OGCWin..." -ForegroundColor Yellow
+    Start-Process -FilePath "curl.exe" -ArgumentList "-s -L -o `"$urlsConfigPath`" `"$urlsConfigUrl`"" -NoNewWindow -Wait
+    Start-Process -FilePath "curl.exe" -ArgumentList "-s -L -o `"$versionConfigPath`" `"$versionConfigUrl`"" -NoNewWindow -Wait
     Start-Sleep -Seconds 1
     Write-Host "Installing OGCWin..." -ForegroundColor Yellow
 }
-
-Start-Process -FilePath "curl.exe" -ArgumentList "-s -L -o `"$urlsConfigPath`" `"$urlsConfigUrl`"" -NoNewWindow -Wait
-
-# Download version.cfg (Always overwrite to ensure updates)
-$versionConfigPath = "$configsFolder\version.cfg"
-$versionConfigUrl = "https://raw.githubusercontent.com/HonestGoat/OGCWin/main/configs/version.cfg"
-
-if (Test-Path $versionConfigPath) {
-    Write-Host "Updating version.cfg..." -ForegroundColor Yellow
-} else {
-    Write-Host "Downloading version.cfg..." -ForegroundColor Yellow
-    Start-Sleep -Seconds 1
-    Write-Host "Installing version.cfg..." -ForegroundColor Yellow
-}
-
-Start-Process -FilePath "curl.exe" -ArgumentList "-s -L -o `"$versionConfigPath`" `"$versionConfigUrl`"" -NoNewWindow -Wait
 
 # Function to load URLs from urls.cfg
 function Get-Url {
@@ -175,17 +175,6 @@ function Get-Url {
         return $null
     }
 }
-
-# Define file names and locations
-$ogclaunch = "$scriptsFolder\launch.ps1"
-$ogcwinbat = "$parentFolder\OGCWin.bat"
-$ogcmode = "$scriptsFolder\OGCMode.ps1"
-$ogcupdate = "$parentFolder\Update.bat"
-$ogcwin10 = "$scriptsFolder\OGCWin10.ps1"
-$ogcwin11 = "$scriptsFolder\OGCWin11.ps1"
-$ogcwiz10 = "$scriptsFolder\OGCWiz10.ps1"
-$ogcwiz11 = "$scriptsFolder\OGCWiz11.ps1"
-$sysinfo = "$scriptsFolder\sysinfo.ps1"
 
 # Function to always update files from GitHub
 function Get-Scripts {
