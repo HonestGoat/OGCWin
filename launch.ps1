@@ -352,7 +352,8 @@ Start-Sleep -Seconds 1
 Write-Host ""
 
 # Clear terminal and display OGC Banner again.
-Clear-Host
+$Host.UI.RawUI.BackgroundColor = "Black"
+$Host.UI.RawUI.ForegroundColor = "White"
 Clear-Host
 $winVer = (Get-CimInstance Win32_OperatingSystem).Caption
 if ($winVer -match "Windows 10 Home" -or $winVer -match "Windows 10 Pro") {
