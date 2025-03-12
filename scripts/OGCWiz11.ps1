@@ -1467,18 +1467,15 @@ Write-Host ""
 Start-Sleep -Seconds 2
 
 # Prompt the user if they want to return to the OGC Windows Utility
-$nextAction = Read-Host "Do you want to return to the OGC Windows Utility? (Y/N)"
-
-if ($nextAction -eq "Y" -or $nextAction -eq "y") {
-    # Launch the OGC Windows Utility script
-    Write-Host "OGC Windows Utility Mode is not yet unavailable. Closing the window..." -ForegroundColor Cyan
-    Start-Sleep -Seconds 2
-    exit
+if ((Read-Host "Do you want to return to the OGC Windows Utility? (Y/N)") -match "^[Yy]$") {
 #    Write-Host "Returning to OGC Windows Utility..." -ForegroundColor Cyan
 #    Clear-Host
 #    Start-Process powershell.exe -ArgumentList "-NoExit -ExecutionPolicy Bypass -NoProfile -WindowStyle Normal -File `"$scriptsFolder\OGCWin11.ps1`""
-}
-elseif ($nextAction -eq "N" -or $nextAction -eq "n") {
+    Write-Host "OGC Windows Utility Mode is not yet available. Closing the window..." -ForegroundColor Cyan
+    Start-Sleep -Seconds 3
+    exit
+} else {
+    Write-Host "Closing the window..." -ForegroundColor Cyan
     Start-Sleep -Seconds 1
     exit
 }
