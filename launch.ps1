@@ -105,10 +105,10 @@ $tempFolder = "$parentFolder\temp"
 #$driversFolder = "$parentFolder\drivers"
 #$pythonFolder = "$parentFolder\python"
 $scriptsFolder = "$parentFolder\scripts"
-$bin = "$parentFolder\bin"
+#$bin = "$parentFolder\bin"
 
 # Ensure all necessary folders exist
-$folders = @($parentFolder, $downloadsFolder, $configurationsFolder, $tempFolder, $scriptsFolder, $bin) # add ass needed $redistributableFolder, $imagesFolder, $driversFolder, $pythonFolder
+$folders = @($parentFolder, $downloadsFolder, $configurationsFolder, $tempFolder, $scriptsFolder) # add ass needed $redistributableFolder, $imagesFolder, $driversFolder, $pythonFolder, $bin
 foreach ($folder in $folders) {
     if (-not (Test-Path $folder)) { 
         New-Item -Path $folder -ItemType Directory -Force | Out-Null 

@@ -41,13 +41,12 @@ function Show-Progress {
 
 # Define OGCWin folder paths
 $parentFolder = "C:\ProgramData\OGC Windows Utility"
-$downloadsFolder = "$parentFolder\downloads"
 $configurationsFolder = "$parentFolder\configs"
 $binFolder = "$parentFolder\bin"
 $tempFolder = "$parentFolder\temp"
 
 # Ensure all necessary folders exist
-$folders = @($parentFolder, $downloadsFolder, $configurationsFolder, $binFolder, $tempFolder)
+$folders = @($parentFolder, $configurationsFolder, $binFolder, $tempFolder)
 foreach ($folder in $folders) {
     if (-not (Test-Path $folder)) { 
         New-Item -Path $folder -ItemType Directory -Force | Out-Null 
