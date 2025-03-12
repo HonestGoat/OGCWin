@@ -44,7 +44,7 @@ function Show-Progress {
 
 # Detect Banner Version
 $winVer = (Get-CimInstance Win32_OperatingSystem).Caption
-if ($winVer -match "Windows 10 Home" -or $winVer -match "Windows 10 Pro") {
+if ($winVer -match "Windows 10") {
     # Windows 10 Banner
     Write-Host ""
     Write-Host "=======================================" -ForegroundColor DarkBlue
@@ -58,7 +58,7 @@ if ($winVer -match "Windows 10 Home" -or $winVer -match "Windows 10 Pro") {
     Write-Host "        https://discord.gg/ogc         " -ForegroundColor Magenta
     Write-Host "        Created by Honest Goat         " -ForegroundColor Green
     Write-Host "=======================================" -ForegroundColor DarkBlue
-} elseif ($winVer -match "Windows 11 Home" -or $winVer -match "Windows 11 Pro") {
+} elseif ($winVer -match "Windows 11") {
     # Windows 11 Banner
     Write-Host ""
     Write-Host "=======================================" -ForegroundColor DarkBlue
@@ -358,7 +358,7 @@ $Host.UI.RawUI.BackgroundColor = "Black"
 $Host.UI.RawUI.ForegroundColor = "White"
 Clear-Host
 $winVer = (Get-CimInstance Win32_OperatingSystem).Caption
-if ($winVer -match "Windows 10 Home" -or $winVer -match "Windows 10 Pro") {
+if ($winVer -match "Windows 10") {
     # Windows 10 Banner
     Write-Host ""
     Write-Host "=======================================" -ForegroundColor DarkBlue
@@ -372,8 +372,9 @@ if ($winVer -match "Windows 10 Home" -or $winVer -match "Windows 10 Pro") {
     Write-Host "        https://discord.gg/ogc         " -ForegroundColor Magenta
     Write-Host "        Created by Honest Goat         " -ForegroundColor Green
     Write-Host "=======================================" -ForegroundColor DarkBlue
-} elseif ($winVer -match "Windows 11 Home" -or $winVer -match "Windows 11 Pro") {
+} elseif ($winVer -match "Windows 11") {
     # Windows 11 Banner
+    Write-Host ""
     Write-Host "=======================================" -ForegroundColor DarkBlue
     Write-Host "       OOOOOO    GGGGGG    CCCCCC      " -ForegroundColor Cyan
     Write-Host "      OO    OO  GG        CC           " -ForegroundColor Cyan
@@ -394,10 +395,10 @@ if ($winVer -match "Windows 10 Home" -or $winVer -match "Windows 10 Pro") {
 # Function to determine Windows version
 function Get-WindowsVersion {
     $winVer = (Get-CimInstance Win32_OperatingSystem).Caption
-    if ($winVer -match "Windows 10 Home" -or $winVer -match "Windows 10 Pro") {
-        return "Windows10"
-    } elseif ($winVer -match "Windows 11 Home" -or $winVer -match "Windows 11 Pro") {
-        return "Windows11"
+    if ($winVer -match "Windows 10") {
+        return "Windows 10"
+    } elseif ($winVer -match "Windows 11") {
+        return "Windows 11"
     } else {
         Write-Host "Unsupported Windows Version. Exiting." -ForegroundColor Red
         Start-Sleep -Seconds 2
@@ -425,7 +426,7 @@ function Get-UserSelection {
             continue
 #            Write-Host "Starting OGC Windows Utility..." -ForegroundColor Magenta
 #            Start-Sleep -Seconds 1
-#            $scriptPath = if ($windowsVersion -eq "Windows10") { "$scriptsFolder\OGCWin10.ps1" } else { "$scriptsFolder\OGCWin11.ps1" }
+#            $scriptPath = if ($windowsVersion -eq "Windows 10") { "$scriptsFolder\OGCWin10.ps1" } else { "$scriptsFolder\OGCWin11.ps1" }
 #            Start-Process powershell.exe -ArgumentList "-NoExit -ExecutionPolicy Bypass -NoProfile -WindowStyle Normal -Command `" 
 #                `$host.UI.RawUI.BackgroundColor = 'Black'; 
 #                `$host.UI.RawUI.ForegroundColor = 'White'; 
@@ -436,7 +437,7 @@ function Get-UserSelection {
         } elseif ($modeChoice -eq "2") {
             Write-Host "Starting OGC Fresh Installation Setup Wizard..." -ForegroundColor Magenta
             Start-Sleep -Seconds 1
-            $scriptPath = if ($windowsVersion -eq "Windows10") { "$scriptsFolder\OGCWiz10.ps1" } else { "$scriptsFolder\OGCWiz11.ps1" }
+            $scriptPath = if ($windowsVersion -eq "Windows 10") { "$scriptsFolder\OGCWiz10.ps1" } else { "$scriptsFolder\OGCWiz11.ps1" }
             Start-Process powershell.exe -ArgumentList "-NoExit -ExecutionPolicy Bypass -NoProfile -WindowStyle Normal -Command `" 
                 `$host.UI.RawUI.BackgroundColor = 'Black'; 
                 `$host.UI.RawUI.ForegroundColor = 'White'; 
