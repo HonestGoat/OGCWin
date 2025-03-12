@@ -1,17 +1,25 @@
 # OGC New Windows Setup Wizard by Honest Goat
 # Version: 0.1
-# This wizard disables tracking and data collection, optimizes Windows for gaming, removes bloatware,
-# disables invasive and annoying features like CoPilot and Recall, removes Edge integrations and annoyances
-# and allows the user to install a host of common applications drivers.
 
-# Set PowerShell Execution Policy to allow scripts (requires admin)
+# Start with administrator privileges, bypass execution policy and force black background
+function Test-Admin {
+    $currentUser = [System.Security.Principal.WindowsIdentity]::GetCurrent()
+    $principal = New-Object System.Security.Principal.WindowsPrincipal($currentUser)
+    $isAdmin = $principal.IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator)
+
+    if (-not $isAdmin) {
+        Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`"" -Verb RunAs
+        Exit
+    }
+}
+Test-Admin
+
 Set-ExecutionPolicy Bypass -Scope Process -Force
-
-# Force Black Background and White Text
 $Host.UI.RawUI.BackgroundColor = "Black"
 $Host.UI.RawUI.ForegroundColor = "White"
 Clear-Host
-# Define color functions for better visibility
+
+# Define colour functions and progress bars
 function Write-Color {
     param (
         [string]$Text,
@@ -21,49 +29,32 @@ function Write-Color {
     Write-Host $Text -ForegroundColor $ForegroundColor -BackgroundColor $BackgroundColor
 }
 
-# Function to show progress bar
 function Show-Progress {
     param (
         [string]$Message
     )
-    Write-Host "[$Message]" -ForegroundColor Blue
-    Start-Sleep -Seconds 2
+    for ($i = 1; $i -le 100; $i += 10) {
+        Write-Progress -Activity $Message -Status "$i% Complete" -PercentComplete $i
+        Start-Sleep -Milliseconds 300
+    }
+    Write-Host "`n[$Message Complete]" -ForegroundColor Green
 }
 
-# Detect Banner Version
-$winVer = (Get-CimInstance Win32_OperatingSystem).Caption
-if ($winVer -match "Windows 10 Home" -or $winVer -match "Windows 10 Pro") {
-    # Windows 10 Banner
-    Write-Host "=======================================" -ForegroundColor DarkBlue
-    Write-Host "       OOOOOO    GGGGGG    CCCCCC      " -ForegroundColor Cyan
-    Write-Host "      OO    OO  GG        CC           " -ForegroundColor Cyan
-    Write-Host "      OO    OO  GG   GGG  CC           " -ForegroundColor Cyan
-    Write-Host "      OO    OO  GG    GG  CC           " -ForegroundColor Cyan
-    Write-Host "       OOOOOO    GGGGGG    CCCCCC      " -ForegroundColor Cyan
-    Write-Host "                                       " -ForegroundColor Cyan
-    Write-Host "        OGC Windows 10 Utility         " -ForegroundColor Yellow
-    Write-Host "        https://discord.gg/ogc         " -ForegroundColor Magenta
-    Write-Host "        Created by Honest Goat         " -ForegroundColor Green
-    Write-Host "=======================================" -ForegroundColor DarkBlue
-} elseif ($winVer -match "Windows 11 Home" -or $winVer -match "Windows 11 Pro") {
-    # Windows 11 Banner
-    Write-Host "=======================================" -ForegroundColor DarkBlue
-    Write-Host "       OOOOOO    GGGGGG    CCCCCC      " -ForegroundColor Cyan
-    Write-Host "      OO    OO  GG        CC           " -ForegroundColor Cyan
-    Write-Host "      OO    OO  GG   GGG  CC           " -ForegroundColor Cyan
-    Write-Host "      OO    OO  GG    GG  CC           " -ForegroundColor Cyan
-    Write-Host "       OOOOOO    GGGGGG    CCCCCC      " -ForegroundColor Cyan
-    Write-Host "                                       " -ForegroundColor Cyan
-    Write-Host "        OGC Windows 11 Utility         " -ForegroundColor Yellow
-    Write-Host "        https://discord.gg/ogc         " -ForegroundColor Magenta
-    Write-Host "        Created by Honest Goat         " -ForegroundColor Green
-    Write-Host "=======================================" -ForegroundColor DarkBlue
-} else {
-    Write-Host "Unsupported Windows Version. Exiting." -ForegroundColor Red
-    Start-Sleep -Seconds 2
-    exit
-}
-
+# OGC Banner
+Write-Host "=======================================" -ForegroundColor DarkBlue
+Write-Host "       OOOOOO    GGGGGG    CCCCCC      " -ForegroundColor Cyan
+Write-Host "      OO    OO  GG        CC           " -ForegroundColor Cyan
+Write-Host "      OO    OO  GG   GGG  CC           " -ForegroundColor Cyan
+Write-Host "      OO    OO  GG    GG  CC           " -ForegroundColor Cyan
+Write-Host "       OOOOOO    GGGGGG    CCCCCC      " -ForegroundColor Cyan
+Write-Host "                                       " -ForegroundColor Cyan
+Write-Host "        OGC Windows 11 Utility         " -ForegroundColor Yellow
+Write-Host "        https://discord.gg/ogc         " -ForegroundColor Magenta
+Write-Host "        Created by Honest Goat         " -ForegroundColor Green
+Write-Host "=======================================" -ForegroundColor DarkBlue
+Write-Host ""
+Write-Host ""
+Write-Host ""
 # Welcome & Instructions
 Write-Host "Welcome to the OGC Windows Gaming Utility!" -ForegroundColor Cyan
 Write-Host ""

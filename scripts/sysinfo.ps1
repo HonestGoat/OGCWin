@@ -1,19 +1,44 @@
 # OGC Windows System Information Tool by Honest Goat
 # Version: 0.6 (Added Cleanup & Renamed $bin to $binFolder)
 
-# Force the script to run as Administrator
-$CurrentUser = [Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()
-$AdminRole = [Security.Principal.WindowsBuiltInRole]::Administrator
+# Start with administrator privileges, bypass execution policy and force black background
+function Test-Admin {
+    $currentUser = [System.Security.Principal.WindowsIdentity]::GetCurrent()
+    $principal = New-Object System.Security.Principal.WindowsPrincipal($currentUser)
+    $isAdmin = $principal.IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator)
 
-if (-Not $CurrentUser.IsInRole($AdminRole)) {
-    Write-Host "Elevating to Administrator privileges..." -ForegroundColor Yellow
-    Start-Process powershell -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`"" -Verb RunAs
-    exit
+    if (-not $isAdmin) {
+        Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`"" -Verb RunAs
+        Exit
+    }
 }
+Test-Admin
 
-# Force Black Background and White Text
+Set-ExecutionPolicy Bypass -Scope Process -Force
 $Host.UI.RawUI.BackgroundColor = "Black"
 $Host.UI.RawUI.ForegroundColor = "White"
+Clear-Host
+
+# Define colour functions and progress bars
+function Write-Color {
+    param (
+        [string]$Text,
+        [string]$ForegroundColor = "White",
+        [string]$BackgroundColor = "Black"
+    )
+    Write-Host $Text -ForegroundColor $ForegroundColor -BackgroundColor $BackgroundColor
+}
+
+function Show-Progress {
+    param (
+        [string]$Message
+    )
+    for ($i = 1; $i -le 100; $i += 10) {
+        Write-Progress -Activity $Message -Status "$i% Complete" -PercentComplete $i
+        Start-Sleep -Milliseconds 300
+    }
+    Write-Host "`n[$Message Complete]" -ForegroundColor Green
+}
 
 # Define OGCWin folder paths
 $parentFolder = "C:\ProgramData\OGC Windows Utility"

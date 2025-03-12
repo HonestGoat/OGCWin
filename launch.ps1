@@ -3,10 +3,44 @@
 # This script will check for software dependencies, update powershell,
 # create the folder structure for the Utility and then launch the Utility.
 
-# Force Black Background and White Text
+# Start with administrator privileges, bypass execution policy and force black background
+function Test-Admin {
+    $currentUser = [System.Security.Principal.WindowsIdentity]::GetCurrent()
+    $principal = New-Object System.Security.Principal.WindowsPrincipal($currentUser)
+    $isAdmin = $principal.IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator)
+
+    if (-not $isAdmin) {
+        Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`"" -Verb RunAs
+        Exit
+    }
+}
+Test-Admin
+
+Set-ExecutionPolicy Bypass -Scope Process -Force
 $Host.UI.RawUI.BackgroundColor = "Black"
 $Host.UI.RawUI.ForegroundColor = "White"
 Clear-Host
+
+# Define colour functions and progress bars
+function Write-Color {
+    param (
+        [string]$Text,
+        [string]$ForegroundColor = "White",
+        [string]$BackgroundColor = "Black"
+    )
+    Write-Host $Text -ForegroundColor $ForegroundColor -BackgroundColor $BackgroundColor
+}
+
+function Show-Progress {
+    param (
+        [string]$Message
+    )
+    for ($i = 1; $i -le 100; $i += 10) {
+        Write-Progress -Activity $Message -Status "$i% Complete" -PercentComplete $i
+        Start-Sleep -Milliseconds 300
+    }
+    Write-Host "`n[$Message Complete]" -ForegroundColor Green
+}
 
 # Detect Banner Version
 $winVer = (Get-CimInstance Win32_OperatingSystem).Caption

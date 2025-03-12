@@ -1,17 +1,25 @@
 # OGC New Windows Setup Wizard by Honest Goat
 # Version: 0.1
-# This wizard disables tracking and data collection, optimizes Windows for gaming, removes bloatware,
-# disables invasive and annoying features like CoPilot and Recall, removes Edge integrations and annoyances
-# and allows the user to install a host of common applications drivers.
 
-# Set PowerShell Execution Policy to allow scripts (requires admin)
+# Start with administrator privileges, bypass execution policy and force black background
+function Test-Admin {
+    $currentUser = [System.Security.Principal.WindowsIdentity]::GetCurrent()
+    $principal = New-Object System.Security.Principal.WindowsPrincipal($currentUser)
+    $isAdmin = $principal.IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator)
+
+    if (-not $isAdmin) {
+        Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`"" -Verb RunAs
+        Exit
+    }
+}
+Test-Admin
+
 Set-ExecutionPolicy Bypass -Scope Process -Force
-
-# Force Black Background and White Text
 $Host.UI.RawUI.BackgroundColor = "Black"
 $Host.UI.RawUI.ForegroundColor = "White"
 Clear-Host
-# Define color functions for better visibility
+
+# Define colour functions and progress bars
 function Write-Color {
     param (
         [string]$Text,
@@ -21,50 +29,33 @@ function Write-Color {
     Write-Host $Text -ForegroundColor $ForegroundColor -BackgroundColor $BackgroundColor
 }
 
-# Function to show progress bar
 function Show-Progress {
     param (
         [string]$Message
     )
-    Write-Host "[$Message]" -ForegroundColor Blue
-    Start-Sleep -Seconds 2
+    for ($i = 1; $i -le 100; $i += 10) {
+        Write-Progress -Activity $Message -Status "$i% Complete" -PercentComplete $i
+        Start-Sleep -Milliseconds 300
+    }
+    Write-Host "`n[$Message Complete]" -ForegroundColor Green
 }
 
-# Detect Banner Version
-$winVer = (Get-CimInstance Win32_OperatingSystem).Caption
-if ($winVer -match "Windows 10 Home" -or $winVer -match "Windows 10 Pro") {
-    # Windows 10 Banner
-    Write-Host "=======================================" -ForegroundColor DarkBlue
-    Write-Host "       OOOOOO    GGGGGG    CCCCCC      " -ForegroundColor Cyan
-    Write-Host "      OO    OO  GG        CC           " -ForegroundColor Cyan
-    Write-Host "      OO    OO  GG   GGG  CC           " -ForegroundColor Cyan
-    Write-Host "      OO    OO  GG    GG  CC           " -ForegroundColor Cyan
-    Write-Host "       OOOOOO    GGGGGG    CCCCCC      " -ForegroundColor Cyan
-    Write-Host "                                       " -ForegroundColor Cyan
-    Write-Host "        OGC Windows 10 Utility         " -ForegroundColor Yellow
-    Write-Host "        https://discord.gg/ogc         " -ForegroundColor Magenta
-    Write-Host "        Created by Honest Goat         " -ForegroundColor Green
-    Write-Host "=======================================" -ForegroundColor DarkBlue
-} elseif ($winVer -match "Windows 11 Home" -or $winVer -match "Windows 11 Pro") {
-    # Windows 11 Banner
-    Write-Host "=======================================" -ForegroundColor DarkBlue
-    Write-Host "       OOOOOO    GGGGGG    CCCCCC      " -ForegroundColor Cyan
-    Write-Host "      OO    OO  GG        CC           " -ForegroundColor Cyan
-    Write-Host "      OO    OO  GG   GGG  CC           " -ForegroundColor Cyan
-    Write-Host "      OO    OO  GG    GG  CC           " -ForegroundColor Cyan
-    Write-Host "       OOOOOO    GGGGGG    CCCCCC      " -ForegroundColor Cyan
-    Write-Host "                                       " -ForegroundColor Cyan
-    Write-Host "        OGC Windows 11 Utility         " -ForegroundColor Yellow
-    Write-Host "        https://discord.gg/ogc         " -ForegroundColor Magenta
-    Write-Host "        Created by Honest Goat         " -ForegroundColor Green
-    Write-Host "=======================================" -ForegroundColor DarkBlue
-} else {
-    Write-Host "Unsupported Windows Version. Exiting." -ForegroundColor Red
-    Start-Sleep -Seconds 2
-    exit
-}
-
-# Welcome & Instructions
+# OGC Banner
+Write-Host "=======================================" -ForegroundColor DarkBlue
+Write-Host "       OOOOOO    GGGGGG    CCCCCC      " -ForegroundColor Cyan
+Write-Host "      OO    OO  GG        CC           " -ForegroundColor Cyan
+Write-Host "      OO    OO  GG   GGG  CC           " -ForegroundColor Cyan
+Write-Host "      OO    OO  GG    GG  CC           " -ForegroundColor Cyan
+Write-Host "       OOOOOO    GGGGGG    CCCCCC      " -ForegroundColor Cyan
+Write-Host "                                       " -ForegroundColor Cyan
+Write-Host "        OGC Windows 10 Utility         " -ForegroundColor Yellow
+Write-Host "        https://discord.gg/ogc         " -ForegroundColor Magenta
+Write-Host "        Created by Honest Goat         " -ForegroundColor Green
+Write-Host "=======================================" -ForegroundColor DarkBlue
+Write-Host ""
+Write-Host ""
+Write-Host ""
+# Welcome and Instructions
 Write-Host "Welcome to the OGC Windows Gaming Utility!" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "This utility will help you optimize your Windows installation by:" -ForegroundColor Yellow
@@ -177,15 +168,15 @@ if ($removeCortana -eq "y") {
     Set-ItemProperty -Path $gpCortanaKey -Name "AllowCortana" -Type DWord -Value 0 -Force
     Write-Host "Cortana disabled via Group Policy." -ForegroundColor Green
 
-    # Disable Cortana & Bing Search in User's Search Settings
-    Write-Host "Disabling Cortana & Bing Search in User Settings..." -ForegroundColor Yellow
+    # Disable Cortana and Bing Search in User's Search Settings
+    Write-Host "Disabling Cortana and Bing Search in User Settings..." -ForegroundColor Yellow
     $searchKey = "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Search"
     if (!(Test-Path $searchKey)) { New-Item -Path $searchKey -Force | Out-Null }
     Set-ItemProperty -Path $searchKey -Name "CortanaConsent" -Type DWord -Value 0 -Force
     Set-ItemProperty -Path $searchKey -Name "BingSearchEnabled" -Type DWord -Value 0 -Force
     Write-Host "Cortana and Bing Search disabled in User Settings." -ForegroundColor Green
 
-    # Stop & Kill Cortana Process
+    # Stop and Kill Cortana Process
     Write-Host "Stopping and killing Cortana processes..." -ForegroundColor Yellow
     Stop-Process -Name "Cortana" -Force -ErrorAction SilentlyContinue
     Stop-Process -Name "SearchUI" -Force -ErrorAction SilentlyContinue
@@ -454,7 +445,7 @@ if ($removeBloatware -eq "y") {
         "Microsoft.WindowsFeedbackHub",
         "Microsoft.WindowsMaps",
         "Microsoft.WindowsSoundRecorder",
-        "Microsoft.WindowsCommunicationsApps",   # Mail & Calendar
+        "Microsoft.WindowsCommunicationsApps",   # Mail and Calendar
         "Microsoft.Windows.Photos"
     )
 
@@ -557,7 +548,7 @@ $removeOneDrive = Read-Host "Do you want to completely remove Microsoft OneDrive
 if ($removeOneDrive -eq "y") {
     Write-Host "Forcefully removing Microsoft OneDrive..." -ForegroundColor Magenta
 
-    # Stop & kill any running OneDrive processes
+    # Stop and kill any running OneDrive processes
     Write-Host "Stopping and killing OneDrive processes..." -ForegroundColor Yellow
     Stop-Process -Name "OneDrive" -Force -ErrorAction SilentlyContinue
     Stop-Process -Name "explorer" -Force -ErrorAction SilentlyContinue
@@ -623,7 +614,7 @@ $removeTeams = Read-Host "Do you want to completely remove Microsoft Teams? [Rec
 if ($removeTeams -eq "y") {
     Write-Host "Forcefully removing Microsoft Teams..." -ForegroundColor Magenta
 
-    # Stop & Kill Any Running Microsoft Teams Processes
+    # Stop and Kill Any Running Microsoft Teams Processes
     Write-Host "Stopping and killing Microsoft Teams processes..." -ForegroundColor Yellow
     Stop-Process -Name "Teams" -Force -ErrorAction SilentlyContinue
     Stop-Process -Name "Teams.exe" -Force -ErrorAction SilentlyContinue
@@ -701,7 +692,7 @@ if ($removeCopilot -eq "y") {
     reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" /v "ShowCopilotButton" /t REG_DWORD /d 0 /f
     Write-Host "Microsoft Copilot icon removed from Taskbar." -ForegroundColor Green
 
-    # Stop & Kill Microsoft Copilot Processes
+    # Stop and Kill Microsoft Copilot Processes
     Write-Host "Stopping and killing Microsoft Copilot processes..." -ForegroundColor Yellow
     Stop-Process -Name "Copilot" -Force -ErrorAction SilentlyContinue
     Stop-Process -Name "Copilot.exe" -Force -ErrorAction SilentlyContinue
@@ -848,8 +839,8 @@ if ($debloatTaskbar -eq "y") {
     # Remove "Meet Now" from Taskbar
     Set-RegistryValue -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer" -Name "HideSCAMeetNow" -Value 1  
 
-    # Unpin Microsoft Store & Mail from Taskbar
-    Write-Host "Unpinning Microsoft Store & Mail from Taskbar..." -ForegroundColor Yellow
+    # Unpin Microsoft Store and Mail from Taskbar
+    Write-Host "Unpinning Microsoft Store and Mail from Taskbar..." -ForegroundColor Yellow
     $appsToUnpin = @("Microsoft Store", "Mail")
     foreach ($app in $appsToUnpin) {
         $lnk = "$env:APPDATA\Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar\$app.lnk"
@@ -859,8 +850,8 @@ if ($debloatTaskbar -eq "y") {
         }
     }
 
-    # Fully Disable the Weather & News Widget
-    Write-Host "Disabling Weather & News Widget..." -ForegroundColor Magenta
+    # Fully Disable the Weather and News Widget
+    Write-Host "Disabling Weather and News Widget..." -ForegroundColor Magenta
 
     # Take Ownership of Windows Feeds Registry Key (Fix Unauthorized Error)
     $regPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Feeds"
@@ -870,7 +861,7 @@ if ($debloatTaskbar -eq "y") {
     # Disable Windows Feeds
     Set-RegistryValue -Path $regPath -Name "EnableFeeds" -Value 0
 
-    # Disable Weather & News in Windows 10 & 11
+    # Disable Weather and News in Windows 10 and 11
     Set-RegistryValue -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Feeds" -Name "ShellFeedsTaskbarViewMode" -Value 2  
     Set-RegistryValue -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Feeds" -Name "EnableFeeds" -Value 0  
 
@@ -879,7 +870,7 @@ if ($debloatTaskbar -eq "y") {
         Set-RegistryValue -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name TaskbarDa -Value 0
     }
 
-    # Disable News & Interests via Taskbar settings
+    # Disable News and Interests via Taskbar settings
     Set-RegistryValue -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "TaskbarMn" -Value 0  
 
     # Disable Widgets Service in Windows 11
@@ -917,7 +908,7 @@ if ($enableDarkMode -eq "y") {
 }
 
 # Ask if user wants to debloat Edge
-$debloatEdge = Read-Host "Do you want to remove Edge's forced features? [Recommended] (y/n)"
+$debloatEdge = Read-Host "Do you want to remove Edges forced features? [Recommended] (y/n)"
 if ($debloatEdge -eq "y") {
     Write-Host "Disabling Edge forced features..." -ForegroundColor Magenta
     reg add "HKLM\SOFTWARE\Policies\Microsoft\Edge" /v "RestorePdfAssociationsEnabled" /t REG_DWORD /d 0 /f
@@ -943,7 +934,7 @@ if ($winVer -match "Windows 11") {
     $disableMemoryIsolation = Read-Host "Do you want to disable Memory Core Isolation for better gaming performance? (Recommended) (y/n)"
 
     if ($disableMemoryIsolation -eq "y") {
-        Write-Host "Disabling Memory Core Isolation & Related Features..." -ForegroundColor Magenta
+        Write-Host "Disabling Memory Core Isolation and Related Features..." -ForegroundColor Magenta
 
         # Ensure PowerShell is Running as Admin
         if (-Not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")) {
@@ -955,7 +946,7 @@ if ($winVer -match "Windows 11") {
         reg add "HKLM\SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\HypervisorEnforcedCodeIntegrity" /v "Enabled" /t REG_DWORD /d 0 /f
         Write-Host "Memory Core Isolation (HVCI) disabled." -ForegroundColor Green
 
-        # Disable Virtualization-Based Security (VBS) & Device Guard
+        # Disable Virtualization-Based Security (VBS) and Device Guard
         reg add "HKLM\SYSTEM\CurrentControlSet\Control\DeviceGuard" /v "EnableVirtualizationBasedSecurity" /t REG_DWORD /d 0 /f
         reg add "HKLM\SYSTEM\CurrentControlSet\Control\DeviceGuard" /v "RequirePlatformSecurityFeatures" /t REG_DWORD /d 0 /f
         Write-Host "Virtualization-Based Security (VBS) disabled." -ForegroundColor Green
@@ -1254,7 +1245,7 @@ if ($installGPUDrivers -eq "y") {
 
     $gpuChoice = Read-Host "Enter the number of your choice (1/2/3/4)"
 
-    # Function to Download & Install Driver Using curl.exe
+    # Function to Download and Install Driver Using curl.exe
     function Install-Driver {
         param (
             [string]$DriverURL,
@@ -1469,15 +1460,26 @@ foreach ($item in $exclusions) {
 Write-Host "Windows Defender exclusions are now up to date." -ForegroundColor Green
 
 Write-Host "===========================================" -ForegroundColor Green
-Write-Host "  OGC Windows Gaming Utility is complete!  " -ForegroundColor Cyan
-Write-Host "  Enjoy your optimized gaming experience.  " -ForegroundColor Cyan
+Write-Host "  OGC New Windows Wizard is complete!      " -ForegroundColor Cyan
+Write-Host "  Enjoy your optimized Windows experience. " -ForegroundColor Cyan
 Write-Host "===========================================" -ForegroundColor Green
 Write-Host ""
-Start-Sleep -Seconds 1
-Write-Host "In future you can easily run this utility by simply" -ForegroundColor Magenta
-Write-Host "double clicking on the OGCWin icon on your desktop." -ForegroundColor Magenta
-Start-Sleep -Seconds 1
-Write-Host ""
-Write-Host "This window will automatically close." -ForegroundColor Green
-Start-Sleep -Seconds 3
-exit
+Start-Sleep -Seconds 2
+
+# Prompt the user if they want to return to the OGC Windows Utility
+$nextAction = Read-Host "Do you want to return to the OGC Windows Utility? (Y/N)"
+
+if ($nextAction -eq "Y" -or $nextAction -eq "y") {
+    # Launch the OGC Windows Utility script
+    Write-Host "OGC Windows Utility Mode is not yet unavailable. Closing the window..." -ForegroundColor Cyan
+    Start-Sleep -Seconds 2
+    exit
+#    Write-Host "Returning to OGC Windows Utility..." -ForegroundColor Cyan
+#    Clear-Host
+#    Start-Process powershell.exe -ArgumentList "-NoExit -ExecutionPolicy Bypass -NoProfile -WindowStyle Normal -File `"$scriptsFolder\OGCWin11.ps1`""
+}
+elseif ($nextAction -eq "N" -or $nextAction -eq "n") {
+    Write-Host "Closing the window..." -ForegroundColor Red
+    Start-Sleep -Seconds 2
+    exit
+}
