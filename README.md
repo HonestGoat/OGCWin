@@ -1,6 +1,6 @@
 # 🛠️ OGCWin – The Ultimate Windows Utility for Windows users and Gamers 🎮 
 
-🛠️ Work in Progress
+🛠️ Work in Progress:
 OGCWin is still being actively developed. Right now, the launcher is fully functional, and the Windows 10 & 11 new installationp wizards are being optimized.
 More features and improvements are on the way! 🚀
 
