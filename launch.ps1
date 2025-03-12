@@ -98,17 +98,17 @@ function Get-WindowsVersion {
 # Define OGCWin folder paths
 $parentFolder = "C:\ProgramData\OGC Windows Utility"
 $downloadsFolder = "$parentFolder\downloads"
-$redistributableFolder = "$parentFolder\redist"
+#$redistributableFolder = "$parentFolder\redist"
 $configurationsFolder = "$parentFolder\configs"
-$imagesFolder = "$parentFolder\images"
+#$imagesFolder = "$parentFolder\images"
 $tempFolder = "$parentFolder\temp"
-$driversFolder = "$parentFolder\drivers"
-$pythonFolder = "$parentFolder\python"
+#$driversFolder = "$parentFolder\drivers"
+#$pythonFolder = "$parentFolder\python"
 $scriptsFolder = "$parentFolder\scripts"
 $bin = "$parentFolder\bin"
 
 # Ensure all necessary folders exist
-$folders = @($parentFolder, $downloadsFolder, $redistributableFolder, $configurationsFolder, $imagesFolder, $tempFolder, $driversFolder, $pythonFolder, $scriptsFolder, $bin)
+$folders = @($parentFolder, $downloadsFolder, $configurationsFolder, $tempFolder, $scriptsFolder, $bin) # add ass needed $redistributableFolder, $imagesFolder, $driversFolder, $pythonFolder
 foreach ($folder in $folders) {
     if (-not (Test-Path $folder)) { 
         New-Item -Path $folder -ItemType Directory -Force | Out-Null 
