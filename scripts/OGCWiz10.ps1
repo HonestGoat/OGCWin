@@ -56,7 +56,7 @@ Write-Host ""
 Write-Host ""
 Write-Host ""
 # Welcome and Instructions
-Write-Host "Welcome to the OGC Windows Gaming Utility!" -ForegroundColor Cyan
+Write-Host "Welcome to the OGC Fresh Windows Setup Wizard!" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "This utility will help you optimize your Windows installation by:" -ForegroundColor Yellow
 Write-Host "✔ Removing unnecessary bloatware and preinstalled apps" -ForegroundColor Green

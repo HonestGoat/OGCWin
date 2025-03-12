@@ -1,9 +1,11 @@
 # 🛠️ OGCWin – The Ultimate Windows Utility for Windows users and Gamers 🎮 
 
 🛠️ Work in Progress
-OGCWin is still being actively developed. Right now, the launcher is fully functional, and the Windows 10 & 11 new installationp wizards are being optimized. More features and improvements are on the way! 🚀
+OGCWin is still being actively developed. Right now, the launcher is fully functional, and the Windows 10 & 11 new installationp wizards are being optimized.
+More features and improvements are on the way! 🚀
 
-OGC Windows Utility is an all-in-one tool designed to help Windows gamers debloat, optimize, troubleshoot, and enhance their system with ease. Built from years of experience as a tech, this utility brings together the best scripts into an intuitive and user-friendly package.  
+OGC Windows Utility is an all-in-one tool designed to help Windows users debloat, optimize, troubleshoot, repair and enhance their system with ease.
+Built from decades of experience as a technician, this utility brings together my best scripts into an intuitive and user-friendly package.  
 
 Originally developed for the **Oceanic Gaming Community Discord**, OGCWin is now available for everyone who wants to improve their Windows experience effortlessly.  
 
@@ -31,20 +33,20 @@ irm https://raw.githubusercontent.com/HonestGoat/OGCWin/main/launch.ps1 | iex
 
 🔹 What Happens Next?
 OGCWin will automatically download and set up everything needed.
-A shortcut will be created on your Desktop, allowing you to launch the utility anytime with a single click.
-After the first run, simply use the shortcut to start OGCWin—no need to re-enter the command.
+A shortcut will be created on your Desktop, allowing you to launch the utility anytime with a double click.
+After the first run, simply use the shortcut to start OGCWin. No need to re-enter the command.
 
 ---
 
 🎯 How It Works
 1️⃣ Launch OGCWin using the desktop shortcut or PowerShell command.
 2️⃣ Choose between Wizard Mode or Utility Mode based on your needs:
+3️⃣ Follow the on-screen prompts to apply tweaks, install apps, or fix system issues.
 
 ---
 
-Wizard Mode – Guides you step-by-step through setting up a new Windows installation.
+Wizard Mode – Guides you step-by-step through setting up a fresh Windows installation.
 Utility Mode – Gives you direct access to powerful tools for debloating, optimizing, and troubleshooting.
-3️⃣ Follow the on-screen prompts to apply tweaks, install apps, or fix system issues.
 
 ---
 

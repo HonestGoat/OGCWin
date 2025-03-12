@@ -410,7 +410,7 @@ function Get-UserSelection {
         Write-Host ""
         Write-Host "1. [NOT AVAILABLE YET] Utility Mode - Access the main utility menu" -ForegroundColor Red
 #        Write-Host "1. Utility Mode - Access the main utility menu" -ForegroundColor Yellow
-        Write-Host "2. Wizard Mode - Step-by-step guided setup for new installations of Windows" -ForegroundColor Yellow
+        Write-Host "2. Wizard Mode - Step-by-step guided setup for fresh installations of Windows" -ForegroundColor Yellow
         Write-Host "3. Display useful system information" -ForegroundColor Yellow
         $modeChoice = Read-Host "Please make a selection"
 
@@ -429,7 +429,7 @@ function Get-UserSelection {
 #                & '$scriptPath'`"" -Verb RunAs
 #            exit 1
         } elseif ($modeChoice -eq "2") {
-            Write-Host "Starting OGC New Installation Setup Wizard..." -ForegroundColor Magenta
+            Write-Host "Starting OGC Fresh Installation Setup Wizard..." -ForegroundColor Magenta
             Start-Sleep -Seconds 1
             $scriptPath = if ($windowsVersion -eq "Windows10") { "$scriptsFolder\OGCWiz10.ps1" } else { "$scriptsFolder\OGCWiz11.ps1" }
             Start-Process powershell.exe -ArgumentList "-NoExit -ExecutionPolicy Bypass -NoProfile -WindowStyle Normal -Command `" 
