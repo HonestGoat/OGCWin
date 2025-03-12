@@ -9,7 +9,7 @@ Built from decades of experience as a technician, this utility brings together m
 
 Originally developed for the **Oceanic Gaming Community Discord**, OGCWin is now available for everyone who wants to improve their Windows experience effortlessly.  
 
-🚀 **Whether you’re setting up a fresh Windows install or optimizing an existing system, OGCWin simplifies the process.**  
+🚀 **Whether you’re setting up a new PC, a fresh Windows installation or optimising an existing system, OGCWin simplifies the process.**  
 
 ---
 
@@ -20,7 +20,7 @@ Originally developed for the **Oceanic Gaming Community Discord**, OGCWin is now
 ✅ **Gaming Optimizations** – Tune Windows settings for improved gaming performance.  
 ✅ **Automated Software Installation** – Install essential apps, game launchers, and utilities with one click.  
 ✅ **System Troubleshooting & Repair** – Diagnose and fix common Windows issues automatically.  
-✅ **New PC Setup Wizard** – A step-by-step guide to optimizing a fresh Windows installation.  
+✅ **New PC Setup Wizard** – A step-by-step guide to optimising a new PC or fresh Windows installation.  
 ✅ **Easy to Use** – No tech knowledge required—just run the tool and follow the prompts.  
 
 ---
@@ -45,8 +45,8 @@ After the first run, simply use the shortcut to start OGCWin. No need to re-ente
 
 ---
 
-Wizard Mode – Guides you step-by-step through setting up a fresh Windows installation.
-Utility Mode – Gives you direct access to powerful tools for debloating, optimizing, and troubleshooting.
+Wizard Mode – Guides you step-by-step through setting up a new PC or fresh Windows installation.
+Utility Mode – Gives you direct access to powerful tools for debloating, optimising, and troubleshooting.
 
 ---
 
