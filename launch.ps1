@@ -449,6 +449,8 @@ function Get-UserSelection {
         } else {
             Write-Host "Invalid selection. Please try again." -ForegroundColor Red
             Start-Sleep -Seconds 2
+            $Host.UI.RawUI.BackgroundColor = "Black"
+            $Host.UI.RawUI.ForegroundColor = "White"
             Clear-Host
             continue
         }
