@@ -427,7 +427,8 @@ function Get-UserSelection {
 #                `$host.UI.RawUI.ForegroundColor = 'White'; 
 #                Clear-Host; 
 #                & '$scriptPath'`"" -Verb RunAs
-#            exit 1
+#            Start-Sleep -Seconds 2 
+#            exit
         } elseif ($modeChoice -eq "2") {
             Write-Host "Starting OGC Fresh Installation Setup Wizard..." -ForegroundColor Magenta
             Start-Sleep -Seconds 1
@@ -437,7 +438,8 @@ function Get-UserSelection {
                 `$host.UI.RawUI.ForegroundColor = 'White'; 
                 Clear-Host; 
                 & '$scriptPath'`"" -Verb RunAs
-            Exit
+            Start-Sleep -Seconds 2
+            exit
         } elseif ($modeChoice -eq "3") {
             Start-Sleep -Seconds 1
             powershell.exe -ExecutionPolicy Bypass -NoProfile -File "$scriptsFolder\sysinfo.ps1"
