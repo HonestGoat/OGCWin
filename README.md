@@ -29,7 +29,7 @@ Originally developed for the **Oceanic Gaming Community Discord**, OGCWin is now
 
 To install and run OGCWin for the first time, open **PowerShell as Administrator** and run the following command:  
 
-irm https://raw.githubusercontent.com/HonestGoat/OGCWin/main/launch.ps1 | iex
+irm https://raw.githubusercontent.com/HonestGoat/OGCWin/main/scripts/launch.ps1 | iex
 
 🔹 What Happens Next?
 OGCWin will automatically download and set up everything needed.
