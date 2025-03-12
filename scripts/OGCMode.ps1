@@ -180,11 +180,11 @@ if ($localVersion -lt $remoteVersion) {
     Write-Host "OGCWin is out of date. Updating to version $remoteVersion..." -ForegroundColor Cyan
     
     # Run launch.ps1 in the **same window** with admin rights, black background, and execution policy bypass
-    powershell.exe -NoExit -ExecutionPolicy Bypass -NoProfile -Command "
+    Start-Process powershell.exe -ArgumentList "-NoExit -ExecutionPolicy Bypass -NoProfile -Command `" 
         `$host.UI.RawUI.BackgroundColor = 'Black'; 
         `$host.UI.RawUI.ForegroundColor = 'White'; 
-        Clear-Host;
-        Start-Process powershell.exe -ArgumentList '-ExecutionPolicy Bypass -NoProfile -File `"$updateScript`"' -Verb RunAs"
+        Clear-Host; 
+        & '$updateScript'`"" -Verb RunAs
     
     Start-Sleep -Seconds 3
     exit
