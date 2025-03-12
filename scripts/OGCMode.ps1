@@ -178,7 +178,7 @@ try {
 if ($localVersion -lt $remoteVersion) {
     Write-Host "OGCWin is out of date. Updating to version $remoteVersion..." -ForegroundColor Cyan
     Start-Process -FilePath $updateScript -NoNewWindow
-    Start-Sleep -Seconds 2
+    Start-Sleep -Seconds 1
     exit
 } else {
     Write-Host "OGCWin is up to date (Version $localVersion)." -ForegroundColor Green
