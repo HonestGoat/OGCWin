@@ -178,7 +178,7 @@ try {
 # Compare versions
 if ($localVersion -lt $remoteVersion) {
     Write-Host "OGCWin is out of date. Updating to version $remoteVersion..." -ForegroundColor Cyan
-    
+    Start-Sleep -Seconds 3
     # Run launch.ps1 in the same window with admin rights, black background, and execution policy bypass
     powershell.exe -NoExit -ExecutionPolicy Bypass -NoProfile -Command "
         `$host.UI.RawUI.BackgroundColor = 'Black'; 
@@ -186,9 +186,6 @@ if ($localVersion -lt $remoteVersion) {
         Clear-Host;
         & '$updateScript'
     "
-    
-    Start-Sleep -Seconds 3
-    exit
 } else {
     Write-Host "OGCWin is up to date (Version $localVersion)." -ForegroundColor Green
 }
