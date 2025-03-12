@@ -17,7 +17,6 @@ Test-Admin
 Set-ExecutionPolicy Bypass -Scope Process -Force
 $Host.UI.RawUI.BackgroundColor = "Black"
 $Host.UI.RawUI.ForegroundColor = "White"
-Clear-Host
 
 # Define colour functions and progress bars
 function Write-Color {
