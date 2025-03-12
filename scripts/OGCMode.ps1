@@ -160,7 +160,7 @@ if (Test-Path $localVersionFile) {
     $localVersionContent = Get-Content $localVersionFile -Raw
     $localVersion = Get-VersionNumber $localVersionContent
 } else {
-    Write-Host "Local version.cfg file not found. Assuming outdated version."
+    Write-Host "Local version.cfg file not found. Assuming outdated version." -ForegroundColor Yellow
     $localVersion = [version]"0.0"
 }
 
@@ -169,18 +169,19 @@ try {
     $remoteVersionContent = Invoke-RestMethod -Uri $remoteVersionURL -UseBasicParsing
     $remoteVersion = Get-VersionNumber $remoteVersionContent
 } catch {
-    Write-Host "Failed to retrieve remote version information. Check internet connection."
+    Write-Host "Failed to retrieve remote version information. Check internet connection." -ForegroundColor Red
+    Start-Sleep -Seconds 2
     exit
 }
 
 # Compare versions
 if ($localVersion -lt $remoteVersion) {
-    Write-Host "OGCWin is out of date. Updating to version $remoteVersion..."
+    Write-Host "OGCWin is out of date. Updating to version $remoteVersion..." -ForegroundColor Cyan
     Start-Process -FilePath $updateScript -NoNewWindow
     Start-Sleep -Seconds 2
     exit
 } else {
-    Write-Host "OGCWin is up to date (Version $localVersion)."
+    Write-Host "OGCWin is up to date (Version $localVersion)." -ForegroundColor Green
 }
 
 # Function to prompt user for mode selection
