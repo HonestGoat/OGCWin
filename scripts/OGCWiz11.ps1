@@ -1464,18 +1464,5 @@ Write-Host "  OGC New Windows Wizard is complete!      " -ForegroundColor Cyan
 Write-Host "  Enjoy your optimized Windows experience. " -ForegroundColor Cyan
 Write-Host "===========================================" -ForegroundColor Green
 Write-Host ""
-Start-Sleep -Seconds 2
-
-# Prompt the user if they want to return to the OGC Windows Utility
-if ((Read-Host "Do you want to return to the OGC Windows Utility? (Y/N)") -match "^[Yy]$") {
-#    Write-Host "Returning to OGC Windows Utility..." -ForegroundColor Cyan
-#    Clear-Host
-#    Start-Process powershell.exe -ArgumentList "-NoExit -ExecutionPolicy Bypass -NoProfile -WindowStyle Normal -File `"$scriptsFolder\OGCWin11.ps1`""
-    Write-Host "OGC Windows Utility Mode is not yet available. Closing the window..." -ForegroundColor Cyan
-    Start-Sleep -Seconds 3
-    exit
-} else {
-    Write-Host "Closing the window..." -ForegroundColor Cyan
-    Start-Sleep -Seconds 1
-    exit
-}
+Start-Sleep -Seconds 5
+exit

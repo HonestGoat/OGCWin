@@ -1475,7 +1475,7 @@ if ((Read-Host "Do you want to return to the OGC Windows Utility? (Y/N)") -match
         Start-Sleep -Seconds 3
         exit
     } else {
-        Write-Host "Closing the window..." -ForegroundColor Cyan
+        Write-Host "WIN 10 VERSION Closing the window..." -ForegroundColor Cyan
         Start-Sleep -Seconds 1
         exit
     }
