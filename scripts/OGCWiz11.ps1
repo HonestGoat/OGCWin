@@ -1479,7 +1479,7 @@ if ($nextAction -eq "Y" -or $nextAction -eq "y") {
 #    Start-Process powershell.exe -ArgumentList "-NoExit -ExecutionPolicy Bypass -NoProfile -WindowStyle Normal -File `"$scriptsFolder\OGCWin11.ps1`""
 }
 elseif ($nextAction -eq "N" -or $nextAction -eq "n") {
-    Write-Host "Closing window..." -ForegroundColor Cyan
+#    Write-Host "Closing window..." -ForegroundColor Cyan
     Start-Sleep -Seconds 1
     exit
 }
