@@ -1,7 +1,7 @@
-# OGC Windows Utility Launcher by Honest Goat
+# OGC Windows Utility Updater by Honest Goat
 # Version: 0.1
 # This script will check for software dependencies, update powershell,
-# create the folder structure for the Utility and then launch the Utility.
+# update the folder structure and files for the Utility and then launch the mode selector.
 
 # Start with administrator privileges, bypass execution policy and force black background
 function Test-Admin {
@@ -165,6 +165,7 @@ function Get-Url {
 # Define file names and locations
 $ogclaunch = "$parentFolder\launch.ps1"
 $ogcwinbat = "$parentFolder\OGCWin.bat"
+$ogcmode = "$scriptsFolder\OGCMode.ps1"
 $ogcwin10 = "$scriptsFolder\OGCWin10.ps1"
 $ogcwin11 = "$scriptsFolder\OGCWin11.ps1"
 $ogcwiz10 = "$scriptsFolder\OGCWiz10.ps1"
@@ -175,6 +176,7 @@ $sysinfo = "$scriptsFolder\sysinfo.ps1"
 function Get-Scripts {
     $scripts = @{
         "OGClaunch" = $ogclaunch
+        "OGCMode" = $ogcmode
         "OGCWin10" = $ogcwin10
         "OGCWin11" = $ogcwin11
         "OGCWiz10" = $ogcwiz10
@@ -353,115 +355,12 @@ Write-Host "All dependencies installed." -ForegroundColor Green
 Start-Sleep -Seconds 1
 Write-Host ""
 
-# Clear terminal and display OGC Banner again.
-$Host.UI.RawUI.BackgroundColor = "Black"
-$Host.UI.RawUI.ForegroundColor = "White"
-Clear-Host
-$winVer = (Get-CimInstance Win32_OperatingSystem).Caption
-if ($winVer -match "Windows 10") {
-    # Windows 10 Banner
-    Write-Host ""
-    Write-Host "=======================================" -ForegroundColor DarkBlue
-    Write-Host "       OOOOOO    GGGGGG    CCCCCC      " -ForegroundColor Cyan
-    Write-Host "      OO    OO  GG        CC           " -ForegroundColor Cyan
-    Write-Host "      OO    OO  GG   GGG  CC           " -ForegroundColor Cyan
-    Write-Host "      OO    OO  GG    GG  CC           " -ForegroundColor Cyan
-    Write-Host "       OOOOOO    GGGGGG    CCCCCC      " -ForegroundColor Cyan
-    Write-Host "                                       " -ForegroundColor Cyan
-    Write-Host "    OGC Windows 10 Utility Launcher    " -ForegroundColor Yellow
-    Write-Host "        https://discord.gg/ogc         " -ForegroundColor Magenta
-    Write-Host "        Created by Honest Goat         " -ForegroundColor Green
-    Write-Host "=======================================" -ForegroundColor DarkBlue
-} elseif ($winVer -match "Windows 11") {
-    # Windows 11 Banner
-    Write-Host ""
-    Write-Host "=======================================" -ForegroundColor DarkBlue
-    Write-Host "       OOOOOO    GGGGGG    CCCCCC      " -ForegroundColor Cyan
-    Write-Host "      OO    OO  GG        CC           " -ForegroundColor Cyan
-    Write-Host "      OO    OO  GG   GGG  CC           " -ForegroundColor Cyan
-    Write-Host "      OO    OO  GG    GG  CC           " -ForegroundColor Cyan
-    Write-Host "       OOOOOO    GGGGGG    CCCCCC      " -ForegroundColor Cyan
-    Write-Host "                                       " -ForegroundColor Cyan
-    Write-Host "    OGC Windows 11 Utility Launcher    " -ForegroundColor Yellow
-    Write-Host "        https://discord.gg/ogc         " -ForegroundColor Magenta
-    Write-Host "        Created by Honest Goat         " -ForegroundColor Green
-    Write-Host "=======================================" -ForegroundColor DarkBlue
-} else {
-    Write-Host "Unsupported Windows Version. Exiting." -ForegroundColor Red
-    Start-Sleep -Seconds 2
+# Launch OGCWin mode selector
+$scriptPath = "$scriptsFolder\OGCMode.ps1"
+    Start-Process powershell.exe -ArgumentList "-NoExit -ExecutionPolicy Bypass -NoProfile -Command `" 
+        `$host.UI.RawUI.BackgroundColor = 'Black'; 
+        `$host.UI.RawUI.ForegroundColor = 'White'; 
+        Clear-Host; 
+        & '$scriptPath'`"" -Verb RunAs
+    Start-Sleep -Seconds 1
     exit
-}
-
-# Function to determine Windows version
-function Get-WindowsVersion {
-    $winVer = (Get-CimInstance Win32_OperatingSystem).Caption
-    if ($winVer -match "Windows 10") {
-        return "Windows 10"
-    } elseif ($winVer -match "Windows 11") {
-        return "Windows 11"
-    } else {
-        Write-Host "Unsupported Windows Version. Exiting." -ForegroundColor Red
-        Start-Sleep -Seconds 2
-        exit
-    }
-}
-
-# Function to prompt user for mode selection
-function Get-UserSelection {
-    $windowsVersion = Get-WindowsVersion
-
-    while ($true) {
-        Write-Host "What mode would you like to launch the OGC Windows Utility in:" -ForegroundColor Cyan
-        Write-Host ""
-        Write-Host "1. [NOT AVAILABLE YET] Utility Mode - Access the main utility menu" -ForegroundColor Red
-#        Write-Host "1. Utility Mode - Access the main utility menu" -ForegroundColor Yellow
-        Write-Host "2. Wizard Mode - Step-by-step guided setup for fresh installations of Windows" -ForegroundColor Yellow
-        Write-Host "3. Display useful system information" -ForegroundColor Yellow
-        $modeChoice = Read-Host "Please make a selection"
-
-        if ($modeChoice -eq "1") {
-            Write-Host "Utility Mode not yet available. Please select another option." -ForegroundColor Red
-            Start-Sleep -Seconds 2
-            Clear-Host
-            continue
-#            Write-Host "Starting OGC Windows Utility..." -ForegroundColor Magenta
-#            Start-Sleep -Seconds 1
-#            $scriptPath = if ($windowsVersion -eq "Windows 10") { "$scriptsFolder\OGCWin10.ps1" } else { "$scriptsFolder\OGCWin11.ps1" }
-#            Start-Process powershell.exe -ArgumentList "-NoExit -ExecutionPolicy Bypass -NoProfile -WindowStyle Normal -Command `" 
-#                `$host.UI.RawUI.BackgroundColor = 'Black'; 
-#                `$host.UI.RawUI.ForegroundColor = 'White'; 
-#                Clear-Host; 
-#                & '$scriptPath'`"" -Verb RunAs
-#            Start-Sleep -Seconds 1 
-#            exit
-        } elseif ($modeChoice -eq "2") {
-            Write-Host "Starting OGC Fresh Installation Setup Wizard..." -ForegroundColor Magenta
-            Start-Sleep -Seconds 1
-            $scriptPath = if ($windowsVersion -eq "Windows 10") { "$scriptsFolder\OGCWiz10.ps1" } else { "$scriptsFolder\OGCWiz11.ps1" }
-            Start-Process powershell.exe -ArgumentList "-NoExit -ExecutionPolicy Bypass -NoProfile -WindowStyle Normal -Command `" 
-                `$host.UI.RawUI.BackgroundColor = 'Black'; 
-                `$host.UI.RawUI.ForegroundColor = 'White'; 
-                Clear-Host; 
-                & '$scriptPath'`"" -Verb RunAs
-            Start-Sleep -Seconds 1
-            exit
-        } elseif ($modeChoice -eq "3") {
-            Start-Sleep -Seconds 1
-            powershell.exe -ExecutionPolicy Bypass -NoProfile -File "$scriptsFolder\sysinfo.ps1"
-            Write-Host ""
-            continue
-        } else {
-            Write-Host "Invalid selection. Please try again." -ForegroundColor Red
-            Start-Sleep -Seconds 2
-            $Host.UI.RawUI.BackgroundColor = "Black"
-            $Host.UI.RawUI.ForegroundColor = "White"
-            Clear-Host
-            continue
-        }
-    }
-}
-
-# Call the function to start selection process
-Get-UserSelection
-
-Write-Host "You may now close this window." -ForegroundColor Green
