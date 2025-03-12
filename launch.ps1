@@ -437,7 +437,7 @@ function Get-UserSelection {
                 `$host.UI.RawUI.ForegroundColor = 'White'; 
                 Clear-Host; 
                 & '$scriptPath'`"" -Verb RunAs
-            Exit-PSSession
+            Exit-PSHostProcess
         } elseif ($modeChoice -eq "3") {
             Start-Sleep -Seconds 1
             powershell.exe -ExecutionPolicy Bypass -NoProfile -File "$scriptsFolder\sysinfo.ps1"
