@@ -617,12 +617,12 @@ if ($removeOneDrive -eq "y") {
         if (Test-Path $exe) {
             Write-Host "Found OneDrive uninstaller at: $exe" -ForegroundColor Cyan
             try {
-                Start-Process -FilePath $exe -ArgumentList "/uninstall" -NoNewWindow -Wait -ErrorAction Stop
+                Start-Process -FilePath $exe -ArgumentList "/uninstall" -NoNewWindow -Wait -WindowStyle Hidden -ErrorAction Stop
                 $oneDriveUninstalled = $true
                 Write-Host "OneDrive successfully uninstalled via executable." -ForegroundColor Green
                 break
             } catch {
-                Write-Host "Failed to uninstall OneDrive using $exe. Error: $_" -ForegroundColor Red
+                # Suppress errors
             }
         }
     }
@@ -631,24 +631,20 @@ if ($removeOneDrive -eq "y") {
     if (-not $oneDriveUninstalled) {
         Write-Host "Attempting to remove OneDrive via Winget..." -ForegroundColor Cyan
         try {
-            winget uninstall --id Microsoft.OneDrive --silent --accept-package-agreements --accept-source-agreements
+            winget uninstall --id Microsoft.OneDrive --silent --accept-package-agreements --accept-source-agreements > $null 2>&1
             $oneDriveUninstalled = $true
             Write-Host "OneDrive removed via Winget." -ForegroundColor Green
-        } catch {
-            Write-Host "Failed to remove OneDrive via Winget. Error: $_" -ForegroundColor Red
-        }
+        } catch {}
     }
 
     # Try Removing OneDrive AppX Package as Last Resort
     if (-not $oneDriveUninstalled) {
         Write-Host "Attempting to remove OneDrive via AppX package..." -ForegroundColor Cyan
         try {
-            Get-AppxPackage -Name "Microsoft.OneDrive" -AllUsers | Remove-AppxPackage -AllUsers -ErrorAction Stop
-            Get-AppxProvisionedPackage -Online | Where-Object DisplayName -like "*OneDrive*" | Remove-AppxProvisionedPackage -Online -ErrorAction Stop
+            Get-AppxPackage -Name "Microsoft.OneDrive" -AllUsers | Remove-AppxPackage -AllUsers -ErrorAction SilentlyContinue
+            Get-AppxProvisionedPackage -Online | Where-Object DisplayName -like "*OneDrive*" | Remove-AppxProvisionedPackage -Online -ErrorAction SilentlyContinue
             Write-Host "OneDrive removed via AppX package." -ForegroundColor Green
-        } catch {
-            Write-Host "Failed to remove OneDrive via AppX. Error: $_" -ForegroundColor Red
-        }
+        } catch {}
     }
 
     # Backup OneDrive Files Before Deleting Folders
@@ -682,27 +678,27 @@ if ($removeOneDrive -eq "y") {
 
     # Remove OneDrive from Explorer Quick Access
     Write-Host "Removing OneDrive from Windows Explorer navigation pane..." -ForegroundColor Yellow
-    reg delete "HKEY_CLASSES_ROOT\CLSID\{018D5C66-4533-4307-9B53-224DE2ED1FE6}" /f
-    reg delete "HKEY_CLASSES_ROOT\Wow6432Node\CLSID\{018D5C66-4533-4307-9B53-224DE2ED1FE6}" /f
+    reg delete "HKEY_CLASSES_ROOT\CLSID\{018D5C66-4533-4307-9B53-224DE2ED1FE6}" /f 2>$null
+    reg delete "HKEY_CLASSES_ROOT\Wow6432Node\CLSID\{018D5C66-4533-4307-9B53-224DE2ED1FE6}" /f 2>$null
 
     # Remove OneDrive Registry Entries
     Write-Host "Removing OneDrive registry keys..." -ForegroundColor Yellow
-    reg delete "HKCU\Software\Microsoft\OneDrive" /f
-    reg delete "HKLM\Software\Microsoft\OneDrive" /f
-    reg delete "HKLM\SOFTWARE\Policies\Microsoft\Windows\OneDrive" /f
+    reg delete "HKCU\Software\Microsoft\OneDrive" /f 2>$null
+    reg delete "HKLM\Software\Microsoft\OneDrive" /f 2>$null
+    reg delete "HKLM\SOFTWARE\Policies\Microsoft\Windows\OneDrive" /f 2>$null
 
     # Disable OneDrive via Group Policy (Prevents Reinstallation)
     Write-Host "Preventing OneDrive from reinstalling..." -ForegroundColor Yellow
-    reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\OneDrive" /v "DisableFileSyncNGSC" /t REG_DWORD /d 1 /f
+    reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\OneDrive" /v "DisableFileSyncNGSC" /t REG_DWORD /d 1 /f > $null 2>&1
 
     # Remove OneDrive Scheduled Tasks
     Write-Host "Removing OneDrive scheduled tasks..." -ForegroundColor Yellow
-    schtasks /Delete /TN "OneDrive Standalone Update Task-S-1-5-21" /F
-    schtasks /Delete /TN "OneDrive Per-Machine Standalone Update Task" /F
+    schtasks /Delete /TN "OneDrive Standalone Update Task-S-1-5-21" /F 2>$null
+    schtasks /Delete /TN "OneDrive Per-Machine Standalone Update Task" /F 2>$null
 
     # Remove OneDrive from Startup
     Write-Host "Removing OneDrive from Startup..." -ForegroundColor Yellow
-    reg delete "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v "OneDrive" /f
+    reg delete "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v "OneDrive" /f 2>$null
 
     # Restore Default User Folder Paths (Fix Missing Desktop/Documents)
     Write-Host "Restoring default user folder locations..." -ForegroundColor Yellow
@@ -722,7 +718,6 @@ if ($removeOneDrive -eq "y") {
 
         # Ensure the default folder exists (Create it if missing)
         if (!(Test-Path $defaultPath)) {
-            Write-Host "Creating missing folder: $defaultPath" -ForegroundColor Cyan
             New-Item -Path $defaultPath -ItemType Directory -Force | Out-Null
         }
 
