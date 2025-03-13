@@ -412,21 +412,40 @@ if ($removeBloatware -eq "y") {
         "Microsoft.WindowsFeedbackHub",
         "Microsoft.WindowsMaps",
         "Microsoft.WindowsSoundRecorder",
-        "Microsoft.WindowsCommunicationsApps"   # Mail and Calendar
+        "Microsoft.WindowsCommunicationsApps"  # Mail and Calendar
     )
 
     foreach ($app in $crapware) {
-        # Remove for the current user
-        Write-Host "Attempting to remove $app..." -ForegroundColor Yellow
-        Get-AppxPackage -AllUsers -Name $app | Remove-AppxPackage -AllUsers -ErrorAction SilentlyContinue
+        $removed = $false
 
-        # Remove from provisioned packages (preinstalled system-wide)
-        Get-AppxProvisionedPackage -Online | Where-Object DisplayName -EQ $app | Remove-AppxProvisionedPackage -Online -ErrorAction SilentlyContinue
+        # Try removing using AppxPackage
+        $appxPackage = Get-AppxPackage -AllUsers -Name $app -ErrorAction SilentlyContinue
+        if ($appxPackage) {
+            Remove-AppxPackage -Package $appxPackage.PackageFullName -AllUsers -ErrorAction SilentlyContinue
+            $removed = $true
+        }
 
-        # Ensure removal using DISM
-        dism /Online /Remove-ProvisionedAppxPackage /PackageName:$app /Quiet | Out-Null
+        # Try removing using AppxProvisionedPackage if AppxPackage removal didn't work
+        if (!$removed) {
+            $provisionedPackage = Get-AppxProvisionedPackage -Online | Where-Object DisplayName -EQ $app
+            if ($provisionedPackage) {
+                Remove-AppxProvisionedPackage -Online -PackageName $provisionedPackage.PackageName -ErrorAction SilentlyContinue
+                $removed = $true
+            }
+        }
 
-        Write-Host "$app removal attempted." -ForegroundColor Green
+        # Try removing using DISM if needed
+        if (!$removed) {
+            $dismOutput = dism /Online /Remove-ProvisionedAppxPackage /PackageName:$app /Quiet 2>&1
+            if ($dismOutput -match "successfully removed") {
+                $removed = $true
+            }
+        }
+
+        # Only output when successfully removed
+        if ($removed) {
+            Write-Host "$app successfully removed." -ForegroundColor Green
+        }
     }
 
     Write-Host "Preinstalled advertising apps and bloatware removed." -ForegroundColor Green
@@ -562,13 +581,6 @@ if ($removeXbox -eq "y") {
     Write-Host "Disabling Xbox services permanently..." -ForegroundColor Yellow
     Get-Service -Name "*Xbox*" -ErrorAction SilentlyContinue | Set-Service -StartupType Disabled -ErrorAction SilentlyContinue
     Get-Service -Name "*GamingServices*" -ErrorAction SilentlyContinue | Set-Service -StartupType Disabled -ErrorAction SilentlyContinue
-
-    # Restart Explorer to refresh UI
-    Write-Host "Restarting Windows Explorer to reflect changes..." -ForegroundColor Cyan
-    Stop-Process -Name explorer -Force
-    Start-Sleep -Seconds 2
-    Start-Process explorer.exe
-
     Write-Host "ALL Xbox apps, services, and features have been **COMPLETELY REMOVED**!" -ForegroundColor Green
 } else {
     Write-Host "Keeping Xbox apps and features." -ForegroundColor Cyan
