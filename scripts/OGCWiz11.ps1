@@ -1081,7 +1081,13 @@ function Remove-AppxPackageAllUsers {
     Get-AppxProvisionedPackage -Online | Where-Object DisplayName -like "*$PackageName*" | Remove-AppxProvisionedPackage -Online -ErrorAction SilentlyContinue
 }
 
-# Function to set registry values
+# Ensure the script is running as Administrator
+if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")) {
+    Write-Host "Please run this script as an Administrator." -ForegroundColor Red
+    exit
+}
+
+# Function to run registry modifications with elevated privileges
 function Set-RegistryValue {
     param (
         [string]$Path,
@@ -1090,8 +1096,7 @@ function Set-RegistryValue {
         [string]$Value
     )
     try {
-        New-Item -Path $Path -Force | Out-Null
-        Set-ItemProperty -Path $Path -Name $Name -Value $Value -Type $Type
+        Start-Process -FilePath "reg.exe" -ArgumentList "add `"$Path`" /v `"$Name`" /t $Type /d $Value /f" -NoNewWindow -Wait
         Write-Host "Set $Name to $Value in $Path" -ForegroundColor Green
     } catch {
         Write-Host "Failed to set $Name in $Path. Error: $_" -ForegroundColor Red
@@ -1101,8 +1106,7 @@ function Set-RegistryValue {
 # Function to disable Widgets
 function Disable-Widgets {
     Write-Host "Disabling Widgets..." -ForegroundColor Cyan
-    # Disable Widgets via registry
-    Set-RegistryValue -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "TaskbarDa" -Type DWord -Value 0
+    Set-RegistryValue -Path "HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "TaskbarDa" -Type REG_DWORD -Value 0
     # Stop and disable Widgets service
     Get-Service -Name "Widgets" -ErrorAction SilentlyContinue | ForEach-Object {
         Stop-Service -Name $_.Name -Force -ErrorAction SilentlyContinue
@@ -1119,7 +1123,7 @@ function Remove-NewsAndInterests {
     # Uninstall Microsoft News App
     Remove-AppxPackageAllUsers -PackageName "Microsoft.BingNews"
     # Disable News and Interests via registry
-    Set-RegistryValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Feeds" -Name "EnableFeeds" -Type DWord -Value 0
+    Set-RegistryValue -Path "HKLM\SOFTWARE\Policies\Microsoft\Windows\Windows Feeds" -Name "EnableFeeds" -Type REG_DWORD -Value 0
     Write-Host "News and Interests have been removed." -ForegroundColor Green
 }
 
@@ -1137,7 +1141,7 @@ function Remove-MicrosoftStoreFromTaskbar {
     }
 
     # Prevent Microsoft Store from being pinned in the future
-    Set-RegistryValue -Path "HKCU:\Software\Policies\Microsoft\Windows\Explorer" -Name "NoPinningStoreToTaskbar" -Type DWord -Value 1
+    Set-RegistryValue -Path "HKCU\Software\Policies\Microsoft\Windows\Explorer" -Name "NoPinningStoreToTaskbar" -Type REG_DWORD -Value 1
 }
 
 # Function to remove unnecessary taskbar icons
@@ -1145,19 +1149,19 @@ function Remove-TaskbarIcons {
     Write-Host "Removing unnecessary taskbar icons..." -ForegroundColor Magenta
 
     # Remove Task View Button
-    Set-RegistryValue -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "ShowTaskViewButton" -Type DWord -Value 0
+    Set-RegistryValue -Path "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "ShowTaskViewButton" -Type REG_DWORD -Value 0
 
     # Remove Search Bar
-    Set-RegistryValue -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Search" -Name "SearchboxTaskbarMode" -Type DWord -Value 0
+    Set-RegistryValue -Path "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Search" -Name "SearchboxTaskbarMode" -Type REG_DWORD -Value 0
 
     # Remove People Icon
-    Set-RegistryValue -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced\People" -Name "PeopleBand" -Type DWord -Value 0
+    Set-RegistryValue -Path "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced\People" -Name "PeopleBand" -Type REG_DWORD -Value 0
 
     # Remove Ink Workspace
-    Set-RegistryValue -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\PenWorkspace" -Name "PenWorkspaceButtonDesiredVisibility" -Type DWord -Value 0
+    Set-RegistryValue -Path "HKCU\Software\Microsoft\Windows\CurrentVersion\PenWorkspace" -Name "PenWorkspaceButtonDesiredVisibility" -Type REG_DWORD -Value 0
 
     # Remove "Meet Now" from Taskbar
-    Set-RegistryValue -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer" -Name "HideSCAMeetNow" -Type DWord -Value 1
+    Set-RegistryValue -Path "HKCU\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer" -Name "HideSCAMeetNow" -Type REG_DWORD -Value 1
 }
 
 # Prompt user to debloat the taskbar
@@ -1182,12 +1186,12 @@ if ($debloatTaskbar -eq "y") {
 
     # Unpin News & Weather from Taskbar
     Write-Host "Unpinning News & Weather from Taskbar..." -ForegroundColor Yellow
-    Set-RegistryValue -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Feeds" -Name "ShellFeedsTaskbarViewMode" -Type DWord -Value 2
+    Set-RegistryValue -Path "HKCU\Software\Microsoft\Windows\CurrentVersion\Feeds" -Name "ShellFeedsTaskbarViewMode" -Type REG_DWORD -Value 2
     Write-Host "News & Weather unpinned from taskbar." -ForegroundColor Green
 
     # Remove News & Interests via Group Policy
     Write-Host "Ensuring News & Interests is fully removed via Group Policy..." -ForegroundColor Yellow
-    Set-RegistryValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Feeds" -Name "EnableFeeds" -Type DWord -Value 0
+    Set-RegistryValue -Path "HKLM\SOFTWARE\Policies\Microsoft\Windows\Windows Feeds" -Name "EnableFeeds" -Type REG_DWORD -Value 0
     Write-Host "News & Interests fully removed via Group Policy." -ForegroundColor Green
 
 } else {
