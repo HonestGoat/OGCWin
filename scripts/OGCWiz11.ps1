@@ -1186,6 +1186,36 @@ Write-Host "Restarting Windows Explorer to apply changes..." -ForegroundColor Cy
 Stop-Process -Name explorer -Force
 Start-Process -FilePath "explorer.exe" -ArgumentList "/n" -WindowStyle Hidden
 Write-Host "Windows Explorer Restarted." -ForegroundColor Green
+
+# Function to create a desktop shortcut for OGCWin.bat
+function New-Shortcut {
+    param (
+        [string]$TargetPath,
+        [string]$ShortcutPath,
+        [string]$Description,
+        [string]$IconPath
+    )
+
+    if (-Not (Test-Path $ShortcutPath)) {
+        $WScriptShell = New-Object -ComObject WScript.Shell
+        $Shortcut = $WScriptShell.CreateShortcut($ShortcutPath)
+        $Shortcut.TargetPath = $TargetPath
+        $Shortcut.Description = $Description
+        $Shortcut.IconLocation = $IconPath
+        $Shortcut.Save()
+    }
+}
+
+# Define shortcut paths
+$desktopPath = [System.IO.Path]::Combine([System.Environment]::GetFolderPath("Desktop"), "OGC Windows Utility.lnk")
+$ogcwinbat = "$parentFolder\OGCWin.bat"
+
+# Use Windows Start Menu-style icon
+$windowsIcon = "C:\Windows\System32\imageres.dll,97"  # Windows-style system icon
+
+# Create the shortcut with the Windows icon
+New-Shortcut -TargetPath $ogcwinbat -ShortcutPath $desktopPath -Description "Launch OGC Windows Utility" -IconPath $windowsIcon
+
 Clear-Host
 
 # OGC Banner
