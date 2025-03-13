@@ -48,7 +48,7 @@ Write-Host "      OO    OO  GG   GGG  CC           " -ForegroundColor Cyan
 Write-Host "      OO    OO  GG    GG  CC           " -ForegroundColor Cyan
 Write-Host "       OOOOOO    GGGGGG    CCCCCC      " -ForegroundColor Cyan
 Write-Host "                                       " -ForegroundColor Cyan
-Write-Host "        OGC Windows 10 Utility         " -ForegroundColor Yellow
+Write-Host "        OGC Windows 11 Utility         " -ForegroundColor Yellow
 Write-Host "        https://discord.gg/ogc         " -ForegroundColor Magenta
 Write-Host "        Created by Honest Goat         " -ForegroundColor Green
 Write-Host "=======================================" -ForegroundColor DarkBlue
@@ -67,7 +67,7 @@ Write-Host "✔ Allow you to remove or install common applications." -Foreground
 Write-Host ""
 Write-Host "! For optimal performance and privacy, apply settings marked as [Recommended] !" -ForegroundColor Magenta
 Write-Host ""
-Write-Host "⚠ THIS UTILITY WILL MAKE CAHNGES TO YOUR SYSTEM, ⚠" -ForegroundColor Red
+Write-Host "⚠ THIS UTILITY WILL MAKE CHANGES TO YOUR SYSTEM, ⚠" -ForegroundColor Red
 Write-Host "⚠  BUT NO CRITICAL FUNCTIONALITY WILL BE LOST.   ⚠" -ForegroundColor Red
 Write-Host ""
 Write-Host "⚠ Please read each prompt carefully before proceeding. ⚠" -ForegroundColor Magenta
@@ -349,7 +349,7 @@ if ($blockTelemetry -eq "y") {
     # Ensure PowerShell is running as Admin
     if (-Not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")) {
         Write-Host "ERROR: You must run PowerShell as Administrator to modify the hosts file." -ForegroundColor Red
-        exit 1
+        Exit
     }
 
     # Temporarily disable Windows Defender real-time protection to prevent locks
@@ -381,7 +381,7 @@ if ($blockTelemetry -eq "y") {
     } catch {
         Write-Host "ERROR: Failed to read the hosts file. It may be locked by another process." -ForegroundColor Red
         Start-Sleep -Seconds 3
-        exit 1
+        Exit
     }
 
     # Create a new temporary hosts file
@@ -808,7 +808,7 @@ if ($debloatTaskbar -eq "y") {
     # Ensure Running as Admin
     if (-Not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")) {
         Write-Host "ERROR: You must run PowerShell as Administrator to modify taskbar settings." -ForegroundColor Red
-        exit 1
+        Exit
     }
 
     # Function to Set Registry Values Safely
@@ -939,7 +939,7 @@ if ($winVer -match "Windows 11") {
         # Ensure PowerShell is Running as Admin
         if (-Not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")) {
             Write-Host "ERROR: You must run PowerShell as Administrator to modify Core Isolation settings." -ForegroundColor Red
-            exit 1
+            Exit
         }
 
         # Disable Hypervisor Enforced Code Integrity (HVCI)
@@ -1361,7 +1361,7 @@ function Set-RegistryValue {
 Write-Host "Checking installed GPU drivers for telemetry removal..." -ForegroundColor Magenta
 
 # Detect Installed GPU Drivers
-$installedDrivers = Get-WmiObject Win32_VideoController | Select-Object -ExpandProperty Name
+$installedDrivers = Get-CimInstance Win32_VideoController | Select-Object -ExpandProperty Name
 
 if ($installedDrivers -match "NVIDIA") {
     Write-Host "Detected NVIDIA drivers. Disabling NVIDIA telemetry..." -ForegroundColor Cyan
@@ -1395,88 +1395,14 @@ if ($installedDrivers -match "AMD") {
 }
 
 Write-Host "GPU tracking and telemetry disabled where applicable." -ForegroundColor Green
-
-# Ensure the script runs with administrator privileges
-if (-Not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")) {
-    Write-Host "Re-running script as administrator..." -ForegroundColor Yellow
-    Start-Process powershell.exe -ArgumentList "-ExecutionPolicy Bypass -NoProfile -File `"$PSCommandPath`"" -Verb RunAs
-    exit
-}
-# Create OGCWin shortcut on desktop
-# Define the desktop path for the OGCWin shortcut
-$desktopPath = [System.IO.Path]::Combine([System.Environment]::GetFolderPath("Desktop"), "OGCWin.lnk")
-
-# Define the shortcut target
-$shortcutTarget = "C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe"
-$shortcutArguments = "-ExecutionPolicy Bypass -WindowStyle Hidden -Command `"irm https://raw.githubusercontent.com/HonestGoat/OGCWin/main/launch.ps1 | iex`""
-
-# Check if the shortcut already exists
-if (-Not (Test-Path $desktopPath)) {
-    Write-Host "OGCWin shortcut not found. Creating one now..." -ForegroundColor Yellow
-
-    # Create a new WScript Shell object
-    $WScriptShell = New-Object -ComObject WScript.Shell
-    $Shortcut = $WScriptShell.CreateShortcut($desktopPath)
-    $Shortcut.TargetPath = $shortcutTarget
-    $Shortcut.Arguments = $shortcutArguments
-    $Shortcut.Description = "Run OGCWin Script"
-    $Shortcut.IconLocation = "C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe"  # Optional: Set an icon
-    $Shortcut.Save()
-
-    Write-Host "OGCWin shortcut created successfully on the desktop." -ForegroundColor Green
-} else {
-    Write-Host "OGCWin shortcut already exists. Checking Defender exclusions..." -ForegroundColor Cyan
-}
-
-# Define exclusions
-$exclusions = @(
-    "$desktopPath",  # Exclude the shortcut
-    "powershell.exe",  # Exclude PowerShell
-    "cmd.exe",  # Exclude Command Prompt (cmd might be used by scripts)
-    "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Startup\OGCWin.lnk"  # If a startup shortcut exists
-)
-
-# Function to check if an exclusion exists
-function Test-ExclusionSet {
-    param (
-        [string]$path
-    )
-    $existingExclusions = Get-MpPreference | Select-Object -ExpandProperty ExclusionPath
-    return $existingExclusions -contains $path
-}
-
-# Add exclusions only if they are not already set
-Write-Host "Checking and adding missing exclusions to Windows Defender..." -ForegroundColor Magenta
-foreach ($item in $exclusions) {
-    if (-Not (Test-ExclusionSet $item)) {
-        Add-MpPreference -ExclusionPath "$item" -ErrorAction SilentlyContinue
-        Add-MpPreference -ExclusionProcess "$item" -ErrorAction SilentlyContinue
-        Write-Host "Added exclusion for: $item" -ForegroundColor Green
-    } else {
-        Write-Host "Exclusion already exists for: $item" -ForegroundColor Cyan
-    }
-}
-
-Write-Host "Windows Defender exclusions are now up to date." -ForegroundColor Green
-
+Start-Sleep -Seconds 2
+Write-Host ""
+Write-Host ""
 Write-Host "===========================================" -ForegroundColor Green
 Write-Host "  OGC New Windows Wizard is complete!      " -ForegroundColor Cyan
 Write-Host "  Enjoy your optimized Windows experience. " -ForegroundColor Cyan
 Write-Host "===========================================" -ForegroundColor Green
 Write-Host ""
-Start-Sleep -Seconds 2
-
-# Prompt the user if they want to return to the OGC Windows Utility
-if ((Read-Host "Do you want to return to the OGC Windows Utility? (Y/N)") -match "^[Yy]$") {
-    #    Write-Host "Returning to OGC Windows Utility..." -ForegroundColor Cyan
-    #    Clear-Host
-    #    Start-Process powershell.exe -ArgumentList "-NoExit -ExecutionPolicy Bypass -NoProfile -WindowStyle Normal -File `"$scriptsFolder\OGCWin10.ps1`""
-        Write-Host "OGC Windows Utility Mode is not yet available. Closing the window..." -ForegroundColor Cyan
-        Start-Sleep -Seconds 3
-        exit
-    } else {
-        Write-Host "WIN 10 VERSION Closing the window..." -ForegroundColor Cyan
-        Start-Sleep -Seconds 1
-        exit
-    }
-    
+Write-Host "This window will now close"
+Start-Sleep -Seconds 5
+exit
