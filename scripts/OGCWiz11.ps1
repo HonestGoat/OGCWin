@@ -83,20 +83,6 @@ if ($continueScript -ne "y") {
     exit
 }
 
-# Detect Windows Version
-$winVer = (Get-CimInstance Win32_OperatingSystem).Caption
-Write-Host "Detected Windows Version: $winVer" -ForegroundColor Yellow
-
-if ($winVer -match "Windows 10") {
-    Write-Host "Windows 10 optimizations selected." -ForegroundColor Green
-    $win11 = $false
-    Start-Sleep -Seconds 1
-} elseif ($winVer -match "Windows 11") {
-    Write-Host "Windows 11 optimizations selected." -ForegroundColor Green
-    $win11 = $true
-    Start-Sleep -Seconds 1
-}
-
 Write-Host "Disabling Telemetry, Tracking, and Data Collection..." -ForegroundColor Magenta
 
 # Disable Telemetry in Registry
@@ -156,67 +142,47 @@ foreach ($task in $tasks) {
 
 Write-Host "Telemetry Scheduled Tasks Disabled." -ForegroundColor Green
 
-# Ask about Cortana removal
-$removeCortana = Read-Host "Do you want to completely remove Cortana? [Recommended] (y/n)"
+# Disable Cortana via Group Policy
+Write-Host "Disabling Cortana via Group Policy..." -ForegroundColor Yellow
+$gpCortanaKey = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Search"
+if (!(Test-Path $gpCortanaKey)) { New-Item -Path $gpCortanaKey -Force | Out-Null }
+Set-ItemProperty -Path $gpCortanaKey -Name "AllowCortana" -Type DWord -Value 0 -Force
+Write-Host "Cortana disabled via Group Policy." -ForegroundColor Green
 
-if ($removeCortana -eq "y") {
-    Write-Host "Forcefully removing Cortana..." -ForegroundColor Magenta
+# Stop and Kill Cortana Process
+Write-Host "Stopping and killing Cortana processes..." -ForegroundColor Yellow
+Stop-Process -Name "Cortana" -Force -ErrorAction SilentlyContinue
+Stop-Process -Name "SearchUI" -Force -ErrorAction SilentlyContinue
+Start-Sleep -Seconds 2
 
-    # Disable Cortana via Group Policy
-    Write-Host "Disabling Cortana via Group Policy..." -ForegroundColor Yellow
-    $gpCortanaKey = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Search"
-    if (!(Test-Path $gpCortanaKey)) { New-Item -Path $gpCortanaKey -Force | Out-Null }
-    Set-ItemProperty -Path $gpCortanaKey -Name "AllowCortana" -Type DWord -Value 0 -Force
-    Write-Host "Cortana disabled via Group Policy." -ForegroundColor Green
+# Uninstall Cortana (For All Users)
+Write-Host "Uninstalling Cortana..." -ForegroundColor Yellow
+Get-AppxPackage -Name "Microsoft.549981C3F5F10" -AllUsers | Remove-AppxPackage -AllUsers -ErrorAction SilentlyContinue
+Get-AppxProvisionedPackage -Online | Where-Object DisplayName -like "*Cortana*" | Remove-AppxProvisionedPackage -Online -ErrorAction SilentlyContinue
+Write-Host "Cortana uninstalled successfully." -ForegroundColor Green
 
-    # Disable Cortana and Bing Search in User's Search Settings
-    Write-Host "Disabling Cortana and Bing Search in User Settings..." -ForegroundColor Yellow
-    $searchKey = "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Search"
-    if (!(Test-Path $searchKey)) { New-Item -Path $searchKey -Force | Out-Null }
-    Set-ItemProperty -Path $searchKey -Name "CortanaConsent" -Type DWord -Value 0 -Force
-    Set-ItemProperty -Path $searchKey -Name "BingSearchEnabled" -Type DWord -Value 0 -Force
-    Write-Host "Cortana and Bing Search disabled in User Settings." -ForegroundColor Green
+# Remove Remaining Cortana Directories
+Write-Host "Removing leftover Cortana folders..." -ForegroundColor Yellow
+Remove-Item -Path "$env:LOCALAPPDATA\Packages\Microsoft.549981C3F5F10" -Recurse -Force -ErrorAction SilentlyContinue
+Remove-Item -Path "$env:ProgramData\Microsoft\Windows\Cortana" -Recurse -Force -ErrorAction SilentlyContinue
+Remove-Item -Path "$env:APPDATA\Microsoft\Cortana" -Recurse -Force -ErrorAction SilentlyContinue
 
-    # Stop and Kill Cortana Process
-    Write-Host "Stopping and killing Cortana processes..." -ForegroundColor Yellow
-    Stop-Process -Name "Cortana" -Force -ErrorAction SilentlyContinue
-    Stop-Process -Name "SearchUI" -Force -ErrorAction SilentlyContinue
-    Start-Sleep -Seconds 2
+# Remove Cortana from Startup
+Write-Host "Removing Cortana from Startup..." -ForegroundColor Yellow
+reg delete "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v "Cortana" /f 2>$null
+reg delete "HKLM\Software\Microsoft\Windows\CurrentVersion\Run" /v "Cortana" /f 2>$null
 
-    # Uninstall Cortana (For All Users)
-    Write-Host "Uninstalling Cortana..." -ForegroundColor Yellow
-    Get-AppxPackage -Name "Microsoft.549981C3F5F10" -AllUsers | Remove-AppxPackage -AllUsers -ErrorAction SilentlyContinue
-    Get-AppxProvisionedPackage -Online | Where-Object DisplayName -like "*Cortana*" | Remove-AppxProvisionedPackage -Online -ErrorAction SilentlyContinue
-    Write-Host "Cortana uninstalled successfully." -ForegroundColor Green
+# Remove Cortana Registry Entries
+Write-Host "Removing Cortana registry entries..." -ForegroundColor Yellow
+reg delete "HKCU\Software\Microsoft\Windows\CurrentVersion\Cortana" /f 2>$null
+reg delete "HKLM\Software\Microsoft\Windows\CurrentVersion\Cortana" /f 2>$null
+reg delete "HKLM\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Cortana" /f 2>$null
 
-    # Remove Remaining Cortana Directories
-    Write-Host "Removing leftover Cortana folders..." -ForegroundColor Yellow
-    Remove-Item -Path "$env:LOCALAPPDATA\Packages\Microsoft.549981C3F5F10" -Recurse -Force -ErrorAction SilentlyContinue
-    Remove-Item -Path "$env:ProgramData\Microsoft\Windows\Cortana" -Recurse -Force -ErrorAction SilentlyContinue
-    Remove-Item -Path "$env:APPDATA\Microsoft\Cortana" -Recurse -Force -ErrorAction SilentlyContinue
-
-    # Remove Cortana from Startup
-    Write-Host "Removing Cortana from Startup..." -ForegroundColor Yellow
-    reg delete "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v "Cortana" /f 2>$null
-    reg delete "HKLM\Software\Microsoft\Windows\CurrentVersion\Run" /v "Cortana" /f 2>$null
-
-    # Remove Cortana Registry Entries
-    Write-Host "Removing Cortana registry entries..." -ForegroundColor Yellow
-    reg delete "HKCU\Software\Microsoft\Windows\CurrentVersion\Cortana" /f 2>$null
-    reg delete "HKLM\Software\Microsoft\Windows\CurrentVersion\Cortana" /f 2>$null
-    reg delete "HKLM\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Cortana" /f 2>$null
-
-    # Block Cortana from Reinstalling via Group Policy
-    Write-Host "Preventing Cortana from reinstalling..." -ForegroundColor Yellow
-    reg add "HKLM\Software\Policies\Microsoft\Windows\Cortana" /v "DisableCortana" /t REG_DWORD /d 1 /f
-    reg add "HKLM\Software\Policies\Microsoft\Windows\Search" /v "AllowCortana" /t REG_DWORD /d 0 /f
-    Write-Host "Cortana is blocked from reinstalling." -ForegroundColor Green
-
-    Write-Host "Microsoft Cortana has been completely removed and blocked from reinstalling!" -ForegroundColor Green
-
-} else {
-    Write-Host "Keeping Microsoft Cortana." -ForegroundColor Cyan
-}
+# Block Cortana from Reinstalling via Group Policy
+Write-Host "Preventing Cortana from reinstalling..." -ForegroundColor Yellow
+reg add "HKLM\Software\Policies\Microsoft\Windows\Cortana" /v "DisableCortana" /t REG_DWORD /d 1 /f
+reg add "HKLM\Software\Policies\Microsoft\Windows\Search" /v "AllowCortana" /t REG_DWORD /d 0 /f
+Write-Host "Cortana is blocked from reinstalling." -ForegroundColor Green
 
 # Disable Location Tracking
 Write-Host "Disabling Location Tracking..." -ForegroundColor Magenta
@@ -469,6 +435,19 @@ if ($removeBloatware -eq "y") {
     Write-Host "Skipping bloatware removal." -ForegroundColor Cyan
 }
 
+# Ask User If They Want to Disable Bing Search in the Start Menu
+$disableBingSearch = Read-Host "Do you want to disable Bing Search integration in the Start Menu? [Recommended] (y/n)"
+
+if ($disableBingSearch -match "^[Yy]$") {
+    Write-Host "Disabling Bing Search in the Start Menu..." -ForegroundColor Yellow
+    $searchKey = "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Search"
+    if (!(Test-Path $searchKey)) { New-Item -Path $searchKey -Force | Out-Null }
+    Set-ItemProperty -Path $searchKey -Name "BingSearchEnabled" -Type DWord -Value 0 -Force
+    Write-Host "Bing Search integration disabled in the Start Menu." -ForegroundColor Green
+} else {
+    Write-Host "Keeping Bing Search enabled in the Start Menu." -ForegroundColor Cyan
+}
+
 # Prompt the user about "Your Phone" app
 $useYourPhone = Read-Host "Do you want to use the 'Your Phone' app to integrate your phone with Windows? (y/n)"
 
@@ -555,55 +534,113 @@ if ($removeOneDrive -eq "y") {
     Stop-Process -Name "explorer" -Force -ErrorAction SilentlyContinue
     Start-Sleep -Seconds 2
 
-    # Determine OS Version (Windows 10 or 11)
-    $osVersion = (Get-WmiObject Win32_OperatingSystem).Version
+    # Uninstall OneDrive - Try Multiple Methods
+    Write-Host "Attempting to uninstall OneDrive..." -ForegroundColor Yellow
 
-    if ($osVersion -like "10.*" -or $osVersion -like "11.*") {
-        Write-Host "Detected Windows $osVersion, proceeding with OneDrive removal..." -ForegroundColor Cyan
+    $oneDriveExecutables = @(
+        "$env:SystemRoot\System32\OneDriveSetup.exe",
+        "$env:SystemRoot\SysWOW64\OneDriveSetup.exe",
+        "$env:ProgramFiles\Microsoft OneDrive\OneDriveSetup.exe",
+        "$env:ProgramFiles(x86)\Microsoft OneDrive\OneDriveSetup.exe",
+        "$env:UserProfile\OneDrive\OneDriveSetup.exe",
+        "$env:LocalAppData\Microsoft\OneDrive\OneDriveSetup.exe",
+        "$env:ProgramData\Microsoft OneDrive\OneDriveSetup.exe"
+    )
 
-        # Uninstall OneDrive (Silent mode for both 32-bit and 64-bit versions)
-        Write-Host "Uninstalling OneDrive..." -ForegroundColor Yellow
-        Start-Process -FilePath "$env:SystemRoot\System32\OneDriveSetup.exe" -ArgumentList "/uninstall" -NoNewWindow -Wait -ErrorAction SilentlyContinue
-        Start-Process -FilePath "$env:SystemRoot\SysWOW64\OneDriveSetup.exe" -ArgumentList "/uninstall" -NoNewWindow -Wait -ErrorAction SilentlyContinue
-        Write-Host "OneDrive uninstalled successfully." -ForegroundColor Green
+    $oneDriveUninstalled = $false
 
-        # Remove leftover OneDrive directories
-        Write-Host "Removing leftover OneDrive folders..." -ForegroundColor Yellow
-        Remove-Item -Path "$env:UserProfile\OneDrive" -Recurse -Force -ErrorAction SilentlyContinue
-        Remove-Item -Path "$env:LocalAppData\Microsoft\OneDrive" -Recurse -Force -ErrorAction SilentlyContinue
-        Remove-Item -Path "$env:ProgramData\Microsoft OneDrive" -Recurse -Force -ErrorAction SilentlyContinue
-        Remove-Item -Path "$env:SystemDrive\OneDriveTemp" -Recurse -Force -ErrorAction SilentlyContinue
-
-        # Remove OneDrive from Explorer Quick Access
-        Write-Host "Removing OneDrive from Windows Explorer navigation pane..." -ForegroundColor Yellow
-        reg delete "HKEY_CLASSES_ROOT\CLSID\{018D5C66-4533-4307-9B53-224DE2ED1FE6}" /f
-        reg delete "HKEY_CLASSES_ROOT\Wow6432Node\CLSID\{018D5C66-4533-4307-9B53-224DE2ED1FE6}" /f
-
-        # Remove OneDrive Registry Entries
-        Write-Host "Removing OneDrive registry keys..." -ForegroundColor Yellow
-        reg delete "HKCU\Software\Microsoft\OneDrive" /f
-        reg delete "HKLM\Software\Microsoft\OneDrive" /f
-        reg delete "HKLM\SOFTWARE\Policies\Microsoft\Windows\OneDrive" /f
-
-        # Disable OneDrive via Group Policy (Prevents Reinstallation)
-        Write-Host "Preventing OneDrive from reinstalling..." -ForegroundColor Yellow
-        reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\OneDrive" /v "DisableFileSyncNGSC" /t REG_DWORD /d 1 /f
-
-        # Remove OneDrive Scheduled Tasks
-        Write-Host "Removing OneDrive scheduled tasks..." -ForegroundColor Yellow
-        schtasks /Delete /TN "OneDrive Standalone Update Task-S-1-5-21" /F
-        schtasks /Delete /TN "OneDrive Per-Machine Standalone Update Task" /F
-
-        # Remove OneDrive from Startup
-        Write-Host "Removing OneDrive from Startup..." -ForegroundColor Yellow
-        reg delete "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v "OneDrive" /f
-
-        Write-Host "OneDrive has been completely removed and disabled!" -ForegroundColor Green
-        Start-Sleep -Seconds 2
-
-    } else {
-        Write-Host "Unsupported Windows version detected. Skipping OneDrive removal." -ForegroundColor Red
+    foreach ($exe in $oneDriveExecutables) {
+        if (Test-Path $exe) {
+            Write-Host "Found OneDrive uninstaller at: $exe" -ForegroundColor Cyan
+            try {
+                Start-Process -FilePath $exe -ArgumentList "/uninstall" -NoNewWindow -Wait -ErrorAction Stop
+                $oneDriveUninstalled = $true
+                Write-Host "OneDrive successfully uninstalled via executable." -ForegroundColor Green
+                break
+            } catch {
+                Write-Host "Failed to uninstall OneDrive using $exe. Error: $_" -ForegroundColor Red
+            }
+        }
     }
+
+    # Try Winget as a Backup Method
+    if (-not $oneDriveUninstalled) {
+        Write-Host "Attempting to remove OneDrive via Winget..." -ForegroundColor Cyan
+        try {
+            winget uninstall --id Microsoft.OneDrive --silent --accept-package-agreements --accept-source-agreements
+            $oneDriveUninstalled = $true
+            Write-Host "OneDrive removed via Winget." -ForegroundColor Green
+        } catch {
+            Write-Host "Failed to remove OneDrive via Winget. Error: $_" -ForegroundColor Red
+        }
+    }
+
+    # Try Removing OneDrive AppX Package as Last Resort
+    if (-not $oneDriveUninstalled) {
+        Write-Host "Attempting to remove OneDrive via AppX package..." -ForegroundColor Cyan
+        try {
+            Get-AppxPackage -Name "Microsoft.OneDrive" -AllUsers | Remove-AppxPackage -AllUsers -ErrorAction Stop
+            Get-AppxProvisionedPackage -Online | Where-Object DisplayName -like "*OneDrive*" | Remove-AppxProvisionedPackage -Online -ErrorAction Stop
+            Write-Host "OneDrive removed via AppX package." -ForegroundColor Green
+        } catch {
+            Write-Host "Failed to remove OneDrive via AppX. Error: $_" -ForegroundColor Red
+        }
+    }
+
+    # Remove leftover OneDrive directories
+    Write-Host "Removing leftover OneDrive folders..." -ForegroundColor Yellow
+    $oneDriveFolders = @(
+        "$env:UserProfile\OneDrive",
+        "$env:LocalAppData\Microsoft\OneDrive",
+        "$env:ProgramData\Microsoft OneDrive",
+        "$env:SystemDrive\OneDriveTemp"
+    )
+
+    foreach ($folder in $oneDriveFolders) {
+        if (Test-Path $folder) {
+            Remove-Item -Path $folder -Recurse -Force -ErrorAction SilentlyContinue
+            Write-Host "Deleted: $folder" -ForegroundColor Green
+        }
+    }
+
+    # Remove OneDrive from Explorer Quick Access
+    Write-Host "Removing OneDrive from Windows Explorer navigation pane..." -ForegroundColor Yellow
+    reg delete "HKEY_CLASSES_ROOT\CLSID\{018D5C66-4533-4307-9B53-224DE2ED1FE6}" /f
+    reg delete "HKEY_CLASSES_ROOT\Wow6432Node\CLSID\{018D5C66-4533-4307-9B53-224DE2ED1FE6}" /f
+
+    # Remove OneDrive Registry Entries
+    Write-Host "Removing OneDrive registry keys..." -ForegroundColor Yellow
+    reg delete "HKCU\Software\Microsoft\OneDrive" /f
+    reg delete "HKLM\Software\Microsoft\OneDrive" /f
+    reg delete "HKLM\SOFTWARE\Policies\Microsoft\Windows\OneDrive" /f
+
+    # Disable OneDrive via Group Policy (Prevents Reinstallation)
+    Write-Host "Preventing OneDrive from reinstalling..." -ForegroundColor Yellow
+    reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\OneDrive" /v "DisableFileSyncNGSC" /t REG_DWORD /d 1 /f
+
+    # Remove OneDrive Scheduled Tasks
+    Write-Host "Removing OneDrive scheduled tasks..." -ForegroundColor Yellow
+    schtasks /Delete /TN "OneDrive Standalone Update Task-S-1-5-21" /F
+    schtasks /Delete /TN "OneDrive Per-Machine Standalone Update Task" /F
+
+    # Remove OneDrive from Startup
+    Write-Host "Removing OneDrive from Startup..." -ForegroundColor Yellow
+    reg delete "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v "OneDrive" /f
+
+    # Restore Default User Folder Paths (Remove OneDrive Links)
+    Write-Host "Restoring default user folder locations..." -ForegroundColor Yellow
+    $folders = @("Desktop", "Documents", "Downloads", "Music", "Pictures", "Videos")
+    foreach ($folder in $folders) {
+        $defaultPath = "$env:USERPROFILE\$folder"
+        $registryPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders"
+        if (Test-Path $defaultPath) {
+            Set-ItemProperty -Path $registryPath -Name $folder -Value $defaultPath -Force
+            Write-Host "Reset $folder to $defaultPath" -ForegroundColor Green
+        }
+    }
+
+    Write-Host "OneDrive has been completely removed, and user folders are now restored!" -ForegroundColor Green
+    Start-Sleep -Seconds 2
 
 } else {
     Write-Host "Keeping Microsoft OneDrive." -ForegroundColor Cyan
@@ -617,43 +654,93 @@ if ($removeTeams -eq "y") {
 
     # Stop and Kill Any Running Microsoft Teams Processes
     Write-Host "Stopping and killing Microsoft Teams processes..." -ForegroundColor Yellow
-    Stop-Process -Name "Teams" -Force -ErrorAction SilentlyContinue
-    Stop-Process -Name "Teams.exe" -Force -ErrorAction SilentlyContinue
-    Stop-Process -Name "Update.exe" -Force -ErrorAction SilentlyContinue
-    Stop-Process -Name "TeamsMachineUninstaller" -Force -ErrorAction SilentlyContinue
+    $teamsProcesses = @("Teams", "Teams.exe", "Update.exe", "TeamsMachineUninstaller", "msteams")
+    foreach ($proc in $teamsProcesses) {
+        Stop-Process -Name $proc -Force -ErrorAction SilentlyContinue
+    }
     Start-Sleep -Seconds 2
 
-    # Uninstall Microsoft Teams (All Users)
-    Write-Host "Uninstalling Microsoft Teams..." -ForegroundColor Yellow
-    Get-AppxPackage -Name "MicrosoftTeams" -AllUsers | Remove-AppxPackage -AllUsers -ErrorAction SilentlyContinue
-    Write-Host "Microsoft Teams uninstalled successfully." -ForegroundColor Green
+    # Uninstall Microsoft Teams via Winget
+    Write-Host "Attempting to uninstall Microsoft Teams via Winget..." -ForegroundColor Cyan
+    try {
+        winget uninstall --id Microsoft.Teams --silent --accept-package-agreements --accept-source-agreements
+        Write-Host "Microsoft Teams removed via Winget." -ForegroundColor Green
+    } catch {
+        Write-Host "Failed to remove Teams via Winget. Error: $_" -ForegroundColor Red
+    }
 
-    # Remove Teams Machine-Wide Installer (Common on Enterprise PCs)
-    if (Test-Path "C:\Program Files (x86)\Teams Installer\Teams.exe") {
+    # Uninstall Microsoft Teams via Appx
+    Write-Host "Attempting to remove Teams AppX package..." -ForegroundColor Cyan
+    try {
+        Get-AppxPackage -Name "MicrosoftTeams" -AllUsers | Remove-AppxPackage -AllUsers -ErrorAction Stop
+        Get-AppxProvisionedPackage -Online | Where-Object DisplayName -like "*Teams*" | Remove-AppxProvisionedPackage -Online -ErrorAction Stop
+        Write-Host "Microsoft Teams removed via AppX package." -ForegroundColor Green
+    } catch {
+        Write-Host "Failed to remove Teams via AppX. Error: $_" -ForegroundColor Red
+    }
+
+    # Uninstall Teams Machine-Wide Installer (Common on Enterprise PCs)
+    $teamsInstallerPath = "C:\Program Files (x86)\Teams Installer\Teams.exe"
+    if (Test-Path $teamsInstallerPath) {
         Write-Host "Removing Microsoft Teams Machine-Wide Installer..." -ForegroundColor Yellow
-        Start-Process -FilePath "C:\Program Files (x86)\Teams Installer\Teams.exe" -ArgumentList "/uninstall" -NoNewWindow -Wait
+        Start-Process -FilePath $teamsInstallerPath -ArgumentList "/uninstall" -NoNewWindow -Wait -ErrorAction SilentlyContinue
     }
 
     # Remove Remaining Teams Directories
     Write-Host "Removing leftover Teams folders..." -ForegroundColor Yellow
-    Remove-Item -Path "$env:LOCALAPPDATA\Microsoft\Teams" -Recurse -Force -ErrorAction SilentlyContinue
-    Remove-Item -Path "$env:APPDATA\Microsoft\Teams" -Recurse -Force -ErrorAction SilentlyContinue
-    Remove-Item -Path "$env:ProgramData\Microsoft\Teams" -Recurse -Force -ErrorAction SilentlyContinue
-    Remove-Item -Path "$env:LOCALAPPDATA\Packages\MSTeams_8wekyb3d8bbwe" -Recurse -Force -ErrorAction SilentlyContinue
-    Remove-Item -Path "$env:ProgramFiles\Microsoft\Teams" -Recurse -Force -ErrorAction SilentlyContinue
-    Remove-Item -Path "$env:ProgramFiles(x86)\Microsoft\Teams" -Recurse -Force -ErrorAction SilentlyContinue
+    $teamsFolders = @(
+        "$env:LOCALAPPDATA\Microsoft\Teams",
+        "$env:APPDATA\Microsoft\Teams",
+        "$env:ProgramData\Microsoft\Teams",
+        "$env:LOCALAPPDATA\Packages\MSTeams_8wekyb3d8bbwe",
+        "$env:ProgramFiles\Microsoft\Teams",
+        "$env:ProgramFiles (x86)\Microsoft\Teams",
+        "$env:USERPROFILE\AppData\Local\Microsoft\Teams",
+        "$env:USERPROFILE\AppData\Roaming\Microsoft\Teams",
+        "$env:ProgramFiles\Common Files\Microsoft Teams",
+        "C:\ProgramData\Microsoft\Teams"
+    )
 
-    # Remove Teams from Startup
+    foreach ($folder in $teamsFolders) {
+        if (Test-Path $folder) {
+            Remove-Item -Path $folder -Recurse -Force -ErrorAction SilentlyContinue
+            Write-Host "Deleted: $folder" -ForegroundColor Green
+        }
+    }
+
+    # Remove Microsoft Teams from Startup
     Write-Host "Removing Microsoft Teams from Startup..." -ForegroundColor Yellow
     reg delete "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v "Teams" /f 2>$null
     reg delete "HKLM\Software\Microsoft\Windows\CurrentVersion\Run" /v "Teams" /f 2>$null
 
     # Remove Microsoft Teams Registry Entries
     Write-Host "Removing Microsoft Teams registry entries..." -ForegroundColor Yellow
-    reg delete "HKCU\Software\Microsoft\Office\Teams" /f 2>$null
-    reg delete "HKCU\Software\Microsoft\Teams" /f 2>$null
-    reg delete "HKLM\Software\Microsoft\Teams" /f 2>$null
-    reg delete "HKLM\Software\WOW6432Node\Microsoft\Teams" /f 2>$null
+    $teamsRegistryKeys = @(
+        "HKCU\Software\Microsoft\Office\Teams",
+        "HKCU\Software\Microsoft\Teams",
+        "HKLM\Software\Microsoft\Teams",
+        "HKLM\Software\WOW6432Node\Microsoft\Teams",
+        "HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\Teams",
+        "HKLM\Software\Microsoft\Windows\CurrentVersion\Uninstall\Teams"
+    )
+
+    foreach ($key in $teamsRegistryKeys) {
+        reg delete $key /f 2>$null
+    }
+
+    # Remove Microsoft Teams Start Menu Shortcuts
+    Write-Host "Removing Microsoft Teams Start Menu shortcuts..." -ForegroundColor Yellow
+    $teamsShortcuts = @(
+        "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Microsoft Teams.lnk",
+        "$env:PROGRAMDATA\Microsoft\Windows\Start Menu\Programs\Microsoft Teams.lnk"
+    )
+
+    foreach ($shortcut in $teamsShortcuts) {
+        if (Test-Path $shortcut) {
+            Remove-Item -Path $shortcut -Force -ErrorAction SilentlyContinue
+            Write-Host "Deleted shortcut: $shortcut" -ForegroundColor Green
+        }
+    }
 
     # Remove "Meet Now" Icon from the Taskbar
     Write-Host "Removing 'Meet Now' icon from the taskbar..." -ForegroundColor Yellow
@@ -689,28 +776,74 @@ if ($removeCopilot -eq "y") {
     Write-Host "Microsoft Copilot disabled via registry." -ForegroundColor Green
 
     # Remove Copilot from Taskbar
-    Write-Host "Removing Microsoft Copilot from Taskbar..." -ForegroundColor Yellow
+    Write-Host "Unpinning Microsoft Copilot from Taskbar and Start Menu..." -ForegroundColor Yellow
     reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" /v "ShowCopilotButton" /t REG_DWORD /d 0 /f
-    Write-Host "Microsoft Copilot icon removed from Taskbar." -ForegroundColor Green
+    Write-Host "Microsoft Copilot icon removed from Taskbar and Start Menu." -ForegroundColor Green
 
     # Stop and Kill Microsoft Copilot Processes
     Write-Host "Stopping and killing Microsoft Copilot processes..." -ForegroundColor Yellow
-    Stop-Process -Name "Copilot" -Force -ErrorAction SilentlyContinue
-    Stop-Process -Name "Copilot.exe" -Force -ErrorAction SilentlyContinue
+    $copilotProcesses = @("Copilot", "Copilot.exe", "AI.exe", "CopilotRuntime", "CopilotBackground")
+    foreach ($proc in $copilotProcesses) {
+        Stop-Process -Name $proc -Force -ErrorAction SilentlyContinue
+    }
     Start-Sleep -Seconds 2
 
-    # Uninstall Microsoft Copilot (For All Users)
+    # Uninstall Microsoft Copilot (For All Users) using all possible methods
     Write-Host "Uninstalling Microsoft Copilot..." -ForegroundColor Yellow
-    Get-AppxPackage -Name "Microsoft.Windows.AI.Copilot" -AllUsers | Remove-AppxPackage -AllUsers -ErrorAction SilentlyContinue
-    Get-AppxPackage -Name "MicrosoftWindows.Client.CBS" -AllUsers | Remove-AppxPackage -AllUsers -ErrorAction SilentlyContinue
-    Get-AppxProvisionedPackage -Online | Where-Object DisplayName -like "*Copilot*" | Remove-AppxProvisionedPackage -Online -ErrorAction SilentlyContinue
-    Write-Host "Microsoft Copilot uninstalled successfully." -ForegroundColor Green
+    
+    # Attempt removal via Winget
+    try {
+        Write-Host "Attempting to remove Copilot via Winget..." -ForegroundColor Cyan
+        winget uninstall --id "Microsoft.Copilot" --silent --accept-package-agreements --accept-source-agreements
+        Write-Host "Copilot removed via Winget." -ForegroundColor Green
+    } catch {
+        Write-Host "Failed to remove Copilot via Winget. Error: $_" -ForegroundColor Red
+    }
+
+    # Remove AppxPackage
+    $copilotPackages = @(
+        "Microsoft.Windows.AI.Copilot",
+        "MicrosoftWindows.Client.CBS",
+        "Microsoft.Copilot",
+        "Microsoft.365.Copilot"
+    )
+
+    foreach ($package in $copilotPackages) {
+        try {
+            Get-AppxPackage -Name $package -AllUsers | Remove-AppxPackage -AllUsers -ErrorAction Stop
+            Get-AppxProvisionedPackage -Online | Where-Object DisplayName -like "*$package*" | Remove-AppxProvisionedPackage -Online -ErrorAction Stop
+            Write-Host "Removed: $package" -ForegroundColor Green
+        } catch {
+            Write-Host "Failed to remove $package via Appx. Trying alternative methods..." -ForegroundColor Yellow
+        }
+    }
+
+    # Remove Copilot from Microsoft Office / 365
+    Write-Host "Removing Microsoft 365 Copilot (if installed)..." -ForegroundColor Yellow
+    try {
+        Start-Process -FilePath "C:\Program Files\Common Files\Microsoft Shared\ClickToRun\OfficeC2RClient.exe" -ArgumentList "/uninstall Copilot /quiet /norestart" -NoNewWindow -Wait -ErrorAction SilentlyContinue
+        Write-Host "Microsoft 365 Copilot removed." -ForegroundColor Green
+    } catch {
+        Write-Host "Failed to remove Microsoft 365 Copilot. Error: $_" -ForegroundColor Red
+    }
 
     # Remove Remaining Copilot Directories
     Write-Host "Removing leftover Microsoft Copilot folders..." -ForegroundColor Yellow
-    Remove-Item -Path "$env:LOCALAPPDATA\Packages\Microsoft.Windows.AI.Copilot" -Recurse -Force -ErrorAction SilentlyContinue
-    Remove-Item -Path "$env:ProgramData\Microsoft\Windows\AI\Copilot" -Recurse -Force -ErrorAction SilentlyContinue
-    Remove-Item -Path "$env:APPDATA\Microsoft\Copilot" -Recurse -Force -ErrorAction SilentlyContinue
+    $copilotFolders = @(
+        "$env:LOCALAPPDATA\Packages\Microsoft.Windows.AI.Copilot",
+        "$env:ProgramData\Microsoft\Windows\AI\Copilot",
+        "$env:APPDATA\Microsoft\Copilot",
+        "$env:ProgramFiles\Microsoft\Copilot",
+        "$env:ProgramFiles (x86)\Microsoft\Copilot",
+        "C:\ProgramData\Microsoft\Copilot"
+    )
+
+    foreach ($folder in $copilotFolders) {
+        if (Test-Path $folder) {
+            Remove-Item -Path $folder -Recurse -Force -ErrorAction SilentlyContinue
+            Write-Host "Deleted: $folder" -ForegroundColor Green
+        }
+    }
 
     # Remove Microsoft Copilot from Startup
     Write-Host "Removing Microsoft Copilot from Startup..." -ForegroundColor Yellow
@@ -719,17 +852,30 @@ if ($removeCopilot -eq "y") {
 
     # Remove Microsoft Copilot Registry Entries
     Write-Host "Removing Microsoft Copilot registry entries..." -ForegroundColor Yellow
-    reg delete "HKCU\Software\Microsoft\Windows\CurrentVersion\Copilot" /f 2>$null
-    reg delete "HKLM\Software\Microsoft\Windows\CurrentVersion\Copilot" /f 2>$null
-    reg delete "HKLM\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Copilot" /f 2>$null
+    $copilotRegistryKeys = @(
+        "HKCU\Software\Microsoft\Windows\CurrentVersion\Copilot",
+        "HKLM\Software\Microsoft\Windows\CurrentVersion\Copilot",
+        "HKLM\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Copilot",
+        "HKCU\Software\Microsoft\Office\Copilot",
+        "HKLM\Software\Microsoft\Office\Copilot"
+    )
+
+    foreach ($key in $copilotRegistryKeys) {
+        reg delete $key /f 2>$null
+    }
 
     # Block Microsoft Copilot from Reinstalling via Group Policy
     Write-Host "Preventing Microsoft Copilot from reinstalling..." -ForegroundColor Yellow
     reg add "HKLM\Software\Policies\Microsoft\Windows\Copilot" /v "DisableCopilot" /t REG_DWORD /d 1 /f
     reg add "HKLM\Software\Policies\Microsoft\Windows\Dsh" /v "EnableCopilotButton" /t REG_DWORD /d 0 /f
-    Write-Host "Microsoft Copilot is blocked from reinstalling." -ForegroundColor Green
 
-    Write-Host "Microsoft Copilot has been completely removed and blocked from reinstalling!" -ForegroundColor Green
+    # Force Windows Explorer to refresh UI changes
+    Write-Host "Refreshing Windows Explorer to reflect changes..." -ForegroundColor Cyan
+    Stop-Process -Name explorer -Force
+    Start-Process explorer.exe
+
+    Write-Host "✅ Microsoft Copilot has been **completely removed** and is **blocked from reinstalling**!" -ForegroundColor Green
+    Start-Sleep -Seconds 2
 
 } else {
     Write-Host "Keeping Microsoft Copilot." -ForegroundColor Cyan
@@ -801,10 +947,10 @@ function Set-RegistryValue {
 }
 
 # Prompt user to debloat the taskbar
-$debloatTaskbar = Read-Host "Do you want to debloat the taskbar and remove unnecessary icons? [Recommended] (y/n)"
+$debloatTaskbar = Read-Host "Do you want to debloat the taskbar and remove unnecessary icons, including News, Weather, and Widgets? [Recommended] (y/n)"
 
 if ($debloatTaskbar -eq "y") {
-    Write-Host "Debloating the taskbar..." -ForegroundColor Magenta
+    Write-Host "Debloating the taskbar and removing News, Weather, and Widgets..." -ForegroundColor Magenta
 
     # Ensure Running as Admin
     if (-Not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")) {
@@ -813,32 +959,37 @@ if ($debloatTaskbar -eq "y") {
     }
 
     # Function to Set Registry Values Safely
-    function Set-RegistryValue {
-        param (
-            [string]$Path,
-            [string]$Name,
-            [int]$Value
-        )
+function Set-RegistryValue {
+    param (
+        [string]$Path,
+        [string]$Name,
+        [int]$Value
+    )
+    try {
         if (!(Test-Path $Path)) {
             New-Item -Path $Path -Force | Out-Null
         }
         Set-ItemProperty -Path $Path -Name $Name -Value $Value -Force
+        Write-Host "Set $Name to $Value in $Path" -ForegroundColor Green
+    } catch {
+        Write-Host "Failed to set $Name in $($Path): $_" -ForegroundColor Red
     }
+}
 
     # Remove Task View Button
-    Set-RegistryValue -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "ShowTaskViewButton" -Value 0  
+    Set-RegistryValue -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "ShowTaskViewButton" -Value 0
 
     # Remove Search Bar
-    Set-RegistryValue -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Search" -Name "SearchboxTaskbarMode" -Value 0  
+    Set-RegistryValue -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Search" -Name "SearchboxTaskbarMode" -Value 0
 
     # Remove People Icon
-    Set-RegistryValue -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced\People" -Name "PeopleBand" -Value 0  
+    Set-RegistryValue -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced\People" -Name "PeopleBand" -Value 0
 
     # Remove Ink Workspace
-    Set-RegistryValue -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\PenWorkspace" -Name "PenWorkspaceButtonDesiredVisibility" -Value 0  
+    Set-RegistryValue -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\PenWorkspace" -Name "PenWorkspaceButtonDesiredVisibility" -Value 0
 
     # Remove "Meet Now" from Taskbar
-    Set-RegistryValue -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer" -Name "HideSCAMeetNow" -Value 1  
+    Set-RegistryValue -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer" -Name "HideSCAMeetNow" -Value 1
 
     # Unpin Microsoft Store and Mail from Taskbar
     Write-Host "Unpinning Microsoft Store and Mail from Taskbar..." -ForegroundColor Yellow
@@ -851,33 +1002,55 @@ if ($debloatTaskbar -eq "y") {
         }
     }
 
-    # Fully Disable the Weather and News Widget
-    Write-Host "Disabling Weather and News Widget..." -ForegroundColor Magenta
+    # Determine Windows Version
+    $windowsVersion = (Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion").ReleaseId
 
-    # Take Ownership of Windows Feeds Registry Key (Fix Unauthorized Error)
-    $regPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Feeds"
-    reg add $regPath /t REG_DWORD /v EnableFeeds /d 0 /f > $null 2>&1
-    Start-Sleep -Seconds 1
+    if ($windowsVersion -ge 2004 -and $windowsVersion -lt 22000) {
+        # Windows 10 specific debloating
 
-    # Disable Windows Feeds
-    Set-RegistryValue -Path $regPath -Name "EnableFeeds" -Value 0
+        # Disable News and Interests via Registry
+        Write-Host "Disabling News and Interests in Windows 10..." -ForegroundColor Yellow
+        Set-RegistryValue -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Feeds" -Name "ShellFeedsTaskbarViewMode" -Value 2
+        Write-Host "News and Interests disabled." -ForegroundColor Green
 
-    # Disable Weather and News in Windows 10 and 11
-    Set-RegistryValue -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Feeds" -Name "ShellFeedsTaskbarViewMode" -Value 2  
-    Set-RegistryValue -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Feeds" -Name "EnableFeeds" -Value 0  
+        # Remove News and Interests via Group Policy
+        Write-Host "Removing News and Interests via Group Policy..." -ForegroundColor Yellow
+        Set-RegistryValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Feeds" -Name "EnableFeeds" -Value 0
+        Write-Host "News and Interests removed via Group Policy." -ForegroundColor Green
 
-    # Disable Widgets in Windows 11
-    if ((Get-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name TaskbarDa -ErrorAction SilentlyContinue)) {
-        Set-RegistryValue -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name TaskbarDa -Value 0
-    }
+        # Restart Explorer to Apply Changes
+        Write-Host "Restarting Windows Explorer to apply changes..." -ForegroundColor Yellow
+        Stop-Process -Name "explorer" -Force
+        Start-Sleep -Seconds 2
+        Start-Process "explorer"
+        Write-Host "Windows Explorer restarted." -ForegroundColor Green
 
-    # Disable News and Interests via Taskbar settings
-    Set-RegistryValue -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "TaskbarMn" -Value 0  
+    } elseif ($windowsVersion -ge 22000) {
+        # Windows 11 specific debloating
 
-    # Disable Widgets Service in Windows 11
-    if (Get-Service "Widgets" -ErrorAction SilentlyContinue) {
-        Stop-Service -Name "Widgets" -Force -ErrorAction SilentlyContinue
-        Set-Service -Name "Widgets" -StartupType Disabled
+        # Disable Widgets via Settings
+        Write-Host "Disabling Widgets in Windows 11..." -ForegroundColor Yellow
+        Set-RegistryValue -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "TaskbarDa" -Value 0
+        Write-Host "Widgets disabled." -ForegroundColor Green
+
+        # Uninstall Widgets via PowerShell
+        Write-Host "Uninstalling Widgets from Windows 11..." -ForegroundColor Yellow
+        try {
+            Get-AppxPackage -Name "MicrosoftWindows.Client.WebExperience" -AllUsers | Remove-AppxPackage -AllUsers -ErrorAction Stop
+            Write-Host "Widgets uninstalled successfully." -ForegroundColor Green
+        } catch {
+            Write-Host "Failed to uninstall Widgets: $_" -ForegroundColor Red
+        }
+
+        # Restart Explorer to Apply Changes
+        Write-Host "Restarting Windows Explorer to apply changes..." -ForegroundColor Yellow
+        Stop-Process -Name "explorer" -Force
+        Start-Sleep -Seconds 2
+        Start-Process "explorer"
+        Write-Host "Windows Explorer restarted." -ForegroundColor Green
+
+    } else {
+        Write-Host "Unsupported Windows version detected. Skipping News, Weather, and Widgets removal." -ForegroundColor Red
     }
 
 } else {
@@ -918,55 +1091,63 @@ if ($debloatEdge -eq "y") {
 }
 
 # Ask if user wants gaming optimizations
-$gameOptimizations = Read-Host "Do you want to enable gaming features like Game Mode, VRR, HAGS? [Recommended] (y/n)"
-if ($gameOptimizations -eq "y") {
+$gameOptimizations = Read-Host "Do you want to enable gaming features like Game Mode, VRR, HAGS (GPU Scheduling)? [Recommended for Gamers] (y/n)"
+
+if ($gameOptimizations -match "^[Yy]$") {
     Write-Host "Applying gaming optimizations..." -ForegroundColor Magenta
+    # Enable Game Mode
     reg add "HKCU\Software\Microsoft\GameBar" /v "AllowAutoGameMode" /t REG_DWORD /d 1 /f
+    Write-Host "Game Mode enabled!" -ForegroundColor Green
+    # Enable Hardware Accelerated GPU Scheduling (HAGS)
     reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\GraphicsSettings" /v "HwSchMode" /t REG_DWORD /d 2 /f
-    Write-Host "Gaming features enabled!" -ForegroundColor Green
+    Write-Host "Hardware Accelerated GPU Scheduling (HAGS) enabled!" -ForegroundColor Green
+    # Enable Variable Refresh Rate (VRR) if supported
+    $vrrSupported = Get-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers" -Name "VRRFeatureEnabled" -ErrorAction SilentlyContinue
+    if ($null -ne $vrrSupported) {
+        reg add "HKLM\SYSTEM\CurrentControlSet\Control\GraphicsDrivers" /v "VRRFeatureEnabled" /t REG_DWORD /d 1 /f
+        Write-Host "Variable Refresh Rate (VRR) enabled!" -ForegroundColor Green
+    } else {
+        Write-Host "VRR support not detected on this system. Skipping VRR activation." -ForegroundColor Yellow
+    }
+    Write-Host "All selected gaming features have been enabled!" -ForegroundColor Cyan
+} else {
+    Write-Host "Skipping gaming optimizations." -ForegroundColor Cyan
 }
 
-# Detect Windows Version
-$winVer = (Get-CimInstance Win32_OperatingSystem).Caption
+# Prompt User to Disable Memory Core Isolation
+$disableMemoryIsolation = Read-Host "Do you want to disable Memory Core Isolation for better gaming performance? (Recommended) (y/n)"
 
-if ($winVer -match "Windows 11") {
-   
-    # Prompt User to Disable Memory Core Isolation
-    $disableMemoryIsolation = Read-Host "Do you want to disable Memory Core Isolation for better gaming performance? (Recommended) (y/n)"
+if ($disableMemoryIsolation -match "^[Yy]$") {
+    Write-Host "Disabling Memory Core Isolation and Related Features..." -ForegroundColor Magenta
 
-    if ($disableMemoryIsolation -eq "y") {
-        Write-Host "Disabling Memory Core Isolation and Related Features..." -ForegroundColor Magenta
-
-        # Ensure PowerShell is Running as Admin
-        if (-Not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")) {
-            Write-Host "ERROR: You must run PowerShell as Administrator to modify Core Isolation settings." -ForegroundColor Red
-            exit
-        }
-
-        # Disable Hypervisor Enforced Code Integrity (HVCI)
-        reg add "HKLM\SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\HypervisorEnforcedCodeIntegrity" /v "Enabled" /t REG_DWORD /d 0 /f
-        Write-Host "Memory Core Isolation (HVCI) disabled." -ForegroundColor Green
-
-        # Disable Virtualization-Based Security (VBS) and Device Guard
-        reg add "HKLM\SYSTEM\CurrentControlSet\Control\DeviceGuard" /v "EnableVirtualizationBasedSecurity" /t REG_DWORD /d 0 /f
-        reg add "HKLM\SYSTEM\CurrentControlSet\Control\DeviceGuard" /v "RequirePlatformSecurityFeatures" /t REG_DWORD /d 0 /f
-        Write-Host "Virtualization-Based Security (VBS) disabled." -ForegroundColor Green
-
-        # Disable Windows Defender Credential Guard
-        reg add "HKLM\SYSTEM\CurrentControlSet\Control\Lsa" /v "LsaCfgFlags" /t REG_DWORD /d 0 /f
-        Write-Host "Credential Guard disabled." -ForegroundColor Green
-
-        # Disable Hypervisor Launch Type
-        bcdedit /set hypervisorlaunchtype off
-        Write-Host "Hypervisor Launch Type set to OFF." -ForegroundColor Green
-
-        # Notify User That a Restart Is Needed for Full Effect
-        Write-Host "✅ Memory Core Isolation and related settings have been disabled." -ForegroundColor Green
-        Write-Host "⚠ Some changes will not take effect until the system is restarted." -ForegroundColor Yellow
-    } else {
-        Write-Host "Keeping Memory Core Isolation enabled." -ForegroundColor Cyan
+    # Ensure PowerShell is Running as Admin
+    if (-Not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")) {
+        Write-Host "ERROR: You must run PowerShell as Administrator to modify Core Isolation settings." -ForegroundColor Red
+        exit
     }
+
+    # Disable Hypervisor Enforced Code Integrity (HVCI)
+    reg add "HKLM\SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\HypervisorEnforcedCodeIntegrity" /v "Enabled" /t REG_DWORD /d 0 /f
+    Write-Host "Memory Core Isolation (HVCI) disabled." -ForegroundColor Green
+
+    # Disable Virtualization-Based Security (VBS) and Device Guard
+    reg add "HKLM\SYSTEM\CurrentControlSet\Control\DeviceGuard" /v "EnableVirtualizationBasedSecurity" /t REG_DWORD /d 0 /f
+    reg add "HKLM\SYSTEM\CurrentControlSet\Control\DeviceGuard" /v "RequirePlatformSecurityFeatures" /t REG_DWORD /d 0 /f
+    Write-Host "Virtualization-Based Security (VBS) disabled." -ForegroundColor Green
+
+    # Disable Windows Defender Credential Guard
+    reg add "HKLM\SYSTEM\CurrentControlSet\Control\Lsa" /v "LsaCfgFlags" /t REG_DWORD /d 0 /f
+    Write-Host "Credential Guard disabled." -ForegroundColor Green
+
+    # Disable Hypervisor Launch Type
+    bcdedit /set hypervisorlaunchtype off
+    Write-Host "Hypervisor Launch Type set to OFF." -ForegroundColor Green
+
+    # Notify User That a Restart Is Needed for Full Effect
+    Write-Host "✅ Memory Core Isolation and related settings have been disabled." -ForegroundColor Green
+    Write-Host "⚠ Some changes will not take effect until the system is restarted." -ForegroundColor Yellow
 } else {
+    Write-Host "Keeping Memory Core Isolation enabled." -ForegroundColor Cyan
 }
 
 # Restart Explorer to apply any UI and Taskbar Tweaks
@@ -983,31 +1164,31 @@ if ($installGamingApps -eq "y") {
     $installSteam = Read-Host "Do you want to install Steam? (y/n)"
     if ($installSteam -eq "y") {
         Write-Host "Installing Steam..." -ForegroundColor Magenta
-        winget install Valve.Steam
+        winget install Valve.Steam --silent --accept-package-agreements --accept-source-agreements
     }
 
     $installEpic = Read-Host "Do you want to install Epic Games Launcher? (y/n)"
     if ($installEpic -eq "y") {
         Write-Host "Installing Epic Games Launcher..." -ForegroundColor Magenta
-        winget install EpicGames.EpicGamesLauncher
+        winget install EpicGames.EpicGamesLauncher --silent --accept-package-agreements --accept-source-agreements
     }
 
     $installGOG = Read-Host "Do you want to install GOG Galaxy? (y/n)"
     if ($installGOG -eq "y") {
         Write-Host "Installing GOG Galaxy..." -ForegroundColor Magenta
-        winget install GOG.Galaxy
+        winget install GOG.Galaxy --silent --accept-package-agreements --accept-source-agreements
     }
 
     $installDiscord = Read-Host "Do you want to install Discord for voice chat? (y/n)"
     if ($installDiscord -eq "y") {
         Write-Host "Installing Discord..." -ForegroundColor Magenta
-        winget install Discord.Discord
+        winget install Discord.Discord --silent --accept-package-agreements --accept-source-agreements
     }
 
     $installMedal = Read-Host "Do you want to install Medal for game clip recording? (y/n)"
     if ($installMedal -eq "y") {
         Write-Host "Installing Medal..." -ForegroundColor Magenta
-        winget install Medal.TV
+        winget install Medal.TV --silent --accept-package-agreements --accept-source-agreements
     }
 
     Write-Host "Gaming app installation process completed." -ForegroundColor Green
@@ -1021,31 +1202,31 @@ if ($installGamingUtilities -eq "y") {
     $installHWInfo = Read-Host "Do you want to install HWiNFO for system monitoring? (y/n)"
     if ($installHWInfo -eq "y") {
         Write-Host "Installing HWiNFO..." -ForegroundColor Magenta
-        winget install REALiX.HWiNFO
+        winget install REALiX.HWiNFO --silent --accept-package-agreements --accept-source-agreements
     }
 
     $installMSIAfterburner = Read-Host "Do you want to install MSI Afterburner for overclocking? (y/n)"
     if ($installMSIAfterburner -eq "y") {
         Write-Host "Installing MSI Afterburner..." -ForegroundColor Magenta
-        winget install MSI.Afterburner
+        winget install MSI.Afterburner --silent --accept-package-agreements --accept-source-agreements
     }
 
     $installRTSS = Read-Host "Do you want to install RivaTuner Statistics Server (RTSS) for FPS monitoring? (y/n)"
     if ($installRTSS -eq "y") {
         Write-Host "Installing RivaTuner Statistics Server (RTSS)..." -ForegroundColor Magenta
-        winget install Guru3D.RTSS
+        winget install Guru3D.RTSS --silent --accept-package-agreements --accept-source-agreements
     }
 
     $installCPUID = Read-Host "Do you want to install CPU-Z for CPU information? (y/n)"
     if ($installCPUID -eq "y") {
         Write-Host "Installing CPU-Z..." -ForegroundColor Magenta
-        winget install CPUID.CPU-Z
+        winget install CPUID.CPU-Z --silent --accept-package-agreements --accept-source-agreements
     }
 
     $installGPUZ = Read-Host "Do you want to install GPU-Z for GPU information? (y/n)"
     if ($installGPUZ -eq "y") {
         Write-Host "Installing GPU-Z..." -ForegroundColor Magenta
-        winget install TechPowerUp.GPU-Z
+        winget install TechPowerUp.GPU-Z --silent --accept-package-agreements --accept-source-agreements
     }
 
     Write-Host "Gaming and monitoring utilities installation completed." -ForegroundColor Green
@@ -1405,16 +1586,21 @@ Write-Host "  Enjoy your optimized Windows experience. " -ForegroundColor Cyan
 Write-Host "===========================================" -ForegroundColor Green
 Write-Host ""
 Write-Host ""
-if (Read-Host "Do you want to return to the OGC Windows Utility to make additional optimizations or changes to your PC? (Y/N)" -match "^[Yy]$") {
-    # Launch OGC Windows Utility
-    powershell.exe -NoExit -ExecutionPolicy Bypass -NoProfile -Command "
-        `$host.UI.RawUI.BackgroundColor = 'Black'; 
-        `$host.UI.RawUI.ForegroundColor = 'White'; 
-        Clear-Host;
-        & '$scriptsFolder\OGCWiz11.ps1'
-    "
-} else {
-    Write-Host "This window will now close" -ForegroundColor Green
-    Start-Sleep -Seconds 3
-    exit
-}
+Write-Host "This window will now close" -ForegroundColor Green
+Start-Sleep -Seconds 3
+exit
+
+#$continue = Read-Host "Do you want to return to the OGC Windows Utility to make additional optimizations or changes to your PC? (Y/N)"
+#if ($continue -match "^[Yy]$") {
+#    # Launch OGC Windows Utility
+#    powershell.exe -NoExit -ExecutionPolicy Bypass -NoProfile -Command "
+#        `$host.UI.RawUI.BackgroundColor = 'Black'; 
+#        `$host.UI.RawUI.ForegroundColor = 'White'; 
+#        Clear-Host;
+#        & '$scriptsFolder\OGCWiz11.ps1'
+#    "
+#} else {
+#    Write-Host "This window will now close" -ForegroundColor Green
+#    Start-Sleep -Seconds 3
+#    exit
+#}
