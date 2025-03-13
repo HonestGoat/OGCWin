@@ -495,7 +495,6 @@ $xboxApps = @(
     "Microsoft.XboxGamingOverlay",
     "Microsoft.XboxIdentityProvider",
     "Microsoft.XboxSpeechToTextOverlay",
-    "Microsoft.XboxGameCallableUI",
     "Microsoft.XboxConsoleCompanion"
 )
 
