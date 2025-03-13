@@ -482,10 +482,10 @@ if ($useYourPhone -eq "y") {
 $removeXbox = Read-Host "Do you want to completely remove all Xbox apps, services, and features from Windows? [Recommended] (y/n)"
 
 if ($removeXbox -eq "y") {
-    Write-Host "🚀 Removing all Xbox apps and features..." -ForegroundColor Magenta
+    Write-Host "Removing all Xbox apps and features..." -ForegroundColor Magenta
 
     # Stop any running Xbox processes and services
-    Write-Host "⏳ Stopping Xbox services and processes..." -ForegroundColor Yellow
+    Write-Host "Stopping Xbox services and processes..." -ForegroundColor Yellow
     $xboxProcesses = @("GameBar", "XboxApp", "XboxGameOverlay", "GamingServices")
     foreach ($proc in $xboxProcesses) {
         Stop-Process -Name $proc -Force -ErrorAction SilentlyContinue
@@ -495,7 +495,7 @@ if ($removeXbox -eq "y") {
     Get-Service -Name "*GamingServices*" -ErrorAction SilentlyContinue | Stop-Service -Force -ErrorAction SilentlyContinue
 
     # Remove all Xbox-related Appx packages (Even the hidden ones)
-    Write-Host "📦 Removing Xbox-related Appx packages..." -ForegroundColor Yellow
+    Write-Host "Removing Xbox-related Appx packages..." -ForegroundColor Yellow
     $xboxApps = @(
         "Microsoft.Xbox.TCUI",
         "Microsoft.XboxApp",
@@ -509,22 +509,22 @@ if ($removeXbox -eq "y") {
     )
 
     foreach ($app in $xboxApps) {
-        Write-Host "🚨 Removing $app ..." -ForegroundColor Magenta
+        Write-Host "Removing $app ..." -ForegroundColor Magenta
         Get-AppxPackage -Name $app -AllUsers | Remove-AppxPackage -AllUsers -ErrorAction SilentlyContinue
         Get-AppxProvisionedPackage -Online | Where-Object DisplayName -like "*$app*" | Remove-AppxProvisionedPackage -Online -ErrorAction SilentlyContinue
     }
 
     # Force Removal via DISM (Prevents Xbox Reinstallation)
-    Write-Host "💀 Using DISM to remove Xbox packages from Windows image..." -ForegroundColor Yellow
+    Write-Host "Using DISM to remove Xbox packages from Windows image..." -ForegroundColor Yellow
     DISM /Online /Get-ProvisionedAppxPackages | Select-String PackageName | Select-String xbox | ForEach-Object { 
         $_ -match "PackageName : (.*)" | Out-Null 
         $package = $matches[1]
-        Write-Host "🚫 Removing: $package" -ForegroundColor Red
+        Write-Host "Removing: $package" -ForegroundColor Red
         DISM /Online /Remove-ProvisionedAppxPackage /PackageName:$package | Out-Null
     }
 
     # Remove Xbox-related registry keys
-    Write-Host "🗑️ Removing Xbox-related registry entries..." -ForegroundColor Yellow
+    Write-Host "Removing Xbox-related registry entries..." -ForegroundColor Yellow
     $xboxRegistryKeys = @(
         "HKCU\Software\Microsoft\Xbox",
         "HKCU\Software\Microsoft\GamingServices",
@@ -537,13 +537,13 @@ if ($removeXbox -eq "y") {
     }
 
     # Remove scheduled tasks related to Xbox
-    Write-Host "⏳ Removing Xbox-related scheduled tasks..." -ForegroundColor Yellow
+    Write-Host "Removing Xbox-related scheduled tasks..." -ForegroundColor Yellow
     schtasks /Delete /TN "Microsoft\XblGameSave\XblGameSaveTask" /F 2>$null
     schtasks /Delete /TN "Microsoft\Xbox\XblGameSaveTask" /F 2>$null
     schtasks /Delete /TN "Microsoft\Xbox\XblNetworkMonitorTask" /F 2>$null
 
     # Remove leftover Xbox folders
-    Write-Host "🗑️ Removing Xbox-related leftover folders..." -ForegroundColor Yellow
+    Write-Host "Removing Xbox-related leftover folders..." -ForegroundColor Yellow
     $xboxFolders = @(
         "$env:LOCALAPPDATA\Packages\Microsoft.XboxApp*",
         "$env:LOCALAPPDATA\Microsoft\XboxGameOverlay",
@@ -559,17 +559,17 @@ if ($removeXbox -eq "y") {
     }
 
     # Disable Xbox services permanently
-    Write-Host "🚫 Disabling Xbox services permanently..." -ForegroundColor Yellow
+    Write-Host "Disabling Xbox services permanently..." -ForegroundColor Yellow
     Get-Service -Name "*Xbox*" -ErrorAction SilentlyContinue | Set-Service -StartupType Disabled -ErrorAction SilentlyContinue
     Get-Service -Name "*GamingServices*" -ErrorAction SilentlyContinue | Set-Service -StartupType Disabled -ErrorAction SilentlyContinue
 
     # Restart Explorer to refresh UI
-    Write-Host "🔄 Restarting Windows Explorer to reflect changes..." -ForegroundColor Cyan
+    Write-Host "Restarting Windows Explorer to reflect changes..." -ForegroundColor Cyan
     Stop-Process -Name explorer -Force
     Start-Sleep -Seconds 2
     Start-Process explorer.exe
 
-    Write-Host "✅ ALL Xbox apps, services, and features have been **COMPLETELY REMOVED**! 🔥" -ForegroundColor Green
+    Write-Host "ALL Xbox apps, services, and features have been **COMPLETELY REMOVED**!" -ForegroundColor Green
 } else {
     Write-Host "Keeping Xbox apps and features." -ForegroundColor Cyan
 }
