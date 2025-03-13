@@ -1361,7 +1361,7 @@ function Set-RegistryValue {
 Write-Host "Checking installed GPU drivers for telemetry removal..." -ForegroundColor Magenta
 
 # Detect Installed GPU Drivers
-$installedDrivers = Get-WmiObject Win32_VideoController | Select-Object -ExpandProperty Name
+$installedDrivers = Get-CimInstance Win32_VideoController | Select-Object -ExpandProperty Name
 
 if ($installedDrivers -match "NVIDIA") {
     Write-Host "Detected NVIDIA drivers. Disabling NVIDIA telemetry..." -ForegroundColor Cyan
