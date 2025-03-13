@@ -487,39 +487,69 @@ function Test-AppInstalled {
     return ($null -ne (Get-AppxPackage -Name $AppName -ErrorAction SilentlyContinue))
 }
 
-# List of Xbox and Game Pass related apps
-$xboxApps = @{
-    "Microsoft.Xbox.TCUI" = "Microsoft.Xbox.TCUI"
-    "Microsoft.XboxApp" = "Microsoft.XboxApp"
-    "Microsoft.XboxGameOverlay" = "Microsoft.XboxGameOverlay"
-    "Microsoft.XboxGamingOverlay" = "Microsoft.XboxGamingOverlay"
-    "Microsoft.XboxIdentityProvider" = "Microsoft.XboxIdentityProvider"
-    "Microsoft.XboxSpeechToTextOverlay" = "Microsoft.XboxSpeechToTextOverlay"
-}
+# List of Xbox-related apps and features (without duplicates)
+$xboxApps = @(
+    "Microsoft.Xbox.TCUI",
+    "Microsoft.XboxApp",
+    "Microsoft.XboxGameOverlay",
+    "Microsoft.XboxGamingOverlay",
+    "Microsoft.XboxIdentityProvider",
+    "Microsoft.XboxSpeechToTextOverlay",
+    "Microsoft.XboxGameCallableUI",
+    "Microsoft.XboxConsoleCompanion"
+)
 
-# Prompt the user
-$useXbox = Read-Host "Do you want to use Windows Game Pass or xBox features? (y/n)"
+# Prompt user for removal
+$removeXbox = Read-Host "Do you want to completely remove all Xbox apps and features from Windows? [Recommended] (y/n)"
 
-foreach ($app in $xboxApps.Keys) {
-    $isInstalled = Test-AppInstalled -AppName $app
+if ($removeXbox -eq "y") {
+    Write-Host "Removing all Xbox apps and features..." -ForegroundColor Magenta
 
-    if ($useXbox -eq "y") {
-        if ($isInstalled) {
-            Write-Host "$app is already installed. Keeping it." -ForegroundColor Green
-        } else {
-            Write-Host "$app is not installed. Installing now..." -ForegroundColor Yellow
-            winget install --id $xboxApps[$app] --silent --accept-package-agreements --accept-source-agreements
-            Write-Host "$app installed successfully." -ForegroundColor Green
-        }
-    } else {
-        if ($isInstalled) {
+    # Stop any running Xbox services
+    Write-Host "Stopping Xbox services..." -ForegroundColor Yellow
+    Get-Service -Name "*Xbox*" -ErrorAction SilentlyContinue | Stop-Service -Force -ErrorAction SilentlyContinue
+    Get-Service -Name "*GamingServices*" -ErrorAction SilentlyContinue | Stop-Service -Force -ErrorAction SilentlyContinue
+
+    # Remove all Xbox-related Appx packages
+    foreach ($app in $xboxApps) {
+        if (Test-AppInstalled -AppName $app) {
             Write-Host "Removing $app..." -ForegroundColor Magenta
-            Get-AppxPackage -Name $app | Remove-AppxPackage -ErrorAction SilentlyContinue
-            Write-Host "$app removed." -ForegroundColor Green
+            Get-AppxPackage -Name $app -AllUsers | Remove-AppxPackage -AllUsers -ErrorAction SilentlyContinue
+            Get-AppxProvisionedPackage -Online | Where-Object DisplayName -like "*$app*" | Remove-AppxProvisionedPackage -Online -ErrorAction SilentlyContinue
+            Write-Host "$app removed successfully." -ForegroundColor Green
         } else {
             Write-Host "$app is not installed. No action needed." -ForegroundColor Cyan
         }
     }
+
+    # Remove Xbox-related registry keys
+    Write-Host "Removing Xbox-related registry entries..." -ForegroundColor Yellow
+    reg delete "HKCU\Software\Microsoft\Xbox" /f 2>$null
+    reg delete "HKCU\Software\Microsoft\GamingServices" /f 2>$null
+    reg delete "HKLM\Software\Microsoft\GamingServices" /f 2>$null
+    reg delete "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\GameDVR" /f 2>$null
+
+    # Remove scheduled tasks related to Xbox
+    Write-Host "Removing Xbox-related scheduled tasks..." -ForegroundColor Yellow
+    schtasks /Delete /TN "Microsoft\XblGameSave\XblGameSaveTask" /F 2>$null
+    schtasks /Delete /TN "Microsoft\Xbox\XblGameSaveTask" /F 2>$null
+    schtasks /Delete /TN "Microsoft\Xbox\XblNetworkMonitorTask" /F 2>$null
+
+    # Remove leftover Xbox folders
+    Write-Host "Removing Xbox-related leftover folders..." -ForegroundColor Yellow
+    Remove-Item -Path "$env:LOCALAPPDATA\Packages\Microsoft.XboxApp*" -Recurse -Force -ErrorAction SilentlyContinue
+    Remove-Item -Path "$env:LOCALAPPDATA\Microsoft\XboxGameOverlay" -Recurse -Force -ErrorAction SilentlyContinue
+    Remove-Item -Path "$env:LOCALAPPDATA\Microsoft\Xbox" -Recurse -Force -ErrorAction SilentlyContinue
+    Remove-Item -Path "$env:ProgramData\Microsoft\Xbox" -Recurse -Force -ErrorAction SilentlyContinue
+
+    # Disable Xbox services permanently
+    Write-Host "Disabling Xbox services permanently..." -ForegroundColor Yellow
+    Get-Service -Name "*Xbox*" -ErrorAction SilentlyContinue | Set-Service -StartupType Disabled -ErrorAction SilentlyContinue
+    Get-Service -Name "*GamingServices*" -ErrorAction SilentlyContinue | Set-Service -StartupType Disabled -ErrorAction SilentlyContinue
+
+    Write-Host "All Xbox apps, services, and features have been completely removed!" -ForegroundColor Green
+} else {
+    Write-Host "Keeping Xbox apps and features." -ForegroundColor Cyan
 }
 
 # Ask about OneDrive Removal
