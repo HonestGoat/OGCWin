@@ -75,7 +75,7 @@ if ($winVer -match "Windows 10") {
 } else {
     Write-Host "Unsupported Windows Version. Exiting." -ForegroundColor Red
     Start-Sleep -Seconds 2
-    exit
+    Exit
 }
 
 # Function to determine Windows version
@@ -90,7 +90,7 @@ function Get-WindowsVersion {
     } else {
         Write-Host "Unsupported Windows Version. Exiting." -ForegroundColor Red
         Start-Sleep -Seconds 2
-        exit
+        Exit
     }
 }
 
@@ -340,7 +340,7 @@ if (-not (Test-WinGet)) {
         Write-Host "Please follow the manual installation instructions" -ForegroundColor Red
         Write-Host "Pinned in the Tech Support channel in the OGC Discord." -ForegroundColor Red
         Start-Sleep -Seconds 5
-        exit
+        Exit
     }
 } else {
     Write-Host "All required dependencies are already installed." -ForegroundColor Green

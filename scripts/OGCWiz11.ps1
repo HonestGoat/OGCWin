@@ -67,7 +67,7 @@ Write-Host "✔ Allow you to remove or install common applications." -Foreground
 Write-Host ""
 Write-Host "! For optimal performance and privacy, apply settings marked as [Recommended] !" -ForegroundColor Magenta
 Write-Host ""
-Write-Host "⚠ THIS UTILITY WILL MAKE CAHNGES TO YOUR SYSTEM, ⚠" -ForegroundColor Red
+Write-Host "⚠ THIS UTILITY WILL MAKE CHANGES TO YOUR SYSTEM, ⚠" -ForegroundColor Red
 Write-Host "⚠  BUT NO CRITICAL FUNCTIONALITY WILL BE LOST.   ⚠" -ForegroundColor Red
 Write-Host ""
 Write-Host "⚠ Please read each prompt carefully before proceeding. ⚠" -ForegroundColor Magenta
@@ -349,7 +349,7 @@ if ($blockTelemetry -eq "y") {
     # Ensure PowerShell is running as Admin
     if (-Not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")) {
         Write-Host "ERROR: You must run PowerShell as Administrator to modify the hosts file." -ForegroundColor Red
-        exit 1
+        Exit
     }
 
     # Temporarily disable Windows Defender real-time protection to prevent locks
@@ -381,7 +381,7 @@ if ($blockTelemetry -eq "y") {
     } catch {
         Write-Host "ERROR: Failed to read the hosts file. It may be locked by another process." -ForegroundColor Red
         Start-Sleep -Seconds 3
-        exit 1
+        Exit
     }
 
     # Create a new temporary hosts file
@@ -808,7 +808,7 @@ if ($debloatTaskbar -eq "y") {
     # Ensure Running as Admin
     if (-Not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")) {
         Write-Host "ERROR: You must run PowerShell as Administrator to modify taskbar settings." -ForegroundColor Red
-        exit 1
+        Exit
     }
 
     # Function to Set Registry Values Safely
@@ -939,7 +939,7 @@ if ($winVer -match "Windows 11") {
         # Ensure PowerShell is Running as Admin
         if (-Not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")) {
             Write-Host "ERROR: You must run PowerShell as Administrator to modify Core Isolation settings." -ForegroundColor Red
-            exit 1
+            Exit
         }
 
         # Disable Hypervisor Enforced Code Integrity (HVCI)

@@ -119,7 +119,7 @@ if ($winVer -match "Windows 10") {
 } else {
     Write-Host "Unsupported Windows Version. Exiting." -ForegroundColor Red
     Start-Sleep -Seconds 2
-    exit
+    Exit
 }
 
 # Function to determine Windows version
@@ -132,7 +132,7 @@ function Get-WindowsVersion {
     } else {
         Write-Host "Unsupported Windows Version. Exiting." -ForegroundColor Red
         Start-Sleep -Seconds 2
-        exit
+        Exit
     }
 }
 
@@ -172,7 +172,7 @@ try {
 } catch {
     Write-Host "Failed to retrieve remote version information. Check internet connection." -ForegroundColor Red
     Start-Sleep -Seconds 2
-    exit
+    Exit
 }
 
 # Compare versions
@@ -217,7 +217,7 @@ function Get-UserSelection {
 #                Clear-Host; 
 #                & '$scriptPath'`"" -Verb RunAs
 #            Start-Sleep -Seconds 1 
-#            exit
+#            Exit
         } elseif ($modeChoice -eq "2") {
             Write-Host "Starting OGC Fresh Installation Setup Wizard..." -ForegroundColor Magenta
             Start-Sleep -Seconds 1
@@ -228,7 +228,7 @@ function Get-UserSelection {
                 Clear-Host; 
                 & '$scriptPath'`"" -Verb RunAs
             Start-Sleep -Seconds 1
-            exit
+            Exit
         } elseif ($modeChoice -eq "3") {
             Start-Sleep -Seconds 1
             powershell.exe -ExecutionPolicy Bypass -NoProfile -File "$scriptsFolder\sysinfo.ps1"
