@@ -9,7 +9,7 @@ function Test-Admin {
 
     if (-not $isAdmin) {
         Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`"" -Verb RunAs
-        Exit
+        exit
     }
 }
 Test-Admin
@@ -350,7 +350,7 @@ if ($blockTelemetry -eq "y") {
     # Ensure PowerShell is running as Admin
     if (-Not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")) {
         Write-Host "ERROR: You must run PowerShell as Administrator to modify the hosts file." -ForegroundColor Red
-        Exit
+        exit
     }
 
     # Temporarily disable Windows Defender real-time protection to prevent locks
@@ -382,7 +382,7 @@ if ($blockTelemetry -eq "y") {
     } catch {
         Write-Host "ERROR: Failed to read the hosts file. It may be locked by another process." -ForegroundColor Red
         Start-Sleep -Seconds 3
-        Exit
+        exit
     }
 
     # Create a new temporary hosts file
@@ -809,7 +809,7 @@ if ($debloatTaskbar -eq "y") {
     # Ensure Running as Admin
     if (-Not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")) {
         Write-Host "ERROR: You must run PowerShell as Administrator to modify taskbar settings." -ForegroundColor Red
-        Exit
+        exit
     }
 
     # Function to Set Registry Values Safely
@@ -940,7 +940,7 @@ if ($winVer -match "Windows 11") {
         # Ensure PowerShell is Running as Admin
         if (-Not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")) {
             Write-Host "ERROR: You must run PowerShell as Administrator to modify Core Isolation settings." -ForegroundColor Red
-            Exit
+            exit
         }
 
         # Disable Hypervisor Enforced Code Integrity (HVCI)

@@ -9,7 +9,7 @@ function Test-Admin {
 
     if (-not $isAdmin) {
         Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`"" -Verb RunAs
-        Exit
+        exit
     }
 }
 Test-Admin
