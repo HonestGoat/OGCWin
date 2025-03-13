@@ -228,7 +228,7 @@ function Get-UserSelection {
                 `$host.UI.RawUI.ForegroundColor = 'White'; 
                 Clear-Host; 
                 & '$scriptPath'`"" -Verb RunAs
-            Start-Sleep -Seconds 2
+            Start-Sleep -Seconds 1
             $host.UI.RawUI.FlushInputBuffer()
             Stop-Process -Id $PID -Force
         } elseif ($modeChoice -eq "3") {
