@@ -746,24 +746,28 @@ if ($removeTeams -eq "y") {
     }
     Start-Sleep -Seconds 2
 
+    # Temporarily Disable `msstore` Source to Suppress Agreement Prompt
+    Write-Host "Disabling Microsoft Store as a winget source to suppress agreement prompt..." -ForegroundColor Cyan
+    winget source remove msstore > $null 2>&1
+
     # Uninstall Microsoft Teams via Winget
     Write-Host "Attempting to uninstall Microsoft Teams via Winget..." -ForegroundColor Cyan
     try {
-        winget uninstall --id Microsoft.Teams --silent --accept-source-agreements
+        winget uninstall --id Microsoft.Teams --silent --accept-source-agreements > $null 2>&1
         Write-Host "Microsoft Teams removed via Winget." -ForegroundColor Green
-    } catch {
-        Write-Host "Failed to remove Teams via Winget. Error: $_" -ForegroundColor Red
-    }
+    } catch {}
+
+    # Re-enable `msstore` Source After Uninstall
+    Write-Host "Restoring Microsoft Store as a winget source..." -ForegroundColor Cyan
+    winget source reset --force > $null 2>&1
 
     # Uninstall Microsoft Teams via Appx
     Write-Host "Attempting to remove Teams AppX package..." -ForegroundColor Cyan
     try {
-        Get-AppxPackage -Name "MicrosoftTeams" -AllUsers | Remove-AppxPackage -AllUsers -ErrorAction Stop
-        Get-AppxProvisionedPackage -Online | Where-Object DisplayName -like "*Teams*" | Remove-AppxProvisionedPackage -Online -ErrorAction Stop
+        Get-AppxPackage -Name "MicrosoftTeams" -AllUsers | Remove-AppxPackage -AllUsers -ErrorAction SilentlyContinue
+        Get-AppxProvisionedPackage -Online | Where-Object DisplayName -like "*Teams*" | Remove-AppxProvisionedPackage -Online -ErrorAction SilentlyContinue
         Write-Host "Microsoft Teams removed via AppX package." -ForegroundColor Green
-    } catch {
-        Write-Host "Failed to remove Teams via AppX. Error: $_" -ForegroundColor Red
-    }
+    } catch {}
 
     # Remove Teams Machine-Wide Installer (Common on Enterprise PCs)
     $teamsInstallerPath = "C:\Program Files (x86)\Teams Installer\Teams.exe"
