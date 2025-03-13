@@ -216,7 +216,7 @@ function Get-UserSelection {
 #                `$host.UI.RawUI.ForegroundColor = 'White'; 
 #                Clear-Host; 
 #                & '$scriptPath'`"" -Verb RunAs
-#            Start-Sleep -Seconds 1 
+#            Start-Sleep -Seconds 2
 #            Exit
         } elseif ($modeChoice -eq "2") {
             Write-Host "Starting OGC Fresh Installation Setup Wizard..." -ForegroundColor Magenta
@@ -227,7 +227,7 @@ function Get-UserSelection {
                 `$host.UI.RawUI.ForegroundColor = 'White'; 
                 Clear-Host; 
                 & '$scriptPath'`"" -Verb RunAs
-            Start-Sleep -Seconds 1
+            Start-Sleep -Seconds 2
             Exit
         } elseif ($modeChoice -eq "3") {
             Start-Sleep -Seconds 1

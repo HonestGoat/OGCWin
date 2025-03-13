@@ -49,6 +49,7 @@ Write-Host "      OO    OO  GG    GG  CC           " -ForegroundColor Cyan
 Write-Host "       OOOOOO    GGGGGG    CCCCCC      " -ForegroundColor Cyan
 Write-Host "                                       " -ForegroundColor Cyan
 Write-Host "        OGC Windows 11 Utility         " -ForegroundColor Yellow
+Write-Host "     Fresh Windows Install Wizard      " -ForegroundColor Yellow
 Write-Host "        https://discord.gg/ogc         " -ForegroundColor Magenta
 Write-Host "        Created by Honest Goat         " -ForegroundColor Green
 Write-Host "=======================================" -ForegroundColor DarkBlue
@@ -59,18 +60,18 @@ Write-Host ""
 Write-Host "Welcome to the OGC Fresh Windows Setup Wizard!" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "This utility will help you optimize your Windows installation by:" -ForegroundColor Yellow
-Write-Host "✔ Removing unnecessary bloatware and preinstalled apps" -ForegroundColor Green
-Write-Host "✔ Disabling telemetry, tracking, and data collection" -ForegroundColor Green
-Write-Host "✔ Customizing Windows settings for a better gaming experience" -ForegroundColor Green
-Write-Host "✔ Improving privacy and performance" -ForegroundColor Green
-Write-Host "✔ Allow you to remove or install common applications." -ForegroundColor Green
+Write-Host "- Removing unnecessary bloatware and preinstalled apps" -ForegroundColor Green
+Write-Host "- Disabling telemetry, tracking, and data collection" -ForegroundColor Green
+Write-Host "- Customizing Windows settings for a better gaming experience" -ForegroundColor Green
+Write-Host "- Improving privacy and performance" -ForegroundColor Green
+Write-Host "- Allow you to remove or install common applications." -ForegroundColor Green
 Write-Host ""
 Write-Host "! For optimal performance and privacy, apply settings marked as [Recommended] !" -ForegroundColor Magenta
 Write-Host ""
-Write-Host "⚠ THIS UTILITY WILL MAKE CHANGES TO YOUR SYSTEM, ⚠" -ForegroundColor Red
-Write-Host "⚠  BUT NO CRITICAL FUNCTIONALITY WILL BE LOST.   ⚠" -ForegroundColor Red
+Write-Host " THIS UTILITY WILL MAKE CHANGES TO YOUR SYSTEM, " -ForegroundColor Red
+Write-Host "  BUT NO CRITICAL FUNCTIONALITY WILL BE LOST.   " -ForegroundColor Red
 Write-Host ""
-Write-Host "⚠ Please read each prompt carefully before proceeding. ⚠" -ForegroundColor Magenta
+Write-Host "!!! Please read each prompt carefully before proceeding !!!" -ForegroundColor Magenta
 Write-Host ""
 
 # Confirm User Wants to Continue
@@ -1403,6 +1404,17 @@ Write-Host "  OGC New Windows Wizard is complete!      " -ForegroundColor Cyan
 Write-Host "  Enjoy your optimized Windows experience. " -ForegroundColor Cyan
 Write-Host "===========================================" -ForegroundColor Green
 Write-Host ""
-Write-Host "This window will now close"
-Start-Sleep -Seconds 5
-exit
+Write-Host ""
+if (Read-Host "Do you want to return to the OGC Windows Utility to make additional optimizations or changes to your PC? (Y/N)" -match "^[Yy]$") {
+    # Launch OGC Windows Utility
+    powershell.exe -NoExit -ExecutionPolicy Bypass -NoProfile -Command "
+        `$host.UI.RawUI.BackgroundColor = 'Black'; 
+        `$host.UI.RawUI.ForegroundColor = 'White'; 
+        Clear-Host;
+        & '$scriptsFolder\OGCWiz11.ps1'
+    "
+} else {
+    Write-Host "This window will now close" -ForegroundColor Green
+    Start-Sleep -Seconds 3
+    exit
+}
