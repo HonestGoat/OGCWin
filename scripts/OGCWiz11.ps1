@@ -656,16 +656,31 @@ if ($removeOneDrive -eq "y") {
     Write-Host "Removing OneDrive from Startup..." -ForegroundColor Yellow
     reg delete "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v "OneDrive" /f
 
-    # Restore Default User Folder Paths (Remove OneDrive Links)
+    # Restore Default User Folder Paths (Fix Missing Desktop/Documents)
     Write-Host "Restoring default user folder locations..." -ForegroundColor Yellow
-    $folders = @("Desktop", "Documents", "Downloads", "Music", "Pictures", "Videos")
-    foreach ($folder in $folders) {
-        $defaultPath = "$env:USERPROFILE\$folder"
-        $registryPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders"
-        if (Test-Path $defaultPath) {
-            Set-ItemProperty -Path $registryPath -Name $folder -Value $defaultPath -Force
-            Write-Host "Reset $folder to $defaultPath" -ForegroundColor Green
+
+    $registryPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders"
+    $folders = @{
+        "Desktop"   = "$env:USERPROFILE\Desktop"
+        "Documents" = "$env:USERPROFILE\Documents"
+        "Downloads" = "$env:USERPROFILE\Downloads"
+        "Music"     = "$env:USERPROFILE\Music"
+        "Pictures"  = "$env:USERPROFILE\Pictures"
+        "Videos"    = "$env:USERPROFILE\Videos"
+    }
+
+    foreach ($folder in $folders.Keys) {
+        $defaultPath = $folders[$folder]
+
+        # Ensure the default folder exists (Create it if missing)
+        if (!(Test-Path $defaultPath)) {
+            Write-Host "Creating missing folder: $defaultPath" -ForegroundColor Cyan
+            New-Item -Path $defaultPath -ItemType Directory -Force | Out-Null
         }
+
+        # Update the registry path for each user folder
+        Set-ItemProperty -Path $registryPath -Name $folder -Value $defaultPath -Force
+        Write-Host "Reset $folder to $defaultPath" -ForegroundColor Green
     }
 
     Write-Host "OneDrive has been completely removed, and user folders are now restored!" -ForegroundColor Green
@@ -692,7 +707,7 @@ if ($removeTeams -eq "y") {
     # Uninstall Microsoft Teams via Winget
     Write-Host "Attempting to uninstall Microsoft Teams via Winget..." -ForegroundColor Cyan
     try {
-        winget uninstall --id Microsoft.Teams --silent --accept-package-agreements --accept-source-agreements
+        winget uninstall --id Microsoft.Teams --silent --accept-source-agreements
         Write-Host "Microsoft Teams removed via Winget." -ForegroundColor Green
     } catch {
         Write-Host "Failed to remove Teams via Winget. Error: $_" -ForegroundColor Red
@@ -797,16 +812,16 @@ if ($removeCopilot -eq "y") {
 
     # Disable Copilot via Registry
     Write-Host "Disabling Microsoft Copilot via registry..." -ForegroundColor Yellow
-    reg add "HKCU\Software\Policies\Microsoft\Windows\WindowsCopilot" /v TurnOffWindowsCopilot /t REG_DWORD /d 1 /f
-    reg add "HKLM\Software\Policies\Microsoft\Windows\WindowsCopilot" /v TurnOffWindowsCopilot /t REG_DWORD /d 1 /f
-    reg add "HKLM\Software\Policies\Microsoft\Windows\Dsh" /v "AllowNewsAndInterests" /t REG_DWORD /d 0 /f
-    reg add "HKLM\Software\Policies\Microsoft\Windows\Dsh" /v "AllowCopilotInWindows" /t REG_DWORD /d 0 /f
-    reg add "HKLM\Software\Policies\Microsoft\Windows\Dsh" /v "EnableCopilotButton" /t REG_DWORD /d 0 /f
+    reg add "HKCU\Software\Policies\Microsoft\Windows\WindowsCopilot" /v TurnOffWindowsCopilot /t REG_DWORD /d 1 /f > $null 2>&1
+    reg add "HKLM\Software\Policies\Microsoft\Windows\WindowsCopilot" /v TurnOffWindowsCopilot /t REG_DWORD /d 1 /f > $null 2>&1
+    reg add "HKLM\Software\Policies\Microsoft\Windows\Dsh" /v "AllowNewsAndInterests" /t REG_DWORD /d 0 /f > $null 2>&1
+    reg add "HKLM\Software\Policies\Microsoft\Windows\Dsh" /v "AllowCopilotInWindows" /t REG_DWORD /d 0 /f > $null 2>&1
+    reg add "HKLM\Software\Policies\Microsoft\Windows\Dsh" /v "EnableCopilotButton" /t REG_DWORD /d 0 /f > $null 2>&1
     Write-Host "Microsoft Copilot disabled via registry." -ForegroundColor Green
 
     # Remove Copilot from Taskbar
     Write-Host "Unpinning Microsoft Copilot from Taskbar and Start Menu..." -ForegroundColor Yellow
-    reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" /v "ShowCopilotButton" /t REG_DWORD /d 0 /f
+    reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" /v "ShowCopilotButton" /t REG_DWORD /d 0 /f > $null 2>&1
     Write-Host "Microsoft Copilot icon removed from Taskbar and Start Menu." -ForegroundColor Green
 
     # Stop and Kill Microsoft Copilot Processes
@@ -819,15 +834,13 @@ if ($removeCopilot -eq "y") {
 
     # Uninstall Microsoft Copilot (For All Users) using all possible methods
     Write-Host "Uninstalling Microsoft Copilot..." -ForegroundColor Yellow
-    
+
     # Attempt removal via Winget
     try {
         Write-Host "Attempting to remove Copilot via Winget..." -ForegroundColor Cyan
-        winget uninstall --id "Microsoft.Copilot" --silent --accept-package-agreements --accept-source-agreements
+        winget uninstall --id "Microsoft.Copilot" --silent --accept-source-agreements > $null 2>&1
         Write-Host "Copilot removed via Winget." -ForegroundColor Green
-    } catch {
-        Write-Host "Failed to remove Copilot via Winget. Error: $_" -ForegroundColor Red
-    }
+    } catch {}
 
     # Remove AppxPackage
     $copilotPackages = @(
@@ -839,12 +852,10 @@ if ($removeCopilot -eq "y") {
 
     foreach ($package in $copilotPackages) {
         try {
-            Get-AppxPackage -Name $package -AllUsers | Remove-AppxPackage -AllUsers -ErrorAction Stop
-            Get-AppxProvisionedPackage -Online | Where-Object DisplayName -like "*$package*" | Remove-AppxProvisionedPackage -Online -ErrorAction Stop
+            Get-AppxPackage -Name $package -AllUsers | Remove-AppxPackage -AllUsers -ErrorAction SilentlyContinue
+            Get-AppxProvisionedPackage -Online | Where-Object DisplayName -like "*$package*" | Remove-AppxProvisionedPackage -Online -ErrorAction SilentlyContinue
             Write-Host "Removed: $package" -ForegroundColor Green
-        } catch {
-            Write-Host "Failed to remove $package via Appx. Trying alternative methods..." -ForegroundColor Yellow
-        }
+        } catch {}
     }
 
     # Remove Copilot from Microsoft Office / 365
@@ -852,9 +863,7 @@ if ($removeCopilot -eq "y") {
     try {
         Start-Process -FilePath "C:\Program Files\Common Files\Microsoft Shared\ClickToRun\OfficeC2RClient.exe" -ArgumentList "/uninstall Copilot /quiet /norestart" -NoNewWindow -Wait -ErrorAction SilentlyContinue
         Write-Host "Microsoft 365 Copilot removed." -ForegroundColor Green
-    } catch {
-        Write-Host "Failed to remove Microsoft 365 Copilot. Error: $_" -ForegroundColor Red
-    }
+    } catch {}
 
     # Remove Remaining Copilot Directories
     Write-Host "Removing leftover Microsoft Copilot folders..." -ForegroundColor Yellow
@@ -895,8 +904,8 @@ if ($removeCopilot -eq "y") {
 
     # Block Microsoft Copilot from Reinstalling via Group Policy
     Write-Host "Preventing Microsoft Copilot from reinstalling..." -ForegroundColor Yellow
-    reg add "HKLM\Software\Policies\Microsoft\Windows\Copilot" /v "DisableCopilot" /t REG_DWORD /d 1 /f
-    reg add "HKLM\Software\Policies\Microsoft\Windows\Dsh" /v "EnableCopilotButton" /t REG_DWORD /d 0 /f
+    reg add "HKLM\Software\Policies\Microsoft\Windows\Copilot" /v "DisableCopilot" /t REG_DWORD /d 1 /f > $null 2>&1
+    reg add "HKLM\Software\Policies\Microsoft\Windows\Dsh" /v "EnableCopilotButton" /t REG_DWORD /d 0 /f > $null 2>&1
 
     # Force Windows Explorer to refresh UI changes
     Write-Host "Refreshing Windows Explorer to reflect changes..." -ForegroundColor Cyan
@@ -941,25 +950,20 @@ if ($removeRecall.ToLower() -eq "y" -or $removeRecall.ToLower() -eq "yes") {
     Write-Host "Keeping Microsoft Recall." -ForegroundColor Cyan
 }
 
-# Apply Windows 10 Look on Windows 11 (Only if Windows 11 is detected)
-if ($win11) {
-    $win10look = Read-Host "Do you want Windows 11 to look and feel like Windows 10? [Recommended] (y/n)"
-
-    if ($win10look -eq "y") {
-        Write-Host "Applying UI tweaks..." -ForegroundColor Magenta
-
-        # Enable Classic Start Menu Mode
-        reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" /v "Start_ShowClassicMode" /t REG_DWORD /d 1 /f
-
-        # Align Taskbar to the Left
-        reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" /v "TaskbarAl" /t REG_DWORD /d 0 /f
-
-        # Enable Windows 10 Classic Right-Click Context Menu (Disable Windows 11 context menu)
-        reg add "HKCU\Software\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}" /f
-        reg add "HKCU\Software\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}\InprocServer32" /ve /t REG_SZ /d "" /f
-
-        Write-Host "Windows UI tweaks applied." -ForegroundColor Green
-    }
+# Prompt user to apply Windows 10 look and feel on Windows 11
+$win10look = Read-Host "Do you want Windows 11 to look and feel like Windows 10? [Recommended] (y/n)"
+if ($win10look -eq "y") {
+    Write-Host "Applying UI tweaks..." -ForegroundColor Magenta
+    # Enable Classic Start Menu Mode
+    reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" /v "Start_ShowClassicMode" /t REG_DWORD /d 1 /f
+    # Align Taskbar to the Left
+    reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" /v "TaskbarAl" /t REG_DWORD /d 0 /f
+    # Enable Windows 10 Classic Right-Click Context Menu (Disable Windows 11 context menu)
+    reg add "HKCU\Software\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}" /f
+    reg add "HKCU\Software\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}\InprocServer32" /ve /t REG_SZ /d "" /f
+    Write-Host "✅ Windows UI tweaks applied successfully." -ForegroundColor Green
+} else {
+    Write-Host "Skipping Windows 10 UI tweaks." -ForegroundColor Cyan
 }
 
 # Function to set registry value
@@ -987,38 +991,35 @@ if ($debloatTaskbar -eq "y") {
         exit
     }
 
-    # Function to Set Registry Values Safely
-function Set-RegistryValue {
-    param (
-        [string]$Path,
-        [string]$Name,
-        [int]$Value
-    )
-    try {
-        if (!(Test-Path $Path)) {
-            New-Item -Path $Path -Force | Out-Null
+    # Function to Set Registry Values Safely with Elevated Privileges
+    function Set-RegistryValue {
+        param (
+            [string]$Path,
+            [string]$Name,
+            [int]$Value
+        )
+        try {
+            Start-Process -FilePath "reg.exe" -ArgumentList "add `"$Path`" /v `"$Name`" /t REG_DWORD /d $Value /f" -NoNewWindow -Wait
+            Write-Host "Set $Name to $Value in $Path" -ForegroundColor Green
+        } catch {
+            Write-Host "Failed to set $Name in ($Path) $_" -ForegroundColor Red
         }
-        Set-ItemProperty -Path $Path -Name $Name -Value $Value -Force
-        Write-Host "Set $Name to $Value in $Path" -ForegroundColor Green
-    } catch {
-        Write-Host "Failed to set $Name in $($Path): $_" -ForegroundColor Red
     }
-}
 
     # Remove Task View Button
-    Set-RegistryValue -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "ShowTaskViewButton" -Value 0
+    Set-RegistryValue -Path "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "ShowTaskViewButton" -Value 0
 
     # Remove Search Bar
-    Set-RegistryValue -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Search" -Name "SearchboxTaskbarMode" -Value 0
+    Set-RegistryValue -Path "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Search" -Name "SearchboxTaskbarMode" -Value 0
 
     # Remove People Icon
-    Set-RegistryValue -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced\People" -Name "PeopleBand" -Value 0
+    Set-RegistryValue -Path "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced\People" -Name "PeopleBand" -Value 0
 
     # Remove Ink Workspace
-    Set-RegistryValue -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\PenWorkspace" -Name "PenWorkspaceButtonDesiredVisibility" -Value 0
+    Set-RegistryValue -Path "HKCU\Software\Microsoft\Windows\CurrentVersion\PenWorkspace" -Name "PenWorkspaceButtonDesiredVisibility" -Value 0
 
     # Remove "Meet Now" from Taskbar
-    Set-RegistryValue -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer" -Name "HideSCAMeetNow" -Value 1
+    Set-RegistryValue -Path "HKCU\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer" -Name "HideSCAMeetNow" -Value 1
 
     # Unpin Microsoft Store and Mail from Taskbar
     Write-Host "Unpinning Microsoft Store and Mail from Taskbar..." -ForegroundColor Yellow
@@ -1031,56 +1032,57 @@ function Set-RegistryValue {
         }
     }
 
-    # Determine Windows Version
-    $windowsVersion = (Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion").ReleaseId
+    # 🔥 Remove News, Weather, and Widgets in Windows 11 🔥
 
-    if ($windowsVersion -ge 2004 -and $windowsVersion -lt 22000) {
-        # Windows 10 specific debloating
+    # Remove Windows Feeds (News & Weather)
+    Write-Host "Removing Windows Feeds (News & Weather)..." -ForegroundColor Yellow
+    Start-Process -FilePath "reg.exe" -ArgumentList 'add "HKLM\SOFTWARE\Policies\Microsoft\Windows\Windows Feeds" /v "EnableFeeds" /t REG_DWORD /d 0 /f' -NoNewWindow -Wait
+    Write-Host "News and Weather disabled." -ForegroundColor Green
 
-        # Disable News and Interests via Registry
-        Write-Host "Disabling News and Interests in Windows 10..." -ForegroundColor Yellow
-        Set-RegistryValue -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Feeds" -Name "ShellFeedsTaskbarViewMode" -Value 2
-        Write-Host "News and Interests disabled." -ForegroundColor Green
+    # Remove Widgets via Registry
+    Write-Host "Disabling Windows Widgets..." -ForegroundColor Yellow
+    Set-RegistryValue -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "TaskbarDa" -Value 0
+    Write-Host "Widgets disabled." -ForegroundColor Green
 
-        # Remove News and Interests via Group Policy
-        Write-Host "Removing News and Interests via Group Policy..." -ForegroundColor Yellow
-        Set-RegistryValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Feeds" -Name "EnableFeeds" -Value 0
-        Write-Host "News and Interests removed via Group Policy." -ForegroundColor Green
+    # Remove Widgets Service
+    Write-Host "Stopping and disabling Widgets service..." -ForegroundColor Yellow
+    Get-Service "Widgets" -ErrorAction SilentlyContinue | Stop-Service -Force -ErrorAction SilentlyContinue
+    Set-Service "Widgets" -StartupType Disabled -ErrorAction SilentlyContinue
+    Write-Host "Widgets service disabled." -ForegroundColor Green
 
-        # Restart Explorer to Apply Changes
-        Write-Host "Restarting Windows Explorer to apply changes..." -ForegroundColor Yellow
-        Stop-Process -Name "explorer" -Force
-        Start-Sleep -Seconds 2
-        Start-Process "explorer"
-        Write-Host "Windows Explorer restarted." -ForegroundColor Green
-
-    } elseif ($windowsVersion -ge 22000) {
-        # Windows 11 specific debloating
-
-        # Disable Widgets via Settings
-        Write-Host "Disabling Widgets in Windows 11..." -ForegroundColor Yellow
-        Set-RegistryValue -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "TaskbarDa" -Value 0
-        Write-Host "Widgets disabled." -ForegroundColor Green
-
-        # Uninstall Widgets via PowerShell
-        Write-Host "Uninstalling Widgets from Windows 11..." -ForegroundColor Yellow
-        try {
-            Get-AppxPackage -Name "MicrosoftWindows.Client.WebExperience" -AllUsers | Remove-AppxPackage -AllUsers -ErrorAction Stop
-            Write-Host "Widgets uninstalled successfully." -ForegroundColor Green
-        } catch {
-            Write-Host "Failed to uninstall Widgets: $_" -ForegroundColor Red
-        }
-
-        # Restart Explorer to Apply Changes
-        Write-Host "Restarting Windows Explorer to apply changes..." -ForegroundColor Yellow
-        Stop-Process -Name "explorer" -Force
-        Start-Sleep -Seconds 2
-        Start-Process "explorer"
-        Write-Host "Windows Explorer restarted." -ForegroundColor Green
-
-    } else {
-        Write-Host "Unsupported Windows version detected. Skipping News, Weather, and Widgets removal." -ForegroundColor Red
+    # Uninstall Widgets via PowerShell
+    Write-Host "Uninstalling Windows Widgets..." -ForegroundColor Yellow
+    try {
+        Get-AppxPackage -Name "MicrosoftWindows.Client.WebExperience" -AllUsers | Remove-AppxPackage -AllUsers -ErrorAction SilentlyContinue
+        Write-Host "Widgets uninstalled successfully." -ForegroundColor Green
+    } catch {
+        Write-Host "Failed to uninstall Widgets: $_" -ForegroundColor Red
     }
+
+    # Uninstall MSN News & Weather apps (if present)
+    Write-Host "Removing MSN News & Weather Apps..." -ForegroundColor Yellow
+    $newsWeatherApps = @(
+        "Microsoft.BingNews",
+        "Microsoft.BingWeather"
+    )
+    foreach ($app in $newsWeatherApps) {
+        try {
+            Get-AppxPackage -Name $app -AllUsers | Remove-AppxPackage -AllUsers -ErrorAction SilentlyContinue
+            Write-Host "Removed: $app" -ForegroundColor Green
+        } catch {
+            Write-Host "Failed to remove ($app) $_" -ForegroundColor Yellow
+        }
+    }
+
+    # Unpin News & Weather from Taskbar
+    Write-Host "Unpinning News & Weather from Taskbar..." -ForegroundColor Yellow
+    Start-Process -FilePath "reg.exe" -ArgumentList 'add "HKCU\Software\Microsoft\Windows\CurrentVersion\Feeds" /v "ShellFeedsTaskbarViewMode" /t REG_DWORD /d 2 /f' -NoNewWindow -Wait
+    Write-Host "News & Weather unpinned from taskbar." -ForegroundColor Green
+
+    # Remove News & Interests via Group Policy
+    Write-Host "Ensuring News & Interests is fully removed via Group Policy..." -ForegroundColor Yellow
+    Start-Process -FilePath "reg.exe" -ArgumentList 'add "HKLM\SOFTWARE\Policies\Microsoft\Windows\Windows Feeds" /v "EnableFeeds" /t REG_DWORD /d 0 /f' -NoNewWindow -Wait
+    Write-Host "News & Interests fully removed via Group Policy." -ForegroundColor Green
 
 } else {
     Write-Host "Skipping taskbar debloating." -ForegroundColor Cyan
@@ -1184,6 +1186,23 @@ Write-Host "Restarting Windows Explorer to apply changes..." -ForegroundColor Cy
 Stop-Process -Name explorer -Force
 Start-Process -FilePath "explorer.exe" -ArgumentList "/n" -WindowStyle Hidden
 Write-Host "Windows Explorer Restarted." -ForegroundColor Green
+Clear-Host
+
+# OGC Banner
+Write-Host "=======================================" -ForegroundColor DarkBlue
+Write-Host "       OOOOOO    GGGGGG    CCCCCC      " -ForegroundColor Cyan
+Write-Host "      OO    OO  GG        CC           " -ForegroundColor Cyan
+Write-Host "      OO    OO  GG   GGG  CC           " -ForegroundColor Cyan
+Write-Host "      OO    OO  GG    GG  CC           " -ForegroundColor Cyan
+Write-Host "       OOOOOO    GGGGGG    CCCCCC      " -ForegroundColor Cyan
+Write-Host "                                       " -ForegroundColor Cyan
+Write-Host "        OGC Windows 11 Utility         " -ForegroundColor Yellow
+Write-Host "     Fresh Windows Install Wizard      " -ForegroundColor Yellow
+Write-Host "        https://discord.gg/ogc         " -ForegroundColor Magenta
+Write-Host "        Created by Honest Goat         " -ForegroundColor Green
+Write-Host "=======================================" -ForegroundColor DarkBlue
+Write-Host ""
+Write-Host ""
 
 # Install Gaming Apps (Steam, Epic, GOG, Discord, Medal)
 $installGamingApps = Read-Host "Do you want to install gaming apps like Steam, Epic, GOG, Discord, and Medal? (y/n)"
