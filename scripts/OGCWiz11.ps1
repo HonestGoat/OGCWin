@@ -15,7 +15,7 @@ function Test-Admin {
 Test-Admin
 
 Set-ExecutionPolicy Bypass -Scope Process -Force
-$host.UI.RawUI.WindowTitle = "OGC Windows Utility Launcher"
+$host.UI.RawUI.WindowTitle = "OGC New Windows Wizard"
 $Host.UI.RawUI.BackgroundColor = "Black"
 $Host.UI.RawUI.ForegroundColor = "White"
 Clear-Host

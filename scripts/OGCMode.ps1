@@ -16,7 +16,7 @@ function Test-Admin {
 Test-Admin
 
 Set-ExecutionPolicy Bypass -Scope Process -Force
-$host.UI.RawUI.WindowTitle = "OGC Windows Utility Launcher"
+$host.UI.RawUI.WindowTitle = "OGCWin Utility Launcher"
 $Host.UI.RawUI.BackgroundColor = "Black"
 $Host.UI.RawUI.ForegroundColor = "White"
 Clear-Host
@@ -217,7 +217,8 @@ function Get-UserSelection {
 #                `$host.UI.RawUI.ForegroundColor = 'White'; 
 #                Clear-Host; 
 #                & '$scriptPath'`"" -Verb RunAs
-#            Start-Sleep -Seconds 2
+#            
+#            Start-Sleep -Seconds 1
 #            $host.UI.RawUI.FlushInputBuffer()
 #            Stop-Process -Id $PID -Force
         } elseif ($modeChoice -eq "2") {
@@ -229,7 +230,8 @@ function Get-UserSelection {
                 `$host.UI.RawUI.ForegroundColor = 'White'; 
                 Clear-Host; 
                 & '$scriptPath'`"" -Verb RunAs
-            Start-Sleep -Seconds 2
+            
+            Start-Sleep -Seconds 1
             $host.UI.RawUI.FlushInputBuffer()
             Stop-Process -Id $PID -Force
         } elseif ($modeChoice -eq "3") {
