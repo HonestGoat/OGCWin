@@ -75,7 +75,7 @@ Write-Host "!!! Please read each prompt carefully before proceeding !!!" -Foregr
 Write-Host ""
 
 # Confirm User Wants to Continue
-$continueScript = Read-Host "!!! You assume all risk of data loss. Press (y/n) to agree and continue."
+$continueScript = Read-Host "!!! DISCLAIMER !!! You assume all risk of data loss. Press (y/n) to agree and continue"
 
 if ($continueScript -ne "y") {
     Write-Host "Exiting script. No changes have been made." -ForegroundColor Yellow
@@ -756,12 +756,16 @@ if ($removeOneDrive -eq "y") {
     $registryPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders"
 
     $folders = @{
-        "Desktop"   = "$env:USERPROFILE\Desktop"
-        "Documents" = "$env:USERPROFILE\Documents"
-        "Downloads" = "$env:USERPROFILE\Downloads"
-        "Music"     = "$env:USERPROFILE\Music"
-        "Pictures"  = "$env:USERPROFILE\Pictures"
-        "Videos"    = "$env:USERPROFILE\Videos"
+        "Desktop"     = "$env:USERPROFILE\Desktop"
+        "Documents"   = "$env:USERPROFILE\Documents"
+        "Personal"    = "$env:USERPROFILE\Documents"
+        "Downloads"   = "$env:USERPROFILE\Downloads"
+        "Music"       = "$env:USERPROFILE\Music"
+        "My Music"    = "$env:USERPROFILE\Music"
+        "Pictures"    = "$env:USERPROFILE\Pictures"
+        "My Pictures" = "$env:USERPROFILE\Pictures"
+        "Videos"      = "$env:USERPROFILE\Videos"
+        "My Video"    = "$env:USERPROFILE\Videos"
     }
 
     foreach ($folder in $folders.Keys) {
@@ -769,6 +773,21 @@ if ($removeOneDrive -eq "y") {
         if (!(Test-Path $defaultPath)) { New-Item -Path $defaultPath -ItemType Directory -Force | Out-Null }
         Set-ItemProperty -Path $registryPath -Name $folder -Value $defaultPath -Force
         Write-Host "Reset $folder to $defaultPath" -ForegroundColor Green
+    }
+
+    # Final check and force removal of old OneDrive folder
+    $oldOneDriveFolder = "$env:USERPROFILE\OneDrive"
+
+    if (Test-Path $oldOneDriveFolder) {
+        Write-Host "Final cleanup: Removing leftover OneDrive folder..." -ForegroundColor Yellow
+        try {
+            takeown /f "$oldOneDriveFolder" /r /d y > $null 2>&1
+            icacls "$oldOneDriveFolder" /grant administrators:F /t /c /q > $null 2>&1
+            Remove-Item -Path $oldOneDriveFolder -Recurse -Force -ErrorAction Stop
+            Write-Host "Successfully removed the old OneDrive folder." -ForegroundColor Green
+        } catch {
+            Write-Host "ERROR: Failed to remove the old OneDrive folder. Try deleting it manually." -ForegroundColor Red
+        }
     }
 
     Write-Host "ONEDRIVE HAS BEEN COMPLETELY REMOVED, AND USER FOLDERS ARE NOW RESTORED!" -ForegroundColor Green
@@ -883,7 +902,7 @@ if ($removeTeams -eq "y") {
     Write-Host "Refreshing Windows Start Menu to remove any lingering Microsoft Teams icons..." -ForegroundColor Yellow
     Stop-Process -Name "StartMenuExperienceHost" -Force -ErrorAction SilentlyContinue
     Start-Sleep -Seconds 2
-    Start-Process "explorer.exe"
+    Start-Process -FilePath "explorer.exe" -ArgumentList "/n" -WindowStyle Hidden
 
     # Remove "Meet Now" Icon from the Taskbar
     Write-Host "Removing 'Meet Now' icon from the taskbar..." -ForegroundColor Yellow
@@ -1025,7 +1044,7 @@ if ($removeCopilot -eq "y") {
     Write-Host "Refreshing Windows Start Menu to remove lingering Microsoft Copilot icons..." -ForegroundColor Yellow
     Stop-Process -Name "StartMenuExperienceHost" -Force -ErrorAction SilentlyContinue
     Start-Sleep -Seconds 2
-    Start-Process "explorer.exe"
+    Start-Process -FilePath "explorer.exe" -ArgumentList "/n" -WindowStyle Hidden
 
     Write-Host "MICROSOFT COPILOT HAS BEEN COMPLETELY REMOVED AND BLOCKED FROM REINSTALLING!" -ForegroundColor Green
     Start-Sleep -Seconds 2
