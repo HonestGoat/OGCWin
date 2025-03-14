@@ -218,7 +218,8 @@ function Get-UserSelection {
 #                Clear-Host; 
 #                & '$scriptPath'`"" -Verb RunAs
 #            
-#            Start-Sleep -Seconds 1
+#            Start-Sleep -Seconds 2
+#
 #            $host.UI.RawUI.FlushInputBuffer()
 #            Stop-Process -Id $PID -Force
         } elseif ($modeChoice -eq "2") {
@@ -231,7 +232,8 @@ function Get-UserSelection {
                 Clear-Host; 
                 & '$scriptPath'`"" -Verb RunAs
             
-            Start-Sleep -Seconds 1
+            Start-Sleep -Seconds 2
+
             $host.UI.RawUI.FlushInputBuffer()
             Stop-Process -Id $PID -Force
         } elseif ($modeChoice -eq "3") {

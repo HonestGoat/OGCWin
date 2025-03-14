@@ -157,10 +157,15 @@ Stop-Process -Name "Cortana" -Force -ErrorAction SilentlyContinue
 Stop-Process -Name "SearchUI" -Force -ErrorAction SilentlyContinue
 Start-Sleep -Seconds 2
 
-# Uninstall Cortana (For All Users)
-Write-Host "Uninstalling Cortana..." -ForegroundColor Yellow
-Get-AppxPackage -Name "Microsoft.549981C3F5F10" -AllUsers | Remove-AppxPackage -AllUsers -ErrorAction SilentlyContinue
-Get-AppxProvisionedPackage -Online | Where-Object DisplayName -like "*Cortana*" | Remove-AppxProvisionedPackage -Online -ErrorAction SilentlyContinue
+# Uninstall Cortana (Windows 10)
+Write-Host "Uninstalling Cortana (Windows 10)..." -ForegroundColor Yellow
+Get-AppxPackage -AllUsers | Where-Object {$_.Name -like "*Cortana*"} | ForEach-Object {
+    Remove-AppxPackage -Package $_.PackageFullName -ErrorAction SilentlyContinue
+}
+Get-AppxProvisionedPackage -Online | Where-Object DisplayName -like "*Cortana*" | ForEach-Object {
+    Write-Host "Removing provisioned package: $($_.DisplayName)" -ForegroundColor Cyan
+    DISM /Online /Remove-ProvisionedAppxPackage /PackageName:$($_.PackageName) | Out-Null
+}
 Write-Host "Cortana uninstalled successfully." -ForegroundColor Green
 
 # Remove Remaining Cortana Directories
@@ -195,6 +200,20 @@ Write-Host "Location Tracking Disabled." -ForegroundColor Green
 
 # Disable tips and suggestions
 Write-Host "Disabling all tips, suggestions and advertisements." -ForegroundColor Magenta 
+
+# Remove "3D Objects" in File Explorer
+Write-Host "Removing '3D Objects' from File Explorer..." -ForegroundColor Magenta
+$regPaths = @(
+    "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\MyComputer\NameSpace\{31C0DD25-9439-4F12-BF41-7FF4EDA38722}",
+    "HKLM:\SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\Explorer\MyComputer\NameSpace\{31C0DD25-9439-4F12-BF41-7FF4EDA38722}"
+)
+
+foreach ($path in $regPaths) {
+    if (Test-Path $path) {
+        Remove-Item -Path $path -Recurse -Force -ErrorAction SilentlyContinue
+        Write-Host "'3D Objects' removed from: $path" -ForegroundColor Green
+    }
+}
 
 # Function to set registry values
 function Set-RegistryValue {
@@ -417,39 +436,42 @@ if ($removeBloatware -eq "y") {
         "Microsoft.WindowsFeedbackHub",
         "Microsoft.WindowsMaps",
         "Microsoft.WindowsSoundRecorder",
-        "Microsoft.WindowsCommunicationsApps"  # Mail and Calendar
+        "microsoft.windowscommunicationsapps"  # Mail and Calendar
     )
 
     foreach ($app in $crapware) {
         $removed = $false
 
-        # Try removing using AppxPackage
-        $appxPackage = Get-AppxPackage -AllUsers -Name $app -ErrorAction SilentlyContinue
-        if ($appxPackage) {
-            Remove-AppxPackage -Package $appxPackage.PackageFullName -AllUsers -ErrorAction SilentlyContinue
+        # Try removing using DISM first (Windows 10 recommended approach)
+        $provisionedPackage = Get-AppxProvisionedPackage -Online | Where-Object { $_.DisplayName -match $app }
+        if ($provisionedPackage) {
+            Write-Host "Removing provisioned package: $app" -ForegroundColor Cyan
+            DISM /Online /Remove-ProvisionedAppxPackage /PackageName:$provisionedPackage.PackageName | Out-Null
             $removed = $true
         }
 
-        # Try removing using AppxProvisionedPackage if AppxPackage removal didn't work
-        if (!$removed) {
-            $provisionedPackage = Get-AppxProvisionedPackage -Online | Where-Object DisplayName -EQ $app
-            if ($provisionedPackage) {
-                Remove-AppxProvisionedPackage -Online -PackageName $provisionedPackage.PackageName -ErrorAction SilentlyContinue
-                $removed = $true
-            }
+        # Try removing the installed AppxPackage for all users
+        $appxPackage = Get-AppxPackage -AllUsers | Where-Object { $_.Name -match $app }
+        if ($appxPackage) {
+            Write-Host "Uninstalling AppxPackage: $app" -ForegroundColor Cyan
+            Remove-AppxPackage -Package $appxPackage.PackageFullName -ErrorAction SilentlyContinue
+            $removed = $true
         }
 
-        # Try removing using DISM if needed
+        # Try DISM to remove app if it's still present
         if (!$removed) {
+            Write-Host "Trying DISM for stubborn app: $app" -ForegroundColor Cyan
             $dismOutput = dism /Online /Remove-ProvisionedAppxPackage /PackageName:$app /Quiet 2>&1
             if ($dismOutput -match "successfully removed") {
                 $removed = $true
             }
         }
 
-        # Only output when successfully removed
+        # Output result
         if ($removed) {
             Write-Host "$app successfully removed." -ForegroundColor Green
+        } else {
+            Write-Host "Failed to remove $app. It may not be installed or requires manual removal." -ForegroundColor Red
         }
     }
 
@@ -507,7 +529,7 @@ if ($useYourPhone -eq "y") {
 # Function to check if an app is installed
 function Test-AppInstallation {
     param ([string]$AppName)
-    return ($null -ne (Get-AppxPackage -Name $AppName -ErrorAction SilentlyContinue))
+    return ($null -ne (Get-AppxPackage -AllUsers | Where-Object { $_.Name -match $AppName }))
 }
 
 # List of Xbox Apps
@@ -552,11 +574,22 @@ if ($useXbox -match "^[Nn]$") {
         # Remove all Xbox-related Appx packages
         Write-Host "Removing Xbox-related Appx packages..." -ForegroundColor Yellow
         foreach ($app in $requiredXboxApps) {
-            Get-AppxPackage -Name $app -AllUsers | Remove-AppxPackage -AllUsers -ErrorAction SilentlyContinue
-            Get-AppxProvisionedPackage -Online | Where-Object DisplayName -like "*$app*" | Remove-AppxProvisionedPackage -Online -ErrorAction SilentlyContinue
+            # Remove provisioned package first (Windows 10 requirement)
+            $provisionedPackage = Get-AppxProvisionedPackage -Online | Where-Object { $_.DisplayName -match $app }
+            if ($provisionedPackage) {
+                Write-Host "Removing provisioned package: $app" -ForegroundColor Cyan
+                DISM /Online /Remove-ProvisionedAppxPackage /PackageName:$provisionedPackage.PackageName | Out-Null
+            }
+
+            # Remove installed Appx package
+            $appxPackage = Get-AppxPackage -AllUsers | Where-Object { $_.Name -match $app }
+            if ($appxPackage) {
+                Write-Host "Uninstalling AppxPackage: $app" -ForegroundColor Cyan
+                Remove-AppxPackage -Package $appxPackage.PackageFullName -ErrorAction SilentlyContinue
+            }
         }
 
-        # Force Removal via DISM
+        # Force Removal via DISM for stubborn apps
         Write-Host "Using DISM to remove Xbox packages from Windows image..." -ForegroundColor Yellow
         DISM /Online /Get-ProvisionedAppxPackages | Select-String PackageName | Select-String xbox | ForEach-Object { 
             $_ -match "PackageName : (.*)" | Out-Null 
@@ -938,19 +971,16 @@ $removeCopilot = Read-Host "Do you want to completely remove Microsoft Copilot? 
 if ($removeCopilot -eq "y") {
     Write-Host "FORCEFULLY REMOVING MICROSOFT COPILOT..." -ForegroundColor Magenta
 
-    # Disable Copilot via Registry
+    # Disable Copilot via Registry (Windows 10 does not support all Windows 11 keys)
     Write-Host "Disabling Microsoft Copilot via registry..." -ForegroundColor Yellow
-    reg add "HKCU\Software\Policies\Microsoft\Windows\WindowsCopilot" /v TurnOffWindowsCopilot /t REG_DWORD /d 1 /f > $null 2>&1
-    reg add "HKLM\Software\Policies\Microsoft\Windows\WindowsCopilot" /v TurnOffWindowsCopilot /t REG_DWORD /d 1 /f > $null 2>&1
-    reg add "HKLM\Software\Policies\Microsoft\Windows\Dsh" /v "AllowNewsAndInterests" /t REG_DWORD /d 0 /f > $null 2>&1
     reg add "HKLM\Software\Policies\Microsoft\Windows\Dsh" /v "AllowCopilotInWindows" /t REG_DWORD /d 0 /f > $null 2>&1
     reg add "HKLM\Software\Policies\Microsoft\Windows\Dsh" /v "EnableCopilotButton" /t REG_DWORD /d 0 /f > $null 2>&1
     Write-Host "Microsoft Copilot disabled via registry." -ForegroundColor Green
 
     # Remove Copilot from Taskbar
-    Write-Host "Unpinning Microsoft Copilot from Taskbar and Start Menu..." -ForegroundColor Yellow
+    Write-Host "Unpinning Microsoft Copilot from Taskbar..." -ForegroundColor Yellow
     reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" /v "ShowCopilotButton" /t REG_DWORD /d 0 /f > $null 2>&1
-    Write-Host "Microsoft Copilot icon removed from Taskbar and Start Menu." -ForegroundColor Green
+    Write-Host "Microsoft Copilot icon removed from Taskbar." -ForegroundColor Green
 
     # Stop and Kill Microsoft Copilot Processes
     Write-Host "Stopping and killing Microsoft Copilot processes..." -ForegroundColor Yellow
@@ -960,7 +990,7 @@ if ($removeCopilot -eq "y") {
     }
     Start-Sleep -Seconds 2
 
-    # Uninstall Microsoft Copilot using Winget
+    # Uninstall Microsoft Copilot using Winget (Windows 10 does not officially include Copilot, but check)
     Write-Host "Attempting to uninstall Microsoft Copilot via Winget..." -ForegroundColor Cyan
     try {
         winget uninstall --id "Microsoft.Copilot" --silent --accept-source-agreements > $null 2>&1
@@ -968,20 +998,28 @@ if ($removeCopilot -eq "y") {
         Write-Host "Microsoft Copilot removed via Winget." -ForegroundColor Green
     } catch {}
 
-    # Remove Appx Packages
+    # Remove Appx Packages (if present in Windows 10)
     $copilotPackages = @(
-        "Microsoft.Windows.AI.Copilot",
         "MicrosoftWindows.Client.CBS",
-        "Microsoft.Copilot",
         "Microsoft.365.Copilot"
     )
 
     foreach ($package in $copilotPackages) {
-        try {
-            Get-AppxPackage -Name $package -AllUsers | Remove-AppxPackage -AllUsers -ErrorAction SilentlyContinue
-            Get-AppxProvisionedPackage -Online | Where-Object DisplayName -like "*$package*" | Remove-AppxProvisionedPackage -Online -ErrorAction SilentlyContinue
-            Write-Host "Removed: $package" -ForegroundColor Green
-        } catch {}
+        # Remove provisioned package first
+        $provisionedPackage = Get-AppxProvisionedPackage -Online | Where-Object { $_.DisplayName -match $package }
+        if ($provisionedPackage) {
+            Write-Host "Removing provisioned package: $package" -ForegroundColor Cyan
+            DISM /Online /Remove-ProvisionedAppxPackage /PackageName:$provisionedPackage.PackageName | Out-Null
+        }
+
+        # Remove installed Appx package
+        $appxPackage = Get-AppxPackage -AllUsers | Where-Object { $_.Name -match $package }
+        if ($appxPackage) {
+            Write-Host "Uninstalling AppxPackage: $package" -ForegroundColor Cyan
+            Remove-AppxPackage -Package $appxPackage.PackageFullName -ErrorAction SilentlyContinue
+        }
+
+        Write-Host "Removed: $package" -ForegroundColor Green
     }
 
     # Remove Copilot from Microsoft 365 / Office
@@ -1044,12 +1082,11 @@ if ($removeCopilot -eq "y") {
         reg delete $key /f 2>$null
     }
 
-    # Block Microsoft Copilot from Reinstalling via Group Policy
+    # Prevent Microsoft Copilot from Reinstalling via Group Policy
     Write-Host "Preventing Microsoft Copilot from reinstalling..." -ForegroundColor Yellow
-    reg add "HKLM\Software\Policies\Microsoft\Windows\Copilot" /v "DisableCopilot" /t REG_DWORD /d 1 /f > $null 2>&1
     reg add "HKLM\Software\Policies\Microsoft\Windows\Dsh" /v "EnableCopilotButton" /t REG_DWORD /d 0 /f > $null 2>&1
 
-    # Clear Start Menu Cache & Refresh Windows Explorer
+    # Refresh Windows Explorer
     Write-Host "Refreshing Windows Start Menu to remove lingering Microsoft Copilot icons..." -ForegroundColor Yellow
     Stop-Process -Name "StartMenuExperienceHost" -Force -ErrorAction SilentlyContinue
     Start-Sleep -Seconds 2
@@ -1063,6 +1100,43 @@ if ($removeCopilot -eq "y") {
 
 
 ## UI and Taskbar Section ##
+# Function to check if an app is installed
+function Test-AppInstallation {
+    param ([string]$AppName)
+    return ($null -ne (Get-AppxPackage -AllUsers | Where-Object { $_.Name -match $AppName }))
+}
+
+# Function to remove AppxPackage properly in Windows 10
+function Remove-AppxPackageAllUsers {
+    param (
+        [string]$PackageName
+    )
+
+    $removed = $false
+
+    # Remove provisioned package first (Windows 10 requires this)
+    $provisionedPackage = Get-AppxProvisionedPackage -Online | Where-Object { $_.DisplayName -match $PackageName }
+    if ($provisionedPackage) {
+        Write-Host "Removing provisioned package: $PackageName" -ForegroundColor Cyan
+        DISM /Online /Remove-ProvisionedAppxPackage /PackageName:$provisionedPackage.PackageName | Out-Null
+        $removed = $true
+    }
+
+    # Remove installed Appx package
+    $appxPackage = Get-AppxPackage -AllUsers | Where-Object { $_.Name -match $PackageName }
+    if ($appxPackage) {
+        Write-Host "Uninstalling AppxPackage: $PackageName" -ForegroundColor Cyan
+        Remove-AppxPackage -Package $appxPackage.PackageFullName -ErrorAction SilentlyContinue
+        $removed = $true
+    }
+
+    if ($removed) {
+        Write-Host "$PackageName successfully removed." -ForegroundColor Green
+    } else {
+        Write-Host "Failed to remove $PackageName or it was not found." -ForegroundColor Red
+    }
+}
+
 # Function to set registry value
 function Set-RegistryValue {
     param (
@@ -1076,125 +1150,43 @@ function Set-RegistryValue {
     Set-ItemProperty -Path $Path -Name $Name -Value $Value -Force
 }
 
-# Ensure the script is running with administrative privileges
-if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")) {
-    Write-Host "Please run this script as an Administrator." -ForegroundColor Red
-    exit
-}
-
-# Function to remove AppxPackage for all users
-function Remove-AppxPackageAllUsers {
-    param (
-        [string]$PackageName
-    )
-    # Remove for current user
-    Get-AppxPackage -Name $PackageName -ErrorAction SilentlyContinue | Remove-AppxPackage -ErrorAction SilentlyContinue
-    # Remove for all users
-    Get-AppxPackage -AllUsers -Name $PackageName -ErrorAction SilentlyContinue | Remove-AppxPackage -AllUsers -ErrorAction SilentlyContinue
-    # Remove provisioned package
-    Get-AppxProvisionedPackage -Online | Where-Object DisplayName -like "*$PackageName*" | Remove-AppxProvisionedPackage -Online -ErrorAction SilentlyContinue
-}
-
-# Ensure the script is running with administrative privileges
-if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")) {
-    Write-Host "Please run this script as an Administrator." -ForegroundColor Red
-    exit
-}
-
-# Function to remove AppxPackage for all users
-function Remove-AppxPackageAllUsers {
-    param (
-        [string]$PackageName
-    )
-    # Remove for current user
-    Get-AppxPackage -Name $PackageName -ErrorAction SilentlyContinue | Remove-AppxPackage -ErrorAction SilentlyContinue
-    # Remove for all users
-    Get-AppxPackage -AllUsers -Name $PackageName -ErrorAction SilentlyContinue | Remove-AppxPackage -AllUsers -ErrorAction SilentlyContinue
-    # Remove provisioned package
-    Get-AppxProvisionedPackage -Online | Where-Object DisplayName -like "*$PackageName*" | Remove-AppxProvisionedPackage -Online -ErrorAction SilentlyContinue
-}
-
 # Ensure the script is running as Administrator
 if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")) {
     Write-Host "Please run this script as an Administrator." -ForegroundColor Red
     exit
 }
 
-# Function to run registry modifications with elevated privileges
-function Set-RegistryValue {
-    param (
-        [string]$Path,
-        [string]$Name,
-        [string]$Type,
-        [string]$Value
-    )
-    try {
-        Start-Process -FilePath "reg.exe" -ArgumentList "add `"$Path`" /v `"$Name`" /t $Type /d $Value /f" -NoNewWindow -Wait
-        Write-Host "Set $Name to $Value in $Path" -ForegroundColor Green
-    } catch {
-        Write-Host "Failed to set $Name in $Path. Error: $_" -ForegroundColor Red
-    }
-}
-
 # Function to disable Widgets
 function Disable-Widgets {
     Write-Host "Disabling Widgets..." -ForegroundColor Cyan
-    Set-RegistryValue -Path "HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "TaskbarDa" -Type REG_DWORD -Value 0
-    # Stop and disable Widgets service
-    Get-Service -Name "Widgets" -ErrorAction SilentlyContinue | ForEach-Object {
-        Stop-Service -Name $_.Name -Force -ErrorAction SilentlyContinue
-        Set-Service -Name $_.Name -StartupType Disabled -ErrorAction SilentlyContinue
-    }
-    # Uninstall Widgets package
-    Remove-AppxPackageAllUsers -PackageName "MicrosoftWindows.Client.WebExperience"
+    Set-RegistryValue -Path "HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "TaskbarDa" -Value 0
     Write-Host "Widgets have been disabled." -ForegroundColor Green
 }
 
 # Function to remove News and Interests
 function Remove-NewsAndInterests {
     Write-Host "Removing News and Interests..." -ForegroundColor Cyan
-    # Uninstall Microsoft News App
     Remove-AppxPackageAllUsers -PackageName "Microsoft.BingNews"
-    # Disable News and Interests via registry
-    Set-RegistryValue -Path "HKLM\SOFTWARE\Policies\Microsoft\Windows\Windows Feeds" -Name "EnableFeeds" -Type REG_DWORD -Value 0
+    Set-RegistryValue -Path "HKLM\SOFTWARE\Policies\Microsoft\Windows\Windows Feeds" -Name "EnableFeeds" -Value 0
     Write-Host "News and Interests have been removed." -ForegroundColor Green
 }
 
-# Function to unpin Microsoft Store from taskbar properly
+# Function to remove Microsoft Store from taskbar
 function Remove-MicrosoftStoreFromTaskbar {
     Write-Host "Unpinning Microsoft Store from Taskbar..." -ForegroundColor Cyan
-
-    $taskbarLayout = "$env:APPDATA\Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar\Microsoft Store.lnk"
-    
-    if (Test-Path $taskbarLayout) {
-        Remove-Item $taskbarLayout -Force -ErrorAction SilentlyContinue
-        Write-Host "Microsoft Store has been unpinned from the taskbar." -ForegroundColor Green
-    } else {
-        Write-Host "Microsoft Store was not pinned to the taskbar." -ForegroundColor Yellow
-    }
-
-    # Prevent Microsoft Store from being pinned in the future
-    Set-RegistryValue -Path "HKCU\Software\Policies\Microsoft\Windows\Explorer" -Name "NoPinningStoreToTaskbar" -Type REG_DWORD -Value 1
+    Set-RegistryValue -Path "HKCU\Software\Policies\Microsoft\Windows\Explorer" -Name "NoPinningStoreToTaskbar" -Value 1
+    Write-Host "Microsoft Store has been unpinned from the taskbar." -ForegroundColor Green
 }
 
 # Function to remove unnecessary taskbar icons
 function Remove-TaskbarIcons {
     Write-Host "Removing unnecessary taskbar icons..." -ForegroundColor Magenta
-
-    # Remove Task View Button
-    Set-RegistryValue -Path "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "ShowTaskViewButton" -Type REG_DWORD -Value 0
-
-    # Remove Search Bar
-    Set-RegistryValue -Path "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Search" -Name "SearchboxTaskbarMode" -Type REG_DWORD -Value 0
-
-    # Remove People Icon
-    Set-RegistryValue -Path "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced\People" -Name "PeopleBand" -Type REG_DWORD -Value 0
-
-    # Remove Ink Workspace
-    Set-RegistryValue -Path "HKCU\Software\Microsoft\Windows\CurrentVersion\PenWorkspace" -Name "PenWorkspaceButtonDesiredVisibility" -Type REG_DWORD -Value 0
-
-    # Remove "Meet Now" from Taskbar
-    Set-RegistryValue -Path "HKCU\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer" -Name "HideSCAMeetNow" -Type REG_DWORD -Value 1
+    Set-RegistryValue -Path "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "ShowTaskViewButton" -Value 0
+    Set-RegistryValue -Path "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Search" -Name "SearchboxTaskbarMode" -Value 0
+    Set-RegistryValue -Path "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced\People" -Name "PeopleBand" -Value 0
+    Set-RegistryValue -Path "HKCU\Software\Microsoft\Windows\CurrentVersion\PenWorkspace" -Name "PenWorkspaceButtonDesiredVisibility" -Value 0
+    Set-RegistryValue -Path "HKCU\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer" -Name "HideSCAMeetNow" -Value 1
+    Write-Host "Taskbar icons removed." -ForegroundColor Green
 }
 
 # Prompt user to debloat the taskbar
@@ -1214,17 +1206,16 @@ if ($debloatTaskbar -eq "y") {
     )
     foreach ($app in $newsWeatherApps) {
         Remove-AppxPackageAllUsers -PackageName $app
-        Write-Host "Removed: $app" -ForegroundColor Green
     }
 
     # Unpin News & Weather from Taskbar
     Write-Host "Unpinning News & Weather from Taskbar..." -ForegroundColor Yellow
-    Set-RegistryValue -Path "HKCU\Software\Microsoft\Windows\CurrentVersion\Feeds" -Name "ShellFeedsTaskbarViewMode" -Type REG_DWORD -Value 2
+    Set-RegistryValue -Path "HKCU\Software\Microsoft\Windows\CurrentVersion\Feeds" -Name "ShellFeedsTaskbarViewMode" -Value 2
     Write-Host "News & Weather unpinned from taskbar." -ForegroundColor Green
 
     # Remove News & Interests via Group Policy
     Write-Host "Ensuring News & Interests is fully removed via Group Policy..." -ForegroundColor Yellow
-    Set-RegistryValue -Path "HKLM\SOFTWARE\Policies\Microsoft\Windows\Windows Feeds" -Name "EnableFeeds" -Type REG_DWORD -Value 0
+    Set-RegistryValue -Path "HKLM\SOFTWARE\Policies\Microsoft\Windows\Windows Feeds" -Name "EnableFeeds" -Value 0
     Write-Host "News & Interests fully removed via Group Policy." -ForegroundColor Green
 
 } else {
@@ -1419,9 +1410,12 @@ if ($installGamingUtilities -eq "y") {
     Write-Host "Gaming and monitoring utilities installation completed." -ForegroundColor Green
 }
 
-# Function to remove Edge from the taskbar properly
+## Install a Web Browser ##
+# Function to remove Microsoft Edge from the taskbar properly
 function Remove-EdgeTaskbarShortcut {
     Write-Host "Unpinning Microsoft Edge from Taskbar..." -ForegroundColor Cyan
+
+    # Use Windows Taskbar Pinning Command to Unpin Edge
     $edgeShortcut = "$env:APPDATA\Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar\Microsoft Edge.lnk"
     
     if (Test-Path $edgeShortcut) {
@@ -1430,34 +1424,27 @@ function Remove-EdgeTaskbarShortcut {
     } else {
         Write-Host "Microsoft Edge was not pinned to the taskbar." -ForegroundColor Yellow
     }
-}
 
-# Function to add a browser shortcut to the taskbar
-function Add-BrowserToTaskbar {
-    param (
-        [string]$BrowserExe
-    )
-    Write-Host "Adding $BrowserExe to the taskbar..." -ForegroundColor Cyan
-
-    $browserPath = ""
-
-    # Locate the installed browser's full path
-    switch ($BrowserExe) {
-        "firefox.exe" { $browserPath = "$env:ProgramFiles\Mozilla Firefox\firefox.exe" }
-        "brave.exe" { $browserPath = "$env:ProgramFiles\BraveSoftware\Brave-Browser\Application\brave.exe" }
-        "opera.exe" { $browserPath = "$env:ProgramFiles\Opera GX\launcher.exe" }
-        "chrome.exe" { $browserPath = "$env:ProgramFiles\Google\Chrome\Application\chrome.exe" }
+    # Ensure Edge is Fully Removed by Deleting Related Taskbar Items
+    $taskbarPinnedPath = "$env:APPDATA\Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar"
+    $edgePinnedItem = Get-ChildItem -Path $taskbarPinnedPath -Filter "*Edge*.lnk" -ErrorAction SilentlyContinue
+    if ($edgePinnedItem) {
+        Remove-Item -Path $edgePinnedItem.FullName -Force -ErrorAction SilentlyContinue
+        Write-Host "Deleted additional Edge pinned shortcut from taskbar." -ForegroundColor Green
     }
 
-    if (Test-Path $browserPath) {
-        # Pin to Taskbar
-        Start-Process -FilePath "$browserPath" -PassThru
-        Start-Sleep -Seconds 2  # Allow time for the application to launch
-        Stop-Process -Name "$BrowserExe" -Force -ErrorAction SilentlyContinue
-        Write-Host "$BrowserExe has been added to the taskbar." -ForegroundColor Green
-    } else {
-        Write-Host "ERROR: Could not find $BrowserExe. It may not have installed correctly." -ForegroundColor Red
-    }
+    # Clear Windows Explorer Icon Cache to prevent blank white icon
+    Write-Host "Clearing Taskbar Icon Cache..." -ForegroundColor Cyan
+    Remove-Item -Path "$env:LOCALAPPDATA\Microsoft\Windows\Explorer\iconcache*" -Force -ErrorAction SilentlyContinue
+    Remove-Item -Path "$env:LOCALAPPDATA\Microsoft\Windows\Explorer\thumbcache*" -Force -ErrorAction SilentlyContinue
+
+    # Restart Windows Explorer to Apply Changes
+    Write-Host "Restarting Explorer to finalize removal..." -ForegroundColor Yellow
+    Stop-Process -Name "explorer" -Force -ErrorAction SilentlyContinue
+    Start-Sleep -Seconds 2
+    Start-Process -FilePath "explorer.exe" -ArgumentList "/n" -WindowStyle Hidden
+
+    Write-Host "Microsoft Edge has been completely removed from the Taskbar!" -ForegroundColor Green
 }
 
 # Install a Web Browser
@@ -1812,7 +1799,11 @@ if ($installedDrivers -match "AMD") {
 }
 
 Write-Host "GPU tracking and telemetry disabled where applicable." -ForegroundColor Green
+
+Stop-Process -Name explorer -Force
+Start-Process -FilePath "explorer.exe" -ArgumentList "/n" -WindowStyle Hidden
 Start-Sleep -Seconds 2
+Clear-Host
 Write-Host ""
 Write-Host ""
 Write-Host "===========================================" -ForegroundColor Green

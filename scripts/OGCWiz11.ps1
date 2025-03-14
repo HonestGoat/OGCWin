@@ -1897,7 +1897,11 @@ if ($installedDrivers -match "AMD") {
 }
 
 Write-Host "GPU tracking and telemetry disabled where applicable." -ForegroundColor Green
+
+Stop-Process -Name explorer -Force
+Start-Process -FilePath "explorer.exe" -ArgumentList "/n" -WindowStyle Hidden
 Start-Sleep -Seconds 2
+Clear-Host
 Write-Host ""
 Write-Host ""
 Write-Host "===========================================" -ForegroundColor Green
