@@ -27,7 +27,7 @@ Originally developed for the **Oceanic Gaming Community Discord**, OGCWin is now
 
 ## 🚀 Installation & First-Time Setup  
 
-To install and run OGCWin for the first time, open **PowerShell as Administrator** in Windows 10 and **Terminal as Administrator** in Windows 11 and run the following command:  
+To install and run OGCWin for the first time, Right-Click on your Start button and open **Windows PowerShell (Admin)** in Windows 10 or **Terminal (Admin)** in Windows 11 and run the following command:  
 
 irm https://raw.githubusercontent.com/HonestGoat/OGCWin/main/scripts/launch.ps1 | iex
 
