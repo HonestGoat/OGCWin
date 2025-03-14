@@ -1536,7 +1536,7 @@ if ($installBrowser -eq "y") {
     Write-Host "2. Brave" -ForegroundColor Yellow
     Write-Host "3. Opera GX" -ForegroundColor Yellow
     Write-Host "4. Chrome" -ForegroundColor Yellow
-    Write-Host "5. Edge (Already Installed) - Keeps Edge" -ForegroundColor Yellow
+    Write-Host "5. Edge (Already Installed)" -ForegroundColor Yellow
     Write-Host "6. Skip Browser Installation" -ForegroundColor Yellow
 
     $browser = Read-Host "Enter the number corresponding to your browser choice"
@@ -1544,30 +1544,26 @@ if ($installBrowser -eq "y") {
     switch ($browser) {
         "1" {
             Write-Host "Installing Firefox..." -ForegroundColor Magenta
-            winget install Mozilla.Firefox --silent --accept-package-agreements --accept-source-agreements
+            winget install Mozilla.Firefox
             Remove-EdgeTaskbarShortcut
-            Add-BrowserToTaskbar -BrowserExe "firefox.exe"
         }
         "2" {
             Write-Host "Installing Brave..." -ForegroundColor Magenta
-            winget install Brave.Brave --silent --accept-package-agreements --accept-source-agreements
+            winget install Brave.Brave
             Remove-EdgeTaskbarShortcut
-            Add-BrowserToTaskbar -BrowserExe "brave.exe"
         }
         "3" {
             Write-Host "Installing Opera GX..." -ForegroundColor Magenta
-            winget install Opera.OperaGX --silent --accept-package-agreements --accept-source-agreements
+            winget install Opera.OperaGX
             Remove-EdgeTaskbarShortcut
-            Add-BrowserToTaskbar -BrowserExe "opera.exe"
         }
         "4" {
             Write-Host "Installing Chrome..." -ForegroundColor Magenta
-            winget install Google.Chrome --silent --accept-package-agreements --accept-source-agreements
+            winget install Google.Chrome
             Remove-EdgeTaskbarShortcut
-            Add-BrowserToTaskbar -BrowserExe "chrome.exe"
         }
         "5" {
-            Write-Host "Microsoft Edge selected. Keeping Edge pinned." -ForegroundColor Green
+            Write-Host "Microsoft Edge selected." -ForegroundColor Green
 
             # Ensure Edge Background Mode is Enabled
             $edgeRegPath = "HKLM:\SOFTWARE\Policies\Microsoft\Edge"
