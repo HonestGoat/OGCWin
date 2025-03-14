@@ -15,6 +15,7 @@ function Test-Admin {
 Test-Admin
 
 Set-ExecutionPolicy Bypass -Scope Process -Force
+$host.UI.RawUI.WindowTitle = "OGC Windows Utility Launcher"
 $Host.UI.RawUI.BackgroundColor = "Black"
 $Host.UI.RawUI.ForegroundColor = "White"
 Clear-Host
@@ -694,7 +695,7 @@ if ($removeOneDrive -eq "y") {
     $backupFolder = "$env:UserProfile\Onedrive Files"
 
     if (Test-Path $oneDriveUserFolder) {
-        $oneDriveSubfolders = @("Desktop", "Documents", "Downloads", "Music", "Pictures", "Videos")
+        $oneDriveSubfolders = @("Attachments", "Desktop", "Documents", "Downloads", "Music", "Pictures", "Videos")
 
         # Ensure folders exist and move matching OneDrive folders to user profile
         foreach ($folder in $oneDriveSubfolders) {
@@ -780,6 +781,22 @@ if ($removeOneDrive -eq "y") {
         if (!(Test-Path $defaultPath)) { New-Item -Path $defaultPath -ItemType Directory -Force | Out-Null }
         Set-ItemProperty -Path $registryPath -Name $folder -Value $defaultPath -Force
         Write-Host "Reset $folder to $defaultPath" -ForegroundColor Green
+    }
+
+    # Force remove of remaining Onedrive Folder
+    # Final check and force removal of old OneDrive folder
+    $oldOneDriveFolder = "$env:USERPROFILE\OneDrive"
+
+    if (Test-Path $oldOneDriveFolder) {
+        Write-Host "Final cleanup: Removing leftover OneDrive folder..." -ForegroundColor Yellow
+        try {
+            takeown /f "$oldOneDriveFolder" /r /d y > $null 2>&1
+            icacls "$oldOneDriveFolder" /grant administrators:F /t /c /q > $null 2>&1
+            Remove-Item -Path $oldOneDriveFolder -Recurse -Force -ErrorAction Stop
+            Write-Host "Successfully removed the old OneDrive folder." -ForegroundColor Green
+        } catch {
+            Write-Host "ERROR: Failed to remove the old OneDrive folder. Try deleting it manually." -ForegroundColor Red
+        }
     }
 
     Write-Host "ONEDRIVE HAS BEEN COMPLETELY REMOVED, AND USER FOLDERS ARE NOW RESTORED!" -ForegroundColor Green
