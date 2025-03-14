@@ -221,14 +221,14 @@ function Get-UserSelection {
 #            Stop-Process -Id $PID -Force
         } elseif ($modeChoice -eq "2") {
             Write-Host "Starting OGC Fresh Installation Setup Wizard..." -ForegroundColor Magenta
-            Start-Sleep -Seconds 1
+            Start-Sleep -Seconds 2
             $scriptPath = if ($windowsVersion -eq "Windows 10") { "$scriptsFolder\OGCWiz10.ps1" } else { "$scriptsFolder\OGCWiz11.ps1" }
             Start-Process powershell.exe -ArgumentList "-NoExit -ExecutionPolicy Bypass -NoProfile -WindowStyle Normal -Command `" 
                 `$host.UI.RawUI.BackgroundColor = 'Black'; 
                 `$host.UI.RawUI.ForegroundColor = 'White'; 
                 Clear-Host; 
                 & '$scriptPath'`"" -Verb RunAs
-            Start-Sleep -Seconds 1
+            Start-Sleep -Seconds 2
             $host.UI.RawUI.FlushInputBuffer()
             Stop-Process -Id $PID -Force
         } elseif ($modeChoice -eq "3") {
