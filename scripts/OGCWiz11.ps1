@@ -75,7 +75,7 @@ Write-Host "!!! Please read each prompt carefully before proceeding !!!" -Foregr
 Write-Host ""
 
 # Confirm User Wants to Continue
-$continueScript = Read-Host "Do you want to continue with the script? (y/n)"
+$continueScript = Read-Host "!!! You assume all risk of data loss. Press (y/n) to agree and continue."
 
 if ($continueScript -ne "y") {
     Write-Host "Exiting script. No changes have been made." -ForegroundColor Yellow
@@ -83,8 +83,9 @@ if ($continueScript -ne "y") {
     exit
 }
 
-Write-Host "Disabling Telemetry, Tracking, and Data Collection..." -ForegroundColor Magenta
 
+## Telemetry, Tracking and Data Collection ##
+Write-Host "Disabling Telemetry, Tracking, and Data Collection..." -ForegroundColor Magenta
 # Disable Telemetry in Registry
 $telemetryKeys = @(
     "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\DataCollection",
@@ -286,6 +287,7 @@ Write-Host "Tips and suggestions have now been disabled." -ForegroundColor Green
 Start-Sleep -Seconds 1
 Write-Host "Your privacy has been enhanced. Tracking, telemetry, data collection and suggestions have been disabled!" -ForegroundColor Green
 
+
 # Prompt the user for consent to block telemetry domains
 $blockTelemetry = Read-Host "Do you want to block major Microsoft tracking and telemetry domains? [Recommended] (y/n)"
 
@@ -377,6 +379,8 @@ if ($blockTelemetry -eq "y") {
     Write-Host "Skipping the blocking of telemetry domains." -ForegroundColor Cyan
 }
 
+
+## Bloatware and Crapware ##
 # Prompt the user for bloatware removal
 $removeBloatware = Read-Host "Do you want to remove preinstalled advertising apps and bloatware? [Recommended] (y/n)"
 
@@ -497,95 +501,140 @@ if ($useYourPhone -eq "y") {
     Write-Host "Invalid selection. No changes made to 'Your Phone' app." -ForegroundColor Red
 }
 
-# Prompt user for Xbox removal
-$removeXbox = Read-Host "Do you want to completely remove all Xbox apps, services, and features from Windows? [Recommended] (y/n)"
 
-if ($removeXbox -eq "y") {
-    Write-Host "Removing all Xbox apps and features..." -ForegroundColor Magenta
-
-    # Stop any running Xbox processes and services
-    Write-Host "Stopping Xbox services and processes..." -ForegroundColor Yellow
-    $xboxProcesses = @("GameBar", "XboxApp", "XboxGameOverlay", "GamingServices")
-    foreach ($proc in $xboxProcesses) {
-        Stop-Process -Name $proc -Force -ErrorAction SilentlyContinue
-    }
-
-    Get-Service -Name "*Xbox*" -ErrorAction SilentlyContinue | Stop-Service -Force -ErrorAction SilentlyContinue
-    Get-Service -Name "*GamingServices*" -ErrorAction SilentlyContinue | Stop-Service -Force -ErrorAction SilentlyContinue
-
-    # Remove all Xbox-related Appx packages (Even the hidden ones)
-    Write-Host "Removing Xbox-related Appx packages..." -ForegroundColor Yellow
-    $xboxApps = @(
-        "Microsoft.Xbox.TCUI",
-        "Microsoft.XboxApp",
-        "Microsoft.XboxGameOverlay",
-        "Microsoft.XboxGamingOverlay",
-        "Microsoft.XboxIdentityProvider",
-        "Microsoft.XboxSpeechToTextOverlay",
-        "Microsoft.XboxConsoleCompanion",
-        "Microsoft.GamingApp",
-        "Microsoft.GamingServices"
-    )
-
-    foreach ($app in $xboxApps) {
-        Write-Host "Removing $app ..." -ForegroundColor Magenta
-        Get-AppxPackage -Name $app -AllUsers | Remove-AppxPackage -AllUsers -ErrorAction SilentlyContinue
-        Get-AppxProvisionedPackage -Online | Where-Object DisplayName -like "*$app*" | Remove-AppxProvisionedPackage -Online -ErrorAction SilentlyContinue
-    }
-
-    # Force Removal via DISM (Prevents Xbox Reinstallation)
-    Write-Host "Using DISM to remove Xbox packages from Windows image..." -ForegroundColor Yellow
-    DISM /Online /Get-ProvisionedAppxPackages | Select-String PackageName | Select-String xbox | ForEach-Object { 
-        $_ -match "PackageName : (.*)" | Out-Null 
-        $package = $matches[1]
-        Write-Host "Removing: $package" -ForegroundColor Red
-        DISM /Online /Remove-ProvisionedAppxPackage /PackageName:$package | Out-Null
-    }
-
-    # Remove Xbox-related registry keys
-    Write-Host "Removing Xbox-related registry entries..." -ForegroundColor Yellow
-    $xboxRegistryKeys = @(
-        "HKCU\Software\Microsoft\Xbox",
-        "HKCU\Software\Microsoft\GamingServices",
-        "HKLM\Software\Microsoft\GamingServices",
-        "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\GameDVR",
-        "HKCU\Software\Microsoft\GameBar"
-    )
-    foreach ($key in $xboxRegistryKeys) {
-        reg delete $key /f 2>$null
-    }
-
-    # Remove scheduled tasks related to Xbox
-    Write-Host "Removing Xbox-related scheduled tasks..." -ForegroundColor Yellow
-    schtasks /Delete /TN "Microsoft\XblGameSave\XblGameSaveTask" /F 2>$null
-    schtasks /Delete /TN "Microsoft\Xbox\XblGameSaveTask" /F 2>$null
-    schtasks /Delete /TN "Microsoft\Xbox\XblNetworkMonitorTask" /F 2>$null
-
-    # Remove leftover Xbox folders
-    Write-Host "Removing Xbox-related leftover folders..." -ForegroundColor Yellow
-    $xboxFolders = @(
-        "$env:LOCALAPPDATA\Packages\Microsoft.XboxApp*",
-        "$env:LOCALAPPDATA\Microsoft\XboxGameOverlay",
-        "$env:LOCALAPPDATA\Microsoft\Xbox",
-        "$env:ProgramData\Microsoft\Xbox",
-        "$env:APPDATA\Microsoft\Xbox",
-        "$env:ProgramFiles\WindowsApps\Microsoft.XboxGamingOverlay*",
-        "$env:ProgramFiles\WindowsApps\Microsoft.XboxGameOverlay*",
-        "$env:ProgramFiles\WindowsApps\Microsoft.GamingApp*"
-    )
-    foreach ($folder in $xboxFolders) {
-        Remove-Item -Path $folder -Recurse -Force -ErrorAction SilentlyContinue
-    }
-
-    # Disable Xbox services permanently
-    Write-Host "Disabling Xbox services permanently..." -ForegroundColor Yellow
-    Get-Service -Name "*Xbox*" -ErrorAction SilentlyContinue | Set-Service -StartupType Disabled -ErrorAction SilentlyContinue
-    Get-Service -Name "*GamingServices*" -ErrorAction SilentlyContinue | Set-Service -StartupType Disabled -ErrorAction SilentlyContinue
-    Write-Host "ALL Xbox apps, services, and features have been **COMPLETELY REMOVED**!" -ForegroundColor Green
-} else {
-    Write-Host "Keeping Xbox apps and features." -ForegroundColor Cyan
+## xBox Section ##
+# Function to check if an app is installed
+function Test-AppInstallation {
+    param ([string]$AppName)
+    return ($null -ne (Get-AppxPackage -Name $AppName -ErrorAction SilentlyContinue))
 }
 
+# List of Xbox Apps
+$requiredXboxApps = @(
+    "Microsoft.Xbox.TCUI",
+    "Microsoft.XboxApp",
+    "Microsoft.XboxGameOverlay",
+    "Microsoft.XboxGamingOverlay",
+    "Microsoft.XboxIdentityProvider",
+    "Microsoft.XboxSpeechToTextOverlay",
+    "Microsoft.XboxConsoleCompanion",
+    "Microsoft.GamingApp",
+    "Microsoft.GamingServices"
+)
+
+# Check if Xbox features are installed
+$anyXboxInstalled = $false
+foreach ($app in $requiredXboxApps) {
+    if (Test-AppInstallation -AppName $app) {
+        $anyXboxInstalled = $true
+        break
+    }
+}
+
+# Prompt user if they want to use Xbox/Game Pass features
+$useXbox = Read-Host "Do you want to use Xbox features, including Game Pass and Windows Game Bar? (y/n)"
+
+if ($useXbox -match "^[Nn]$") {
+    if ($anyXboxInstalled) {
+        Write-Host "Removing all Xbox apps and features..." -ForegroundColor Magenta
+
+        # Stop any running Xbox processes and services
+        Write-Host "Stopping Xbox services and processes..." -ForegroundColor Yellow
+        $xboxProcesses = @("GameBar", "XboxApp", "XboxGameOverlay", "GamingServices")
+        foreach ($proc in $xboxProcesses) {
+            Stop-Process -Name $proc -Force -ErrorAction SilentlyContinue
+        }
+
+        Get-Service -Name "*Xbox*" -ErrorAction SilentlyContinue | Stop-Service -Force -ErrorAction SilentlyContinue
+        Get-Service -Name "*GamingServices*" -ErrorAction SilentlyContinue | Stop-Service -Force -ErrorAction SilentlyContinue
+
+        # Remove all Xbox-related Appx packages
+        Write-Host "Removing Xbox-related Appx packages..." -ForegroundColor Yellow
+        foreach ($app in $requiredXboxApps) {
+            Get-AppxPackage -Name $app -AllUsers | Remove-AppxPackage -AllUsers -ErrorAction SilentlyContinue
+            Get-AppxProvisionedPackage -Online | Where-Object DisplayName -like "*$app*" | Remove-AppxProvisionedPackage -Online -ErrorAction SilentlyContinue
+        }
+
+        # Force Removal via DISM
+        Write-Host "Using DISM to remove Xbox packages from Windows image..." -ForegroundColor Yellow
+        DISM /Online /Get-ProvisionedAppxPackages | Select-String PackageName | Select-String xbox | ForEach-Object { 
+            $_ -match "PackageName : (.*)" | Out-Null 
+            $package = $matches[1]
+            Write-Host "Removing: $package" -ForegroundColor Red
+            DISM /Online /Remove-ProvisionedAppxPackage /PackageName:$package | Out-Null
+        }
+
+        # Remove Xbox-related registry keys
+        Write-Host "Removing Xbox-related registry entries..." -ForegroundColor Yellow
+        $xboxRegistryKeys = @(
+            "HKCU\Software\Microsoft\Xbox",
+            "HKCU\Software\Microsoft\GamingServices",
+            "HKLM\Software\Microsoft\GamingServices",
+            "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\GameDVR",
+            "HKCU\Software\Microsoft\GameBar"
+        )
+        foreach ($key in $xboxRegistryKeys) {
+            reg delete $key /f 2>$null
+        }
+
+        # Remove scheduled tasks related to Xbox
+        Write-Host "Removing Xbox-related scheduled tasks..." -ForegroundColor Yellow
+        schtasks /Delete /TN "Microsoft\XblGameSave\XblGameSaveTask" /F 2>$null
+        schtasks /Delete /TN "Microsoft\Xbox\XblGameSaveTask" /F 2>$null
+        schtasks /Delete /TN "Microsoft\Xbox\XblNetworkMonitorTask" /F 2>$null
+
+        # Remove leftover Xbox folders
+        Write-Host "Removing Xbox-related leftover folders..." -ForegroundColor Yellow
+        $xboxFolders = @(
+            "$env:LOCALAPPDATA\Packages\Microsoft.XboxApp*",
+            "$env:LOCALAPPDATA\Microsoft\XboxGameOverlay",
+            "$env:LOCALAPPDATA\Microsoft\Xbox",
+            "$env:ProgramData\Microsoft\Xbox",
+            "$env:APPDATA\Microsoft\Xbox",
+            "$env:ProgramFiles\WindowsApps\Microsoft.XboxGamingOverlay*",
+            "$env:ProgramFiles\WindowsApps\Microsoft.XboxGameOverlay*",
+            "$env:ProgramFiles\WindowsApps\Microsoft.GamingApp*"
+        )
+        foreach ($folder in $xboxFolders) {
+            Remove-Item -Path $folder -Recurse -Force -ErrorAction SilentlyContinue
+        }
+
+        # Disable Xbox services permanently
+        Write-Host "Disabling Xbox services permanently..." -ForegroundColor Yellow
+        Get-Service -Name "*Xbox*" -ErrorAction SilentlyContinue | Set-Service -StartupType Disabled -ErrorAction SilentlyContinue
+        Get-Service -Name "*GamingServices*" -ErrorAction SilentlyContinue | Set-Service -StartupType Disabled -ErrorAction SilentlyContinue
+
+        Write-Host "ALL Xbox apps, services, and features have been **COMPLETELY REMOVED**!" -ForegroundColor Green
+    } else {
+        Write-Host "Xbox features were already removed." -ForegroundColor Cyan
+    }
+
+} else {
+    Write-Host "Checking for missing Xbox features and installing them if needed..." -ForegroundColor Cyan
+
+    foreach ($app in $requiredXboxApps) {
+        if (-not (Test-AppInstallation -AppName $app)) {
+            Write-Host "Installing missing Xbox feature: $app ..." -ForegroundColor Magenta
+            Try {
+                Add-AppxPackage -Register "C:\Program Files\WindowsApps\$app\AppxManifest.xml" -DisableDevelopmentMode -ErrorAction Stop
+                Write-Host "$app installed successfully." -ForegroundColor Green
+            } Catch {
+                Write-Host "Failed to install $app. Attempting alternative method..." -ForegroundColor Yellow
+                winget install --id $app --silent --accept-package-agreements --accept-source-agreements -ErrorAction SilentlyContinue
+            }
+        }
+    }
+
+    # Enable Xbox services
+    Write-Host "Ensuring Xbox services are enabled..." -ForegroundColor Yellow
+    Get-Service -Name "*Xbox*" -ErrorAction SilentlyContinue | Set-Service -StartupType Automatic -ErrorAction SilentlyContinue
+    Get-Service -Name "*GamingServices*" -ErrorAction SilentlyContinue | Set-Service -StartupType Automatic -ErrorAction SilentlyContinue
+
+    Write-Host "Xbox features are installed and enabled." -ForegroundColor Green
+}
+
+
+## OneDrive Section ##
 # Ask about OneDrive Removal
 $removeOneDrive = Read-Host "Do you want to completely remove Microsoft OneDrive? [Recommended] (y/n)"
 
@@ -603,12 +652,7 @@ if ($removeOneDrive -eq "y") {
 
     $oneDriveExecutables = @(
         "$env:SystemRoot\System32\OneDriveSetup.exe",
-        "$env:SystemRoot\SysWOW64\OneDriveSetup.exe",
-        "$env:ProgramFiles\Microsoft OneDrive\OneDriveSetup.exe",
-        "$env:ProgramFiles(x86)\Microsoft OneDrive\OneDriveSetup.exe",
-        "$env:UserProfile\OneDrive\OneDriveSetup.exe",
-        "$env:LocalAppData\Microsoft\OneDrive\OneDriveSetup.exe",
-        "$env:ProgramData\Microsoft OneDrive\OneDriveSetup.exe"
+        "$env:SystemRoot\SysWOW64\OneDriveSetup.exe"
     )
 
     $oneDriveUninstalled = $false
@@ -621,9 +665,7 @@ if ($removeOneDrive -eq "y") {
                 $oneDriveUninstalled = $true
                 Write-Host "OneDrive successfully uninstalled via executable." -ForegroundColor Green
                 break
-            } catch {
-                # Suppress errors
-            }
+            } catch {}
         }
     }
 
@@ -655,8 +697,17 @@ if ($removeOneDrive -eq "y") {
         if ((Get-ChildItem -Path $oneDriveUserFolder -Recurse -ErrorAction SilentlyContinue).Count -gt 0) {
             Write-Host "WARNING: OneDrive contains files! Moving them to: $backupFolder" -ForegroundColor Yellow
             New-Item -Path $backupFolder -ItemType Directory -Force | Out-Null
-            Move-Item -Path "$oneDriveUserFolder\*" -Destination $backupFolder -Force
-            Write-Host "Your old OneDrive files have been safely moved to: $backupFolder" -ForegroundColor Green
+
+            # Make sure files are available offline before moving
+            attrib -h -s -r "$oneDriveUserFolder\*" /S /D
+
+            # Move files safely
+            try {
+                robocopy "$oneDriveUserFolder" "$backupFolder" /E /COPY:DAT /R:3 /W:3 /NFL /NDL /NJH /NJS
+                Write-Host "Your old OneDrive files have been safely moved to: $backupFolder" -ForegroundColor Green
+            } catch {
+                Write-Host "ERROR: Could not move OneDrive files properly!" -ForegroundColor Red
+            }
         }
     }
 
@@ -700,10 +751,10 @@ if ($removeOneDrive -eq "y") {
     Write-Host "Removing OneDrive from Startup..." -ForegroundColor Yellow
     reg delete "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v "OneDrive" /f 2>$null
 
-    # Restore Default User Folder Paths (Fix Missing Desktop/Documents)
+    # Restore Default User Folder Paths (Fix Missing Documents Folder)
     Write-Host "Restoring default user folder locations..." -ForegroundColor Yellow
-
     $registryPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders"
+
     $folders = @{
         "Desktop"   = "$env:USERPROFILE\Desktop"
         "Documents" = "$env:USERPROFILE\Documents"
@@ -715,13 +766,7 @@ if ($removeOneDrive -eq "y") {
 
     foreach ($folder in $folders.Keys) {
         $defaultPath = $folders[$folder]
-
-        # Ensure the default folder exists (Create it if missing)
-        if (!(Test-Path $defaultPath)) {
-            New-Item -Path $defaultPath -ItemType Directory -Force | Out-Null
-        }
-
-        # Update the registry path for each user folder
+        if (!(Test-Path $defaultPath)) { New-Item -Path $defaultPath -ItemType Directory -Force | Out-Null }
         Set-ItemProperty -Path $registryPath -Name $folder -Value $defaultPath -Force
         Write-Host "Reset $folder to $defaultPath" -ForegroundColor Green
     }
@@ -732,6 +777,8 @@ if ($removeOneDrive -eq "y") {
     Write-Host "Keeping Microsoft OneDrive." -ForegroundColor Cyan
 }
 
+
+## Microsoft Teams Section ##
 # Prompt User to Remove Microsoft Teams
 $removeTeams = Read-Host "Do you want to completely remove Microsoft Teams? [Recommended] (y/n)"
 
@@ -855,6 +902,8 @@ if ($removeTeams -eq "y") {
     Write-Host "Keeping Microsoft Teams." -ForegroundColor Cyan
 }
 
+
+## AI Removal Section (CoPilot and Recall) ##
 # Prompt user to remove Microsoft Copilot
 $removeCopilot = Read-Host "Do you want to completely remove Microsoft Copilot? [Recommended] (y/n)"
 
@@ -877,9 +926,9 @@ if ($removeCopilot -eq "y") {
 
     # Stop and Kill Microsoft Copilot Processes
     Write-Host "Stopping and killing Microsoft Copilot processes..." -ForegroundColor Yellow
-    $copilotProcesses = @("Copilot", "Copilot.exe", "AI.exe", "CopilotRuntime", "CopilotBackground")
+    $copilotProcesses = @("Copilot", "Copilot.exe", "AI.exe", "CopilotRuntime", "CopilotBackground", "Microsoft365Copilot", "Microsoft365Copilot.exe")
     foreach ($proc in $copilotProcesses) {
-        Stop-Process -Name $proc -Force -ErrorAction SilentlyContinue
+        Get-Process -Name $proc -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
     }
     Start-Sleep -Seconds 2
 
@@ -887,6 +936,7 @@ if ($removeCopilot -eq "y") {
     Write-Host "Attempting to uninstall Microsoft Copilot via Winget..." -ForegroundColor Cyan
     try {
         winget uninstall --id "Microsoft.Copilot" --silent --accept-source-agreements > $null 2>&1
+        winget uninstall --id "Microsoft.365.Copilot" --silent --accept-source-agreements > $null 2>&1
         Write-Host "Microsoft Copilot removed via Winget." -ForegroundColor Green
     } catch {}
 
@@ -1014,6 +1064,8 @@ if ($removeRecall.ToLower() -eq "y" -or $removeRecall.ToLower() -eq "yes") {
     Write-Host "Keeping Microsoft Recall." -ForegroundColor Cyan
 }
 
+
+## UI and Taskbar Section ##
 # Prompt user to apply Windows 10 look and feel on Windows 11
 $win10look = Read-Host "Do you want Windows 11 to look and feel like Windows 10? [Recommended] (y/n)"
 if ($win10look -eq "y") {
@@ -1255,6 +1307,8 @@ if ($gameOptimizations -match "^[Yy]$") {
     Write-Host "Skipping gaming optimizations." -ForegroundColor Cyan
 }
 
+
+## Disable Gaming Inhibitors ##
 # Prompt User to Disable Memory Core Isolation
 $disableMemoryIsolation = Read-Host "Do you want to disable Memory Core Isolation for better gaming performance? (Recommended) (y/n)"
 
@@ -1328,6 +1382,8 @@ New-Shortcut -TargetPath $ogcwinbat -ShortcutPath $desktopPath -Description "Lau
 
 Clear-Host
 
+
+## Software Installation Secion ##
 # OGC Banner
 Write-Host "=======================================" -ForegroundColor DarkBlue
 Write-Host "       OOOOOO    GGGGGG    CCCCCC      " -ForegroundColor Cyan
@@ -1433,6 +1489,34 @@ function Remove-EdgeTaskbarShortcut {
     }
 }
 
+# Function to add a browser shortcut to the taskbar
+function Add-BrowserToTaskbar {
+    param (
+        [string]$BrowserExe
+    )
+    Write-Host "Adding $BrowserExe to the taskbar..." -ForegroundColor Cyan
+
+    $browserPath = ""
+
+    # Locate the installed browser's full path
+    switch ($BrowserExe) {
+        "firefox.exe" { $browserPath = "$env:ProgramFiles\Mozilla Firefox\firefox.exe" }
+        "brave.exe" { $browserPath = "$env:ProgramFiles\BraveSoftware\Brave-Browser\Application\brave.exe" }
+        "opera.exe" { $browserPath = "$env:ProgramFiles\Opera GX\launcher.exe" }
+        "chrome.exe" { $browserPath = "$env:ProgramFiles\Google\Chrome\Application\chrome.exe" }
+    }
+
+    if (Test-Path $browserPath) {
+        # Pin to Taskbar
+        Start-Process -FilePath "$browserPath" -PassThru
+        Start-Sleep -Seconds 2  # Allow time for the application to launch
+        Stop-Process -Name "$BrowserExe" -Force -ErrorAction SilentlyContinue
+        Write-Host "$BrowserExe has been added to the taskbar." -ForegroundColor Green
+    } else {
+        Write-Host "ERROR: Could not find $BrowserExe. It may not have installed correctly." -ForegroundColor Red
+    }
+}
+
 # Install a Web Browser
 $installBrowser = Read-Host "Do you want to install a web browser? (y/n)"
 if ($installBrowser -eq "y") {
@@ -1441,7 +1525,7 @@ if ($installBrowser -eq "y") {
     Write-Host "2. Brave" -ForegroundColor Yellow
     Write-Host "3. Opera GX" -ForegroundColor Yellow
     Write-Host "4. Chrome" -ForegroundColor Yellow
-    Write-Host "5. Edge (Already Installed)" -ForegroundColor Yellow
+    Write-Host "5. Edge (Already Installed) - Keeps Edge" -ForegroundColor Yellow
     Write-Host "6. Skip Browser Installation" -ForegroundColor Yellow
 
     $browser = Read-Host "Enter the number corresponding to your browser choice"
@@ -1449,26 +1533,30 @@ if ($installBrowser -eq "y") {
     switch ($browser) {
         "1" {
             Write-Host "Installing Firefox..." -ForegroundColor Magenta
-            winget install Mozilla.Firefox
+            winget install Mozilla.Firefox --silent --accept-package-agreements --accept-source-agreements
             Remove-EdgeTaskbarShortcut
+            Add-BrowserToTaskbar -BrowserExe "firefox.exe"
         }
         "2" {
             Write-Host "Installing Brave..." -ForegroundColor Magenta
-            winget install Brave.Brave
+            winget install Brave.Brave --silent --accept-package-agreements --accept-source-agreements
             Remove-EdgeTaskbarShortcut
+            Add-BrowserToTaskbar -BrowserExe "brave.exe"
         }
         "3" {
             Write-Host "Installing Opera GX..." -ForegroundColor Magenta
-            winget install Opera.OperaGX
+            winget install Opera.OperaGX --silent --accept-package-agreements --accept-source-agreements
             Remove-EdgeTaskbarShortcut
+            Add-BrowserToTaskbar -BrowserExe "opera.exe"
         }
         "4" {
             Write-Host "Installing Chrome..." -ForegroundColor Magenta
-            winget install Google.Chrome
+            winget install Google.Chrome --silent --accept-package-agreements --accept-source-agreements
             Remove-EdgeTaskbarShortcut
+            Add-BrowserToTaskbar -BrowserExe "chrome.exe"
         }
         "5" {
-            Write-Host "Microsoft Edge selected." -ForegroundColor Green
+            Write-Host "Microsoft Edge selected. Keeping Edge pinned." -ForegroundColor Green
 
             # Ensure Edge Background Mode is Enabled
             $edgeRegPath = "HKLM:\SOFTWARE\Policies\Microsoft\Edge"
@@ -1485,6 +1573,7 @@ if ($installBrowser -eq "y") {
         }
     }
 }
+
 
 # Ask the user about Office Suite preference
 Write-Host "Choose an office suite to install or remove Office Hub and other office software:" -ForegroundColor Cyan
@@ -1618,6 +1707,8 @@ if ($officeChoice -eq "1") {
     Write-Host "Invalid selection. No changes made to office software." -ForegroundColor Red
 }
 
+
+## Driver Installation Section ##
 # Prompt User to Install Graphics Drivers
 $installGPUDrivers = Read-Host "Do you want to install graphics drivers? (y/n)"
 $gpuChoice = ""
