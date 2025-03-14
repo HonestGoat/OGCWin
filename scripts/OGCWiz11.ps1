@@ -694,21 +694,28 @@ if ($removeOneDrive -eq "y") {
     $backupFolder = "$env:UserProfile\Onedrive Files"
 
     if (Test-Path $oneDriveUserFolder) {
-        if ((Get-ChildItem -Path $oneDriveUserFolder -Recurse -ErrorAction SilentlyContinue).Count -gt 0) {
-            Write-Host "WARNING: OneDrive contains files! Moving them to: $backupFolder" -ForegroundColor Yellow
-            New-Item -Path $backupFolder -ItemType Directory -Force | Out-Null
+        $oneDriveSubfolders = @("Desktop", "Documents", "Downloads", "Music", "Pictures", "Videos")
 
-            # Make sure files are available offline before moving
-            attrib -h -s -r "$oneDriveUserFolder\*" /S /D
+        # Ensure folders exist and move matching OneDrive folders to user profile
+        foreach ($folder in $oneDriveSubfolders) {
+            $sourcePath = "$oneDriveUserFolder\$folder"
+            $destinationPath = "$env:UserProfile\$folder"
 
-            # Move files safely
-            try {
-                robocopy "$oneDriveUserFolder" "$backupFolder" /E /COPY:DAT /R:3 /W:3 /NFL /NDL /NJH /NJS
-                Write-Host "Your old OneDrive files have been safely moved to: $backupFolder" -ForegroundColor Green
-            } catch {
-                Write-Host "ERROR: Could not move OneDrive files properly!" -ForegroundColor Red
+            if (Test-Path $sourcePath) {
+                Write-Host "Moving OneDrive $folder to $destinationPath..." -ForegroundColor Yellow
+                New-Item -Path $destinationPath -ItemType Directory -Force | Out-Null
+                robocopy "$sourcePath" "$destinationPath" /E /MOVE /COPY:DAT /R:3 /W:3 /NFL /NDL /NJH /NJS
             }
         }
+
+        # Move any remaining files and folders to the backup folder
+        if ((Get-ChildItem -Path $oneDriveUserFolder -Recurse -ErrorAction SilentlyContinue).Count -gt 0) {
+            Write-Host "Moving remaining OneDrive files to: $backupFolder" -ForegroundColor Yellow
+            New-Item -Path $backupFolder -ItemType Directory -Force | Out-Null
+            robocopy "$oneDriveUserFolder" "$backupFolder" /E /MOVE /COPY:DAT /R:3 /W:3 /NFL /NDL /NJH /NJS
+        }
+
+        Write-Host "OneDrive files successfully relocated." -ForegroundColor Green
     }
 
     # Remove leftover OneDrive directories
@@ -773,21 +780,6 @@ if ($removeOneDrive -eq "y") {
         if (!(Test-Path $defaultPath)) { New-Item -Path $defaultPath -ItemType Directory -Force | Out-Null }
         Set-ItemProperty -Path $registryPath -Name $folder -Value $defaultPath -Force
         Write-Host "Reset $folder to $defaultPath" -ForegroundColor Green
-    }
-
-    # Final check and force removal of old OneDrive folder
-    $oldOneDriveFolder = "$env:USERPROFILE\OneDrive"
-
-    if (Test-Path $oldOneDriveFolder) {
-        Write-Host "Final cleanup: Removing leftover OneDrive folder..." -ForegroundColor Yellow
-        try {
-            takeown /f "$oldOneDriveFolder" /r /d y > $null 2>&1
-            icacls "$oldOneDriveFolder" /grant administrators:F /t /c /q > $null 2>&1
-            Remove-Item -Path $oldOneDriveFolder -Recurse -Force -ErrorAction Stop
-            Write-Host "Successfully removed the old OneDrive folder." -ForegroundColor Green
-        } catch {
-            Write-Host "ERROR: Failed to remove the old OneDrive folder. Try deleting it manually." -ForegroundColor Red
-        }
     }
 
     Write-Host "ONEDRIVE HAS BEEN COMPLETELY REMOVED, AND USER FOLDERS ARE NOW RESTORED!" -ForegroundColor Green
