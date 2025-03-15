@@ -288,6 +288,7 @@ Write-Host "Tips and suggestions have now been disabled." -ForegroundColor Green
 Start-Sleep -Seconds 1
 Write-Host "Your privacy has been enhanced. Tracking, telemetry, data collection and suggestions have been disabled!" -ForegroundColor Green
 
+Clear-Host
 
 # Prompt the user for consent to block telemetry domains
 $blockTelemetry = Read-Host "Do you want to block major Microsoft tracking and telemetry domains? [Recommended] (y/n)"
@@ -470,6 +471,8 @@ if ($disableBingSearch -match "^[Yy]$") {
 } else {
     Write-Host "Keeping Bing Search enabled in the Start Menu." -ForegroundColor Cyan
 }
+
+Clear-Host
 
 # Prompt the user about "Your Phone" app
 $useYourPhone = Read-Host "Do you want to use the 'Your Phone' app to integrate your phone with Windows? (y/n)"
@@ -930,6 +933,7 @@ if ($removeTeams -eq "y") {
     Write-Host "Keeping Microsoft Teams." -ForegroundColor Cyan
 }
 
+Clear-Host
 
 ## AI Removal Section (CoPilot and Recall) ##
 # Prompt user to remove Microsoft Copilot
@@ -1092,6 +1096,7 @@ if ($removeRecall.ToLower() -eq "y" -or $removeRecall.ToLower() -eq "yes") {
     Write-Host "Keeping Microsoft Recall." -ForegroundColor Cyan
 }
 
+Clear-Host
 
 ## UI and Taskbar Section ##
 # Prompt user to apply Windows 10 look and feel on Windows 11
@@ -1335,6 +1340,12 @@ if ($gameOptimizations -match "^[Yy]$") {
     Write-Host "Skipping gaming optimizations." -ForegroundColor Cyan
 }
 
+# Disable USB Selective Suspention
+$usbsuspend = Read-Host "Do you intend to use controllers or joysticks with your games? [Recommended] (y/n)"
+if ($usbsuspend -match "^[Yy]$") {
+    Write-Host "Disabling Selective USB Suspend.."
+    powercfg /SETACVALUEINDEX SCHEME_CURRENT 2a737441-1930-4402-8d77-b2bebba308a3 48e6b7a6-50f5-4782-a5d4-53bb8f07e226 0​
+}
 
 ## Disable Gaming Inhibitors ##
 # Prompt User to Disable Memory Core Isolation
