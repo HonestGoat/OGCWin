@@ -147,10 +147,12 @@ $localVersionFile = "$configsFolder\version.cfg"
 $remoteVersionURL = "https://raw.githubusercontent.com/HonestGoat/OGCWin/main/configs/version.cfg"
 $updateScript = "$scriptsFolder\launch.ps1"  # Now launching launch.ps1 directly
 
+
+##  UPDATE SECTION ##
 # Function to extract version number from version.cfg
 function Get-VersionNumber {
     param ($fileContent)
-    if ($fileContent -match "Version=([\d\.]+)") {
+    if ($fileContent -match "Version=([\d]+(?:\.\d{1,3})?)") {
         return [version]$matches[1]
     } else {
         return $null
@@ -191,6 +193,8 @@ if ($localVersion -lt $remoteVersion) {
     Write-Host "OGCWin is up to date (Version $localVersion)." -ForegroundColor Green
 }
 
+
+## MODE SELECT MENU ##
 # Function to prompt user for mode selection
 function Get-UserSelection {
     $windowsVersion = Get-WindowsVersion
