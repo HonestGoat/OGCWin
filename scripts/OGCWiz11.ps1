@@ -288,7 +288,7 @@ Write-Host "Tips and suggestions have now been disabled." -ForegroundColor Green
 Start-Sleep -Seconds 1
 Write-Host "Your privacy has been enhanced. Tracking, telemetry, data collection and suggestions have been disabled!" -ForegroundColor Green
 
-Clear-Host
+
 
 # Prompt the user for consent to block telemetry domains
 $blockTelemetry = Read-Host "Do you want to block major Microsoft tracking and telemetry domains? [Recommended] (y/n)"
@@ -472,7 +472,7 @@ if ($disableBingSearch -match "^[Yy]$") {
     Write-Host "Keeping Bing Search enabled in the Start Menu." -ForegroundColor Cyan
 }
 
-Clear-Host
+
 
 # Prompt the user about "Your Phone" app
 $useYourPhone = Read-Host "Do you want to use the 'Your Phone' app to integrate your phone with Windows? (y/n)"
@@ -933,7 +933,7 @@ if ($removeTeams -eq "y") {
     Write-Host "Keeping Microsoft Teams." -ForegroundColor Cyan
 }
 
-Clear-Host
+
 
 ## AI Removal Section (CoPilot and Recall) ##
 # Prompt user to remove Microsoft Copilot
@@ -1096,7 +1096,7 @@ if ($removeRecall.ToLower() -eq "y" -or $removeRecall.ToLower() -eq "yes") {
     Write-Host "Keeping Microsoft Recall." -ForegroundColor Cyan
 }
 
-Clear-Host
+
 
 ## UI and Taskbar Section ##
 # Prompt user to apply Windows 10 look and feel on Windows 11
