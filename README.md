@@ -27,7 +27,7 @@ Originally developed for the **Oceanic Gaming Community Discord**, OGCWin is now
 
 ## 🚀 Installation & First-Time Setup
 
-To install and run OGCWin for the first time, right-click on the Start button and open **Windows PowerShell (Admin)** in Windows 10 or **Terminal (Admin)** in Windows 11 and run the following command:
+To install and run OGCWin for the first time, right-click on the Start button and open **PowerShell (Admin)** in Windows 10 or **Terminal (Admin)** in Windows 11 and run the following command:
 
 ```ps1
 irm https://raw.githubusercontent.com/HonestGoat/OGCWin/main/scripts/launch.ps1 | iex
@@ -37,11 +37,8 @@ irm https://raw.githubusercontent.com/HonestGoat/OGCWin/main/scripts/launch.ps1 
 🎯 How It Works
 
 1️⃣ Launch OGCWin using the desktop shortcut or PowerShell command.
-2️⃣ Choose between Wizard Mode or Utility Mode based on your needs:
-
-    Wizard Mode – Guides you step-by-step through setting up a new PC or fresh Windows installation.
-    Utility Mode – Gives you direct access to powerful tools for debloating, optimizing, and troubleshooting.
-    3️⃣ Follow the on-screen prompts to apply tweaks, install apps, or fix system issues.
+2️⃣ Choose between Wizard Mode or Utility Mode based on your needs like Wizard Mode which guides you step-by-step through setting up a new PC or fresh Windows installation. Or Utility Mode which gives you direct access to powerful tools for debloating, optimizing, troubleshooting and repair tools.
+3️⃣ Follow the on-screen prompts to apply tweaks, install apps, or fix system issues.
 
 📥 Supported Windows Versions
 
