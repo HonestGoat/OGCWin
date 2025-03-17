@@ -196,12 +196,12 @@ Write-Host "Location Tracking Disabled." -ForegroundColor Green
 # Disable tips and suggestions
 Write-Host "Disabling all tips, suggestions and advertisements." -ForegroundColor Magenta 
 
-# Enable open Terminal in directory with right click
-New-Item -Path "HKCR:\Directory\Background\shell\OpenTerminalHere" -Force | Out-Null
-New-ItemProperty -Path "HKCR:\Directory\Background\shell\OpenTerminalHere" -Name "(Default)" -Value "Open in Terminal" -PropertyType String -Force | Out-Null
-New-ItemProperty -Path "HKCR:\Directory\Background\shell\OpenTerminalHere" -Name "Icon" -Value "C:\Program Files\WindowsApps\Microsoft.WindowsTerminal_8wekyb3d8bbwe\ms-appx://Images/Square44x44Logo.altform-lightunplated_targetsize-24.png" -PropertyType String -Force | Out-Null
-New-Item -Path "HKCR:\Directory\Background\shell\OpenTerminalHere\command" -Force | Out-Null
-New-ItemProperty -Path "HKCR:\Directory\Background\shell\OpenTerminalHere\command" -Name "(Default)" -Value "wt.exe -d '%V'" -PropertyType String -Force | Out-Null
+## Enable open Terminal in directory with right click
+#New-Item -Path "HKCR:\Directory\Background\shell\OpenTerminalHere" -Force | Out-Null
+#New-ItemProperty -Path "HKCR:\Directory\Background\shell\OpenTerminalHere" -Name "(Default)" -Value "Open in Terminal" -PropertyType String -Force | Out-Null
+#New-ItemProperty -Path "HKCR:\Directory\Background\shell\OpenTerminalHere" -Name "Icon" -Value "C:\Program Files\WindowsApps\Microsoft.WindowsTerminal_8wekyb3d8bbwe\ms-appx://Images/Square44x44Logo.altform-lightunplated_targetsize-24.png" -PropertyType String -Force | Out-Null
+#New-Item -Path "HKCR:\Directory\Background\shell\OpenTerminalHere\command" -Force | Out-Null
+#New-ItemProperty -Path "HKCR:\Directory\Background\shell\OpenTerminalHere\command" -Name "(Default)" -Value "wt.exe -d '%V'" -PropertyType String -Force | Out-Null
 
 # Disable Windows junk
 # Function to set registry values

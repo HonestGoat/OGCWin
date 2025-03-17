@@ -208,11 +208,11 @@ $regPaths = @(
     "HKLM:\SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\Explorer\MyComputer\NameSpace\{31C0DD25-9439-4F12-BF41-7FF4EDA38722}"
 )
 
-# Enable open Powershell in directory with right click
-New-Item -Path "HKCR:\Directory\Background\shell\OpenPowerShellHere" -Force | Out-Null
-New-ItemProperty -Path "HKCR:\Directory\Background\shell\OpenPowerShellHere" -Name "(Default)" -Value "Open PowerShell Here" -PropertyType String -Force | Out-Null
-New-Item -Path "HKCR:\Directory\Background\shell\OpenPowerShellHere\command" -Force | Out-Null
-New-ItemProperty -Path "HKCR:\Directory\Background\shell\OpenPowerShellHere\command" -Name "(Default)" -Value "powershell.exe -NoExit -Command Set-Location '%V'" -PropertyType String -Force | Out-Null
+## Enable open Powershell in directory with right click
+#New-Item -Path "HKCR:\Directory\Background\shell\OpenPowerShellHere" -Force | Out-Null
+#New-ItemProperty -Path "HKCR:\Directory\Background\shell\OpenPowerShellHere" -Name "(Default)" -Value "Open PowerShell Here" -PropertyType String -Force | Out-Null
+#New-Item -Path "HKCR:\Directory\Background\shell\OpenPowerShellHere\command" -Force | Out-Null
+#New-ItemProperty -Path "HKCR:\Directory\Background\shell\OpenPowerShellHere\command" -Name "(Default)" -Value "powershell.exe -NoExit -Command Set-Location '%V'" -PropertyType String -Force | Out-Null
 
 
 # Disable Windows junk
