@@ -1,15 +1,18 @@
 addEventListener("fetch", event => {
     event.respondWith(handleRequest(event.request));
-  });
-  
-  async function handleRequest(request) {
+});
+
+async function handleRequest(request) {
     const userAgent = request.headers.get("User-Agent") || "";
-    
-    // Check if the request is from a browser (basic detection)
+
+    // Check if the request is from a browser
     const isBrowser = /Mozilla|Chrome|Safari|Edge|Firefox|Opera|Brave|Vivaldi|Chromium|SamsungBrowser|YaBrowser|UCBrowser|QQBrowser|MSIE|Trident|Coast|Falkon|Epiphany|Midori|Konqueror|Seamonkey|Waterfox|PaleMoon|Iceweasel|IceCat|Basilisk/i.test(userAgent);
-  
-    if (isBrowser) {
-        // Return a professional webpage if accessed from a browser
+
+    // Check if the request is from PowerShell or another CLI tool
+    const isCLI = /WindowsPowerShell|curl|wget|Invoke-WebRequest|Invoke-RestMethod|PostmanRuntime/i.test(userAgent);
+
+    if (isBrowser && !isCLI) {
+        // Serve the installer webpage for browsers
         return new Response(
             `<!DOCTYPE html>
             <html lang="en">
@@ -24,6 +27,7 @@ addEventListener("fetch", event => {
                         background-color: #f9f9f9;
                         margin: 0;
                         padding: 20px;
+                        color: #333;
                     }
                     .container {
                         max-width: 600px;
@@ -39,7 +43,6 @@ addEventListener("fetch", event => {
                     }
                     p {
                         font-size: 18px;
-                        color: #333;
                     }
                     .code-container {
                         display: flex;
@@ -77,12 +80,39 @@ addEventListener("fetch", event => {
                         font-size: 14px;
                         color: #666;
                     }
+
+                    /* 🌙 Dark Mode Support */
+                    @media (prefers-color-scheme: dark) {
+                        body {
+                            background-color: #121212;
+                            color: #e0e0e0;
+                        }
+                        .container {
+                            background: #1e1e1e;
+                            box-shadow: 0 0 20px rgba(255, 255, 255, 0.1);
+                        }
+                        .code-container {
+                            background: #333;
+                            color: #e0e0e0;
+                        }
+                        .copy-btn {
+                            background: #1e88e5;
+                        }
+                        .copy-btn:hover {
+                            background: #1565c0;
+                        }
+                        .footer {
+                            color: #bbb;
+                        }
+                    }
                 </style>
                 <script>
                     function copyToClipboard() {
-                        const copyText = document.getElementById("install-command");
-                        navigator.clipboard.writeText(copyText.innerText).then(() => {
+                        var copyText = document.getElementById("install-command").innerText;
+                        navigator.clipboard.writeText(copyText).then(function() {
                             alert("Command copied to clipboard!");
+                        }).catch(function(err) {
+                            console.error("Failed to copy: ", err);
                         });
                     }
                 </script>
@@ -90,8 +120,8 @@ addEventListener("fetch", event => {
             <body>
                 <div class="container">
                     <h1>OGC Windows Utility</h1>
-                    <p>To install OGCWin, right-click on the Start button and open 'PowerShell (Admin)' for Windows 10 or 'Terminal (Admin)'.
-                    Click 'Yes' when prompted, then enter the following command and press the 'Enter' key:</p>
+                    <p>To install OGCWin, right-click on the Start button and open <strong>PowerShell (Admin)</strong> for Windows 10 or <strong>Terminal (Admin)</strong> for Windows 11.
+                    Click <b>Yes</b> when prompted, then enter the following command and press the <strong>Enter</strong> key:</p>
                     <div class="code-container">
                         <span id="install-command" class="code">irm https://get.ogcwin.com | iex</span>
                         <button class="copy-btn" onclick="copyToClipboard()">Copy</button>
@@ -106,12 +136,17 @@ addEventListener("fetch", event => {
             }
         );
     } else {
-        // Return the PowerShell script if accessed from a terminal
+        // This ensures PowerShell gets the correct script response
         const script = `Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/HonestGoat/OGCWin/main/scripts/launch.ps1' -OutFile "$env:TEMP\\launch.ps1"
-  & "$env:TEMP\\launch.ps1"`;
-  
+& "$env:TEMP\\launch.ps1"`;
+
         return new Response(script, {
-            headers: { "Content-Type": "text/plain" }
+            headers: { 
+                "Content-Type": "text/plain; charset=utf-8",
+                "Cache-Control": "no-cache, no-store, must-revalidate",
+                "Pragma": "no-cache",
+                "Expires": "0"
+            }
         });
     }
-  }
+}
