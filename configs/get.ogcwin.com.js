@@ -5,14 +5,21 @@ addEventListener("fetch", event => {
 async function handleRequest(request) {
     const userAgent = request.headers.get("User-Agent") || "";
 
-    // Check if the request is from a browser
-    const isBrowser = /Mozilla|Chrome|Safari|Edge|Firefox|Opera|Brave|Vivaldi|Chromium|SamsungBrowser|YaBrowser|UCBrowser|QQBrowser|MSIE|Trident|Coast|Falkon|Epiphany|Midori|Konqueror|Seamonkey|Waterfox|PaleMoon|Iceweasel|IceCat|Basilisk/i.test(userAgent);
+    // Block requests with no User-Agent (suspicious bots)
+    if (!userAgent) {
+        return new Response("Access Denied: Missing User-Agent", { status: 403 });
+    }
 
-    // Check if the request is from PowerShell or another CLI tool
-    const isCLI = /WindowsPowerShell|curl|wget|Invoke-WebRequest|Invoke-RestMethod|PostmanRuntime/i.test(userAgent);
+    // Allow only known browsers & CLI tools
+    const isBrowser = /Mozilla|Chrome|Safari|Edge|Firefox|Opera|Brave|Vivaldi|Chromium|SamsungBrowser|YaBrowser|UCBrowser|QQBrowser/i.test(userAgent);
+    const isCLI = /WindowsPowerShell|curl|curl.exe|wget|irm|Invoke-WebRequest|Invoke-RestMethod|PostmanRuntime/i.test(userAgent);
+
+    // Block all other unknown requests (e.g., unknown bots)
+    if (!isBrowser && !isCLI) {
+        return new Response("Blocked: Unauthorized Request", { status: 403 });
+    }
 
     if (isBrowser && !isCLI) {
-        // Serve the installer webpage for browsers
         return new Response(
             `<!DOCTYPE html>
             <html lang="en">
@@ -136,7 +143,7 @@ async function handleRequest(request) {
             }
         );
     } else {
-        // This ensures PowerShell gets the correct script response
+        // Ensure PowerShell gets the correct script response
         const script = `Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/HonestGoat/OGCWin/main/scripts/launch.ps1' -OutFile "$env:TEMP\\launch.ps1"
 & "$env:TEMP\\launch.ps1"`;
 
