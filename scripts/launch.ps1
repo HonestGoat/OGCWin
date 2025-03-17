@@ -242,10 +242,10 @@ $backupFile = "$registryBackup\Registry Backup - $timestamp.reg"
 # Define registry hives to export
 $hives = @(
     "HKEY_LOCAL_MACHINE", 
-    "HKEY_CURRENT_USER", 
-    "HKEY_USERS", 
-    "HKEY_CLASSES_ROOT", 
-    "HKEY_CURRENT_CONFIG"
+    "HKEY_CURRENT_USER" 
+#    "HKEY_USERS", 
+#    "HKEY_CLASSES_ROOT", 
+#    "HKEY_CURRENT_CONFIG"
 )
 
 # Backup each registry hive to individual temp files in $tempFolder
