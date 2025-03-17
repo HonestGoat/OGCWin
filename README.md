@@ -17,7 +17,7 @@ Originally developed for the **Oceanic Gaming Community Discord**, OGCWin is now
 
 ✅ **Debloat Windows** – Remove unnecessary bloatware for a leaner, faster system.  
 ✅ **Privacy Enhancements** – Disable Windows telemetry, tracking, and data collection.  
-✅ **Gaming optimisations** – Tune Windows settings for improved gaming performance.  
+✅ **Gaming Optimisations** – Tune Windows settings for improved gaming performance.  
 ✅ **Automated Software Installation** – Install essential apps, game launchers, and utilities with one click.  
 ✅ **System Troubleshooting & Repair** – Diagnose and fix common Windows issues automatically.  
 ✅ **New PC Setup Wizard** – A step-by-step guide to optimising a new PC or fresh Windows installation.  
