@@ -225,55 +225,6 @@ function Get-ScriptPath {
 Get-Scripts
 
 
-## REGISTRY BACKUP SECTION ##
-# Ensure the backup and temp folders exist
-if (!(Test-Path -Path $registryBackup)) {
-    New-Item -Path $registryBackup -ItemType Directory -Force | Out-Null
-}
-
-if (!(Test-Path -Path $tempFolder)) {
-    New-Item -Path $tempFolder -ItemType Directory -Force | Out-Null
-}
-
-# Generate the filename with date and time format: "Registry Backup - DD MM YYYY HHmm.reg"
-$timestamp = Get-Date -Format "dd MM yyyy HHmm"
-$backupFile = "$registryBackup\Registry Backup - $timestamp.reg"
-
-# Define registry hives to export
-$hives = @(
-    "HKEY_LOCAL_MACHINE", 
-    "HKEY_CURRENT_USER" 
-#    "HKEY_USERS", 
-#    "HKEY_CLASSES_ROOT", 
-#    "HKEY_CURRENT_CONFIG"
-)
-
-# Backup each registry hive to individual temp files in $tempFolder
-$tempFiles = @()
-foreach ($hive in $hives) {
-    $hiveName = $hive -replace '\\', '_'
-    $tempFile = "$tempFolder\Temp_$hiveName.reg"
-    reg export "$hive" "$tempFile" /y
-    if (Test-Path -Path $tempFile) {
-        $tempFiles += $tempFile
-    } else {
-        Write-Host "Failed to export $hive."
-    }
-}
-
-# Combine all backups into one final file in $registryBackup
-if ($tempFiles.Count -gt 0) {
-    Add-Content -Path $backupFile -Value "Windows Registry Editor Version 5.00`r`n"
-    foreach ($temp in $tempFiles) {
-        Get-Content -Path $temp | Add-Content -Path $backupFile
-        Remove-Item -Path $temp -Force
-    }
-    Write-Host "Full registry backup created successfully: $backupFile"
-} else {
-    Write-Host "Failed to create full registry backup."
-}
-
-
 ## SHORTCUT CREATION SECTION
 # Function to create a desktop shortcut for OGCWin.bat
 function New-Shortcut {
