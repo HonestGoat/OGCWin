@@ -203,6 +203,7 @@ Write-Host "Disabling all tips, suggestions and advertisements." -ForegroundColo
 #New-Item -Path "HKCR:\Directory\Background\shell\OpenTerminalHere\command" -Force | Out-Null
 #New-ItemProperty -Path "HKCR:\Directory\Background\shell\OpenTerminalHere\command" -Name "(Default)" -Value "wt.exe -d '%V'" -PropertyType String -Force | Out-Null
 
+
 # Disable Windows junk
 # Function to set registry values
 function Set-RegistryValue {
@@ -388,6 +389,90 @@ if ($blockTelemetry -eq "y") {
 } else {
     Write-Host "Skipping the blocking of telemetry domains." -ForegroundColor Cyan
 }
+
+
+## SECURITY ENHANCEMENT ##
+# Define registry paths
+$acrobatReaderRegPath = "HKCU:\Software\Adobe\Acrobat Reader\DC\Privileged"
+$wifiSenseRegPath = "HKLM:\Software\Microsoft\WcmSvc\wifinetworkmanager\config"
+$uacRegPath = "HKLM:\Software\Microsoft\Windows\CurrentVersion\Policies\System"
+$secureBootRegPath = "HKLM:\SYSTEM\CurrentControlSet\Control\SecureBoot\State"
+$smbv1RegPath = "HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters"
+
+# Function to set Adobe Acrobat and Reader Protected View to 'All Files'
+function Set-AcrobatProtectedView {
+    Write-Host "Configuring Adobe Acrobat Reader Protected View to 'All Files'..."
+    if (-Not (Test-Path $acrobatReaderRegPath)) {
+        New-Item -Path $acrobatReaderRegPath -Force | Out-Null
+    }
+    Set-ItemProperty -Path $acrobatReaderRegPath -Name "bProtectedMode" -Value 1 -Force
+    Set-ItemProperty -Path $acrobatReaderRegPath -Name "bProtectedView" -Value 2 -Force
+    Write-Host "Adobe Acrobat Reader Protected View set to 'All Files'."
+}
+
+# Function to disable Wi-Fi Sense and auto-connect to open networks
+function Disable-WiFiSense {
+    Write-Host "Disabling Wi-Fi Sense and auto-connect to open networks..."
+    if (-Not (Test-Path $wifiSenseRegPath)) {
+        New-Item -Path $wifiSenseRegPath -Force | Out-Null
+    }
+    Set-ItemProperty -Path $wifiSenseRegPath -Name "AutoConnectAllowedOEM" -Value 0 -Force
+    Set-ItemProperty -Path $wifiSenseRegPath -Name "WiFiSenseCredShared" -Value 0 -Force
+    Set-ItemProperty -Path $wifiSenseRegPath -Name "WiFiSenseOpen" -Value 0 -Force
+    Write-Host "Wi-Fi Sense and auto-connect to open networks disabled."
+}
+
+# Function to enforce User Account Control (UAC) to default level
+function Set-UserAccountControl {
+    Write-Host "Setting User Account Control (UAC) to default level..."
+    Set-ItemProperty -Path $uacRegPath -Name "EnableLUA" -Value 1 -Force
+    Set-ItemProperty -Path $uacRegPath -Name "ConsentPromptBehaviorAdmin" -Value 5 -Force
+    Set-ItemProperty -Path $uacRegPath -Name "PromptOnSecureDesktop" -Value 1 -Force
+    Write-Host "User Account Control (UAC) set to default level."
+}
+
+# Function to check and enable Secure Boot
+function Enable-SecureBoot {
+    Write-Host "Checking Secure Boot status..."
+    $secureBootState = Get-ItemProperty -Path $secureBootRegPath -Name "SecureBootEnabled" -ErrorAction SilentlyContinue
+    if ($secureBootState -and $secureBootState.SecureBootEnabled -eq 1) {
+        Write-Host "Secure Boot is already enabled."
+    } else {
+        Write-Host "Secure Boot is not enabled. Please enable it in the BIOS settings."
+    }
+}
+
+# Function to disable SMBv1 Protocol
+function Disable-SMBv1 {
+    Write-Host "Disabling SMBv1 Protocol..."
+    if (-Not (Test-Path $smbv1RegPath)) {
+        New-Item -Path $smbv1RegPath -Force | Out-Null
+    }
+    Set-ItemProperty -Path $smbv1RegPath -Name "SMB1" -Value 0 -Force
+    Write-Host "SMBv1 Protocol disabled."
+}
+
+# Function to disable the built-in Administrator account
+function Disable-BuiltInAdmin {
+    Write-Host "Disabling the built-in Administrator account..."
+    $adminStatus = Get-LocalUser -Name "Administrator" | Select-Object -ExpandProperty Enabled
+    if ($adminStatus -eq $true) {
+        Disable-LocalUser -Name "Administrator"
+        Write-Host "Built-in Administrator account has been disabled."
+    } else {
+        Write-Host "Built-in Administrator account is already disabled."
+    }
+}
+
+# Execute functions
+Set-AcrobatProtectedView
+Disable-WiFiSense
+Set-UserAccountControl
+Enable-SecureBoot
+Disable-SMBv1
+Disable-BuiltInAdmin
+
+Write-Host "Security configurations have been applied successfully."
 
 
 ## Bloatware and Crapware ##
