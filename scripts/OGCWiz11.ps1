@@ -401,72 +401,73 @@ $smbv1RegPath = "HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters
 
 # Function to set Adobe Acrobat and Reader Protected View to 'All Files'
 function Set-AcrobatProtectedView {
-    Write-Host "Configuring Adobe Acrobat Reader Protected View to 'All Files'..."
+    Write-Host "Configuring Adobe Acrobat Reader Protected View to 'All Files'..." -ForegroundColor Cyan
     if (-Not (Test-Path $acrobatReaderRegPath)) {
         New-Item -Path $acrobatReaderRegPath -Force | Out-Null
     }
     Set-ItemProperty -Path $acrobatReaderRegPath -Name "bProtectedMode" -Value 1 -Force
     Set-ItemProperty -Path $acrobatReaderRegPath -Name "bProtectedView" -Value 2 -Force
-    Write-Host "Adobe Acrobat Reader Protected View set to 'All Files'."
+    Write-Host "Adobe Acrobat Reader Protected View set to 'All Files'." -ForegroundColor Green
 }
 
 # Function to disable Wi-Fi Sense and auto-connect to open networks
 function Disable-WiFiSense {
-    Write-Host "Disabling Wi-Fi Sense and auto-connect to open networks..."
+    Write-Host "Disabling Wi-Fi Sense and auto-connect to open networks..." -ForegroundColor Cyan
     if (-Not (Test-Path $wifiSenseRegPath)) {
         New-Item -Path $wifiSenseRegPath -Force | Out-Null
     }
     Set-ItemProperty -Path $wifiSenseRegPath -Name "AutoConnectAllowedOEM" -Value 0 -Force
     Set-ItemProperty -Path $wifiSenseRegPath -Name "WiFiSenseCredShared" -Value 0 -Force
     Set-ItemProperty -Path $wifiSenseRegPath -Name "WiFiSenseOpen" -Value 0 -Force
-    Write-Host "Wi-Fi Sense and auto-connect to open networks disabled."
+    Write-Host "Wi-Fi Sense and auto-connect to open networks disabled." -ForegroundColor Green
 }
 
 # Function to enforce User Account Control (UAC) to default level
 function Set-UserAccountControl {
-    Write-Host "Setting User Account Control (UAC) to default level..."
+    Write-Host "Setting User Account Control (UAC) to default level..." -ForegroundColor Cyan
     Set-ItemProperty -Path $uacRegPath -Name "EnableLUA" -Value 1 -Force
     Set-ItemProperty -Path $uacRegPath -Name "ConsentPromptBehaviorAdmin" -Value 5 -Force
     Set-ItemProperty -Path $uacRegPath -Name "PromptOnSecureDesktop" -Value 1 -Force
-    Write-Host "User Account Control (UAC) set to default level."
+    Write-Host "User Account Control (UAC) set to default level." -ForegroundColor Green
 }
 
 # Function to check and enable Secure Boot
 function Enable-SecureBoot {
-    Write-Host "Checking Secure Boot status..."
+    Write-Host "Checking Secure Boot status..." -ForegroundColor Cyan
     $secureBootState = Get-ItemProperty -Path $secureBootRegPath -Name "SecureBootEnabled" -ErrorAction SilentlyContinue
     if ($secureBootState -and $secureBootState.SecureBootEnabled -eq 1) {
-        Write-Host "Secure Boot is already enabled."
+        Write-Host "Secure Boot is already enabled." -ForegroundColor Green
     } else {
-        Write-Host "Secure Boot is not enabled. Please enable it in the BIOS settings."
+        Write-Host "!! Secure Boot is not enabled. Please enable it in the BIOS settings !!" -ForegroundColor Red
+        Start-Sleep -Seconds 5
     }
 }
 
 # Function to disable SMBv1 Protocol
 function Disable-SMBv1 {
-    Write-Host "Disabling SMBv1 Protocol..."
+    Write-Host "Disabling SMBv1 Protocol..." -ForegroundColor Magenta
     if (-Not (Test-Path $smbv1RegPath)) {
         New-Item -Path $smbv1RegPath -Force | Out-Null
     }
     Set-ItemProperty -Path $smbv1RegPath -Name "SMB1" -Value 0 -Force
-    Write-Host "SMBv1 Protocol disabled."
+    Write-Host "SMBv1 Protocol disabled." -ForegroundColor Green
 }
 
 # Function to disable the built-in Administrator account
 function Disable-BuiltInAdmin {
-    Write-Host "Disabling the built-in Administrator account..."
+    Write-Host "Disabling the built-in Administrator account..." -ForegroundColor Cyan
     $adminStatus = Get-LocalUser -Name "Administrator" | Select-Object -ExpandProperty Enabled
     if ($adminStatus -eq $true) {
         Disable-LocalUser -Name "Administrator"
-        Write-Host "Built-in Administrator account has been disabled."
+        Write-Host "Built-in Administrator account has been disabled." -ForegroundColor Green
     } else {
-        Write-Host "Built-in Administrator account is already disabled."
+        Write-Host "Built-in Administrator account is already disabled." -ForegroundColor Yellow
     }
 }
 
 # Function to enable verbose logon messages
 function Enable-VerboseLogonMessages {
-    Write-Host "Enabling verbose logon messages..."
+    Write-Host "Enabling verbose logon messages..." -ForegroundColor Cyan
     $logonRegPath = "HKLM:\Software\Microsoft\Windows\CurrentVersion\Policies\System"
 
     if (-Not (Test-Path $logonRegPath)) {
@@ -474,7 +475,7 @@ function Enable-VerboseLogonMessages {
     }
 
     Set-ItemProperty -Path $logonRegPath -Name "VerboseStatus" -Value 1 -Force
-    Write-Host "Verbose logon messages have been enabled. You will now see detailed status messages during startup and shutdown."
+    Write-Host "Verbose logon messages have been enabled. You will now see detailed status messages during startup and shutdown." -ForegroundColor Green
 }
 
 # Execute functions
@@ -486,7 +487,7 @@ Disable-SMBv1
 Disable-BuiltInAdmin
 Enable-VerboseLogonMessages
 
-Write-Host "Security configurations have been applied successfully."
+Write-Host "Security configurations have been applied successfully." -ForegroundColor Green
 
 
 ## Bloatware and Crapware ##
