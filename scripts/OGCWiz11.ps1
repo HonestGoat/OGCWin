@@ -464,6 +464,19 @@ function Disable-BuiltInAdmin {
     }
 }
 
+# Function to enable verbose logon messages
+function Enable-VerboseLogonMessages {
+    Write-Host "Enabling verbose logon messages..."
+    $logonRegPath = "HKLM:\Software\Microsoft\Windows\CurrentVersion\Policies\System"
+
+    if (-Not (Test-Path $logonRegPath)) {
+        New-Item -Path $logonRegPath -Force | Out-Null
+    }
+
+    Set-ItemProperty -Path $logonRegPath -Name "VerboseStatus" -Value 1 -Force
+    Write-Host "Verbose logon messages have been enabled. You will now see detailed status messages during startup and shutdown."
+}
+
 # Execute functions
 Set-AcrobatProtectedView
 Disable-WiFiSense
@@ -471,6 +484,7 @@ Set-UserAccountControl
 Enable-SecureBoot
 Disable-SMBv1
 Disable-BuiltInAdmin
+Enable-VerboseLogonMessages
 
 Write-Host "Security configurations have been applied successfully."
 
