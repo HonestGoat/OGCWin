@@ -2032,11 +2032,24 @@ Write-Host "  Enjoy your optimized Windows experience. " -ForegroundColor Cyan
 Write-Host "===========================================" -ForegroundColor Green
 Write-Host ""
 Write-Host ""
-Write-Host "This window will now close" -ForegroundColor Green
-Start-Sleep -Seconds 3
+Write-Host ""
+Start-Sleep -Seconds 2
 
-$host.UI.RawUI.FlushInputBuffer()
-Stop-Process -Id $PID -Force
+# Inform the user that a restart is recommended
+Write-Host "It is recommended to restart your PC to apply all changes." -ForegroundColor Yellow
+$restartChoice = Read-Host "Restart now? (Y/N)"
+
+if ($restartChoice -match "^[Yy]$") {
+    Write-Host "Restarting now..." -ForegroundColor Cyan
+    Start-Sleep -Seconds 2
+    shutdown /r /t 0
+} else {
+    Write-Host "You can restart later. Exiting..." -ForegroundColor Cyan
+    Start-Sleep -Seconds 2
+    $host.UI.RawUI.FlushInputBuffer()
+    Stop-Process -Id $PID -Force
+}
+
 
 #$continue = Read-Host "Do you want to return to the OGC Windows Utility to make additional optimizations or changes to your PC? (Y/N)"
 #if ($continue -match "^[Yy]$") {
