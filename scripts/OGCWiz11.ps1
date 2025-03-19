@@ -2036,11 +2036,11 @@ Write-Host ""
 Start-Sleep -Seconds 2
 
 # Inform the user that a restart is recommended
-Write-Host "It is recommended to restart your PC to apply all changes." -ForegroundColor Yellow
+Write-Host "It is highly recommended to restart your PC to properly apply all the changes." -ForegroundColor Yellow
 $restartChoice = Read-Host "Restart now? (Y/N)"
 
 if ($restartChoice -match "^[Yy]$") {
-    Write-Host "Restarting now..." -ForegroundColor Cyan
+    Write-Host "Restarting now..." -ForegroundColor Green
     Start-Sleep -Seconds 2
     shutdown /r /t 0
 } else {
