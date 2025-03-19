@@ -732,7 +732,7 @@ if ($useXbox -match "^[Nn]$") {
                 Write-Host "$app installed successfully." -ForegroundColor Green
             } Catch {
                 Write-Host "Failed to install $app. Attempting alternative method..." -ForegroundColor Yellow
-                winget install --id $app --silent --accept-package-agreements --accept-source-agreements -ErrorAction SilentlyContinue
+                winget install --id $app --silent --accept-package-agreements --accept-source-agreements SilentlyContinue
             }
         }
     }
