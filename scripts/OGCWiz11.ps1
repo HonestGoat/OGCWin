@@ -732,15 +732,30 @@ if ($useXbox -match "^[Nn]$") {
 } else {
     Write-Host "Checking for missing Xbox features and installing them if needed..." -ForegroundColor Cyan
 
+    # Ensure Microsoft Store is installed
+    if (-not (Test-AppInstallation -AppName "Microsoft.WindowsStore")) {
+        Write-Host "Microsoft Store is missing! Reinstalling it first..." -ForegroundColor Yellow
+        Get-AppxPackage -AllUsers | Where-Object {$_.Name -like "Microsoft.WindowsStore"} | Foreach-Object {Add-AppxPackage -DisableDevelopmentMode -Register "$($_.InstallLocation)\AppxManifest.xml"}
+        Start-Sleep -Seconds 5
+    }
+
+    # Reinstall missing Xbox components
     foreach ($app in $requiredXboxApps) {
         if (-not (Test-AppInstallation -AppName $app)) {
             Write-Host "Installing missing Xbox feature: $app ..." -ForegroundColor Magenta
             Try {
-                Add-AppxPackage -Register "C:\Program Files\WindowsApps\$app\AppxManifest.xml" -DisableDevelopmentMode -ErrorAction Stop
-                Write-Host "$app installed successfully." -ForegroundColor Green
+                # Try restoring from Windows provisioned apps
+                DISM /Online /Add-Capability /CapabilityName:$app -ErrorAction Stop
+                Write-Host "$app installed successfully using DISM." -ForegroundColor Green
             } Catch {
-                Write-Host "Failed to install $app. Attempting alternative method..." -ForegroundColor Yellow
-                winget install --id $app --silent --accept-package-agreements --accept-source-agreements SilentlyContinue
+                Write-Host "Failed to install $app via DISM. Trying Microsoft Store..." -ForegroundColor Yellow
+                Try {
+                    Add-AppxPackage -DisableDevelopmentMode -Register "C:\Program Files\WindowsApps\$app\AppxManifest.xml" -ErrorAction Stop
+                    Write-Host "$app installed successfully using AppxPackage." -ForegroundColor Green
+                } Catch {
+                    Write-Host "Trying winget to install $app..." -ForegroundColor Yellow
+                    winget install --id "$app" --silent --accept-package-agreements --accept-source-agreements -ErrorAction SilentlyContinue
+                }
             }
         }
     }
