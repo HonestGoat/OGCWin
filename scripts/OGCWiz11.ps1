@@ -8,7 +8,7 @@ function Test-Admin {
     $isAdmin = $principal.IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator)
 
     if (-not $isAdmin) {
-        Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`"" -Verb RunAs
+        Start-Process pwsh.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`"" -Verb RunAs
         exit
     }
 }
@@ -2054,7 +2054,7 @@ if ($restartChoice -match "^[Yy]$") {
 #$continue = Read-Host "Do you want to return to the OGC Windows Utility to make additional optimizations or changes to your PC? (Y/N)"
 #if ($continue -match "^[Yy]$") {
 #    # Launch OGC Windows Utility
-#    powershell.exe -NoExit -ExecutionPolicy Bypass -NoProfile -Command "
+#    pwsh.exe -NoExit -ExecutionPolicy Bypass -NoProfile -Command "
 #        `$host.UI.RawUI.BackgroundColor = 'Black'; 
 #        `$host.UI.RawUI.ForegroundColor = 'White'; 
 #        Clear-Host;

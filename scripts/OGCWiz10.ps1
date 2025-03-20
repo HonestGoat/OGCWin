@@ -8,7 +8,7 @@ function Test-Admin {
     $isAdmin = $principal.IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator)
 
     if (-not $isAdmin) {
-        Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`"" -Verb RunAs
+        Start-Process pwsh.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`"" -Verb RunAs
         exit
     }
 }
@@ -212,7 +212,7 @@ $regPaths = @(
 #New-Item -Path "HKCR:\Directory\Background\shell\OpenPowerShellHere" -Force | Out-Null
 #New-ItemProperty -Path "HKCR:\Directory\Background\shell\OpenPowerShellHere" -Name "(Default)" -Value "Open PowerShell Here" -PropertyType String -Force | Out-Null
 #New-Item -Path "HKCR:\Directory\Background\shell\OpenPowerShellHere\command" -Force | Out-Null
-#New-ItemProperty -Path "HKCR:\Directory\Background\shell\OpenPowerShellHere\command" -Name "(Default)" -Value "powershell.exe -NoExit -Command Set-Location '%V'" -PropertyType String -Force | Out-Null
+#New-ItemProperty -Path "HKCR:\Directory\Background\shell\OpenPowerShellHere\command" -Name "(Default)" -Value "pwsh.exe -NoExit -Command Set-Location '%V'" -PropertyType String -Force | Out-Null
 
 
 # Disable Windows junk
@@ -1841,7 +1841,7 @@ Stop-Process -Id $PID -Force
 #$continue = Read-Host "Do you want to return to the OGC Windows Utility to make additional optimizations or changes to your PC? (Y/N)"
 #if ($continue -match "^[Yy]$") {
 #    # Launch OGC Windows Utility
-#    powershell.exe -NoExit -ExecutionPolicy Bypass -NoProfile -Command "
+#    pwsh.exe -NoExit -ExecutionPolicy Bypass -NoProfile -Command "
 #        `$host.UI.RawUI.BackgroundColor = 'Black'; 
 #        `$host.UI.RawUI.ForegroundColor = 'White'; 
 #        Clear-Host;

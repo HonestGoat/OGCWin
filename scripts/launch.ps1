@@ -363,10 +363,15 @@ Write-Host "All dependencies installed." -ForegroundColor Green
 Start-Sleep -Seconds 1
 Write-Host ""
 
-# Launch OGCWin mode selector
-powershell.exe -NoExit -ExecutionPolicy Bypass -NoProfile -Command "
+# Launch OGCWin mode selector in PowerShell 7
+Start-Process pwsh.exe -ArgumentList "-NoExit -ExecutionPolicy Bypass -NoProfile -Command `" 
     `$host.UI.RawUI.BackgroundColor = 'Black'; 
     `$host.UI.RawUI.ForegroundColor = 'White'; 
-    Clear-Host;
-    & '$scriptsFolder\OGCMode.ps1'
-"
+    Clear-Host; 
+    & '$scriptsFolder\OGCMode.ps1'`"" -Verb RunAs -Wait
+
+# Close this window
+Start-Sleep -Seconds 2
+$host.UI.RawUI.FlushInputBuffer()
+Stop-Process -Id $PID -Force
+
