@@ -215,17 +215,13 @@ function Get-UserSelection {
             continue
 #            Write-Host "Starting OGC Windows Utility..." -ForegroundColor Magenta
 #            Start-Sleep -Seconds 1
-#            $scriptPath = if ($windowsVersion -eq "Windows 10") { "$scriptsFolder\OGCWin10.ps1" } else { "$scriptsFolder\OGCWin11.ps1" }
+#            $scriptPath = "$scriptsFolder\OGCWin.ps1"
 #            powershell.exe -ArgumentList "-ExecutionPolicy Bypass -NoProfile -Command `" 
 #                `$host.UI.RawUI.BackgroundColor = 'Black'; 
 #                `$host.UI.RawUI.ForegroundColor = 'White'; 
 #                Clear-Host; 
 #                & '$scriptPath'`"" -Verb RunAs
-#            
-#            Start-Sleep -Seconds 2
-#
-#            $host.UI.RawUI.FlushInputBuffer()
-#            Stop-Process -Id $PID -Force
+
         } elseif ($modeChoice -eq "2") {
             Write-Host "Starting OGC Fresh Installation Setup Wizard..." -ForegroundColor Magenta
             Start-Sleep -Seconds 2
@@ -236,15 +232,12 @@ function Get-UserSelection {
                 Clear-Host; 
                 & '$scriptPath'`"" -Verb RunAs
             
-            Start-Sleep -Seconds 2
-
-            $host.UI.RawUI.FlushInputBuffer()
-            Stop-Process -Id $PID -Force
         } elseif ($modeChoice -eq "3") {
             Start-Sleep -Seconds 1
             powershell.exe -ExecutionPolicy Bypass -NoProfile -File "$scriptsFolder\sysinfo.ps1"
             Write-Host ""
             continue
+
         } else {
             Write-Host "Invalid selection. Please try again." -ForegroundColor Red
             Start-Sleep -Seconds 2

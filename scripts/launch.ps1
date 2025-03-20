@@ -349,22 +349,18 @@ if (-not (Test-WinGet)) {
     Write-Host "All required dependencies are already installed." -ForegroundColor Green
 }
 
-## Check PowerShell version
-#Start-Sleep -Seconds 1
-#Write-Host "Checking Powershell version..." -ForegroundColor Magenta
-
-## Install PowerShell 7 using WinGet
-#winget install Microsoft.Powershell --source winget --silent --accept-package-agreements --accept-source-agreements
-#Start-Sleep -Seconds 1
-
 Write-Host "All dependencies installed." -ForegroundColor Green
 Start-Sleep -Seconds 1
 Write-Host ""
 
 # Launch OGCWin mode selector
-powershell.exe -NoExit -ExecutionPolicy Bypass -NoProfile -Command "
+Start-Process powershell.exe -NoExit -ExecutionPolicy Bypass -NoProfile -WindowStyle Normal -Command "
     `$host.UI.RawUI.BackgroundColor = 'Black'; 
     `$host.UI.RawUI.ForegroundColor = 'White'; 
     Clear-Host;
     & '$scriptsFolder\OGCMode.ps1'
 "
+
+Start-Sleep -Seconds 2
+#$host.UI.RawUI.FlushInputBuffer()
+Stop-Process -Id $PID -Force
