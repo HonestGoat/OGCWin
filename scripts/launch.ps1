@@ -182,8 +182,7 @@ function Get-Scripts {
     $scripts = @{
         "OGClaunch" = $ogclaunch
         "OGCMode" = $ogcmode
-        "OGCWin10" = $ogcwin10
-        "OGCWin11" = $ogcwin
+        "OGCWin" = $ogcwin
         "OGCWiz10" = $ogcwiz10
         "OGCWiz11" = $ogcwiz11
         "OGCWinBat" = $ogcwinbat
@@ -367,7 +366,8 @@ Start-Process pwsh.exe -NoExit -ExecutionPolicy Bypass -NoProfile -Verb RunAs -W
     `$host.UI.RawUI.BackgroundColor = 'Black'; 
     `$host.UI.RawUI.ForegroundColor = 'White'; 
     Clear-Host; 
-    & '$scriptsFolder\OGCMode.ps1'`"" -Verb RunAs -Wait
+    & '$scriptsFolder\OGCMode.ps1'`" -Verb RunAs -Wait
+"
 
 # Close this window
 Start-Sleep -Seconds 2

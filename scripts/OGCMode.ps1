@@ -220,7 +220,8 @@ function Get-UserSelection {
 #                `$host.UI.RawUI.BackgroundColor = 'Black'; 
 #                `$host.UI.RawUI.ForegroundColor = 'White'; 
 #                Clear-Host; 
-#                & '$scriptPath'`"" -Verb RunAs
+#                & '$scriptPath'`" -Verb RunAs
+#            "
 #            
 #            Start-Sleep -Seconds 2
 #
@@ -234,7 +235,8 @@ function Get-UserSelection {
                 `$host.UI.RawUI.BackgroundColor = 'Black'; 
                 `$host.UI.RawUI.ForegroundColor = 'White'; 
                 Clear-Host; 
-                & '$scriptPath'`"" -Verb RunAs
+                & '$scriptPath'`" -Verb RunAs
+            "
             
             Start-Sleep -Seconds 2
 
