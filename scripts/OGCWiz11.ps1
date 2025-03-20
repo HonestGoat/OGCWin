@@ -622,11 +622,11 @@ if ($useYourPhone -eq "y") {
 }
 
 
-## xBox Section ##
+## Xbox Section ##
 # Function to check if an app is installed
 function Test-AppInstallation {
     param ([string]$AppName)
-    return ($null -ne (Get-AppxPackage -Name $AppName -ErrorAction SilentlyContinue))
+    return ($null -ne (Get-AppxPackage -Name $AppName -AllUsers -ErrorAction SilentlyContinue))
 }
 
 # List of Xbox Apps
@@ -642,7 +642,7 @@ $requiredXboxApps = @(
     "Microsoft.GamingServices"
 )
 
-# Check if Xbox features are installed
+# Check if any Xbox features are installed
 $anyXboxInstalled = $false
 foreach ($app in $requiredXboxApps) {
     if (Test-AppInstallation -AppName $app) {
@@ -673,15 +673,6 @@ if ($useXbox -match "^[Nn]$") {
         foreach ($app in $requiredXboxApps) {
             Get-AppxPackage -Name $app -AllUsers | Remove-AppxPackage -AllUsers -ErrorAction SilentlyContinue
             Get-AppxProvisionedPackage -Online | Where-Object DisplayName -like "*$app*" | Remove-AppxProvisionedPackage -Online -ErrorAction SilentlyContinue
-        }
-
-        # Force Removal via DISM
-        Write-Host "Using DISM to remove Xbox packages from Windows image..." -ForegroundColor Yellow
-        DISM /Online /Get-ProvisionedAppxPackages | Select-String PackageName | Select-String xbox | ForEach-Object { 
-            $_ -match "PackageName : (.*)" | Out-Null 
-            $package = $matches[1]
-            Write-Host "Removing: $package" -ForegroundColor Red
-            DISM /Online /Remove-ProvisionedAppxPackage /PackageName:$package | Out-Null
         }
 
         # Remove Xbox-related registry keys
@@ -744,17 +735,22 @@ if ($useXbox -match "^[Nn]$") {
         if (-not (Test-AppInstallation -AppName $app)) {
             Write-Host "Installing missing Xbox feature: $app ..." -ForegroundColor Magenta
             Try {
-                # Try restoring from Windows provisioned apps
-                DISM /Online /Add-Capability /CapabilityName:$app -ErrorAction Stop
-                Write-Host "$app installed successfully using DISM." -ForegroundColor Green
+                # Use AppxPackage re-registration method
+                $appLocation = (Get-AppxPackage -AllUsers | Where-Object { $_.Name -eq $app }).InstallLocation
+                if ($appLocation) {
+                    Add-AppxPackage -DisableDevelopmentMode -Register "$appLocation\AppxManifest.xml" -ErrorAction Stop
+                    Write-Host "$app installed successfully using AppxPackage re-registration." -ForegroundColor Green
+                } else {
+                    Throw "AppxPackage location not found."
+                }
             } Catch {
-                Write-Host "Failed to install $app via DISM. Trying Microsoft Store..." -ForegroundColor Yellow
+                Write-Host "Failed to install $app via AppxPackage. Trying winget..." -ForegroundColor Yellow
                 Try {
-                    Add-AppxPackage -DisableDevelopmentMode -Register "C:\Program Files\WindowsApps\$app\AppxManifest.xml" -ErrorAction Stop
-                    Write-Host "$app installed successfully using AppxPackage." -ForegroundColor Green
+                    winget install --id "$app" --silent --accept-package-agreements --accept-source-agreements -ErrorAction Stop
+                    Write-Host "$app installed successfully using winget." -ForegroundColor Green
                 } Catch {
-                    Write-Host "Trying winget to install $app..." -ForegroundColor Yellow
-                    winget install --id "$app" --silent --accept-package-agreements --accept-source-agreements -ErrorAction SilentlyContinue
+                    Write-Host "Failed to install $app using winget. Trying Microsoft Store..." -ForegroundColor Yellow
+                    Start-Process -FilePath "ms-windows-store://pdp/?productid=$app"
                 }
             }
         }
@@ -767,6 +763,7 @@ if ($useXbox -match "^[Nn]$") {
 
     Write-Host "Xbox features are installed and enabled." -ForegroundColor Green
 }
+
 Pause ########################################################################################################################################################
 
 ## OneDrive Section ##
