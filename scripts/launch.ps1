@@ -362,7 +362,7 @@ Start-Sleep -Seconds 1
 Write-Host ""
 
 # Launch OGCWin mode selector in PowerShell 7
-Start-Process pwsh.exe -NoExit -ExecutionPolicy Bypass -NoProfile -Verb RunAs -Wait -Command " 
+Start-Process pwsh.exe -ExecutionPolicy Bypass -NoProfile -Verb RunAs -Wait -Command " 
     `$host.UI.RawUI.BackgroundColor = 'Black'; 
     `$host.UI.RawUI.ForegroundColor = 'White'; 
     Clear-Host; 
