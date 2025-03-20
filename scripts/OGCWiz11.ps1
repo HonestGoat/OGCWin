@@ -752,7 +752,7 @@ if ($useXbox -match "^[Nn]$") {
 
     Write-Host "Xbox features are installed and enabled." -ForegroundColor Green
 }
-
+Pause ########################################################################################################################################################
 
 ## OneDrive Section ##
 # Ask about OneDrive Removal
