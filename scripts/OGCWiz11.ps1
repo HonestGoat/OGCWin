@@ -738,7 +738,7 @@ if ($useXbox -match "^[Nn]$") {
                 # Use AppxPackage re-registration method
                 $appLocation = (Get-AppxPackage -AllUsers | Where-Object { $_.Name -eq $app }).InstallLocation
                 if ($appLocation) {
-                    Add-AppxPackage -DisableDevelopmentMode -Register "$appLocation\AppxManifest.xml" -ErrorAction Stop
+                    Add-AppxPackage -DisableDevelopmentMode -Register "$appLocation\AppxManifest.xml"
                     Write-Host "$app installed successfully using AppxPackage re-registration." -ForegroundColor Green
                 } else {
                     Throw "AppxPackage location not found."
@@ -746,7 +746,7 @@ if ($useXbox -match "^[Nn]$") {
             } Catch {
                 Write-Host "Failed to install $app via AppxPackage. Trying winget..." -ForegroundColor Yellow
                 Try {
-                    winget install --id "$app" --silent --accept-package-agreements --accept-source-agreements -ErrorAction Stop
+                    winget install --id "$app" --silent --accept-package-agreements --accept-source-agreements
                     Write-Host "$app installed successfully using winget." -ForegroundColor Green
                 } Catch {
                     Write-Host "Failed to install $app using winget. Trying Microsoft Store..." -ForegroundColor Yellow
@@ -758,8 +758,8 @@ if ($useXbox -match "^[Nn]$") {
 
     # Enable Xbox services
     Write-Host "Ensuring Xbox services are enabled..." -ForegroundColor Yellow
-    Get-Service -Name "*Xbox*" -ErrorAction SilentlyContinue | Set-Service -StartupType Automatic -ErrorAction SilentlyContinue
-    Get-Service -Name "*GamingServices*" -ErrorAction SilentlyContinue | Set-Service -StartupType Automatic -ErrorAction SilentlyContinue
+    Get-Service -Name "*Xbox*" | Set-Service -StartupType Automatic
+    Get-Service -Name "*GamingServices*" | Set-Service -StartupType Automatic
 
     Write-Host "Xbox features are installed and enabled." -ForegroundColor Green
 }
