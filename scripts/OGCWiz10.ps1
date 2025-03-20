@@ -316,7 +316,7 @@ Start-Sleep -Seconds 1
 Write-Host "Your privacy has been enhanced. Tracking, telemetry, data collection and suggestions have been disabled!" -ForegroundColor Green
 
 
-
+## DNS BLOCKING SECTION ##
 # Prompt the user for consent to block telemetry domains
 $blockTelemetry = Read-Host "Do you want to block major Microsoft tracking and telemetry domains? [Recommended] (y/n)"
 
@@ -398,6 +398,14 @@ if ($blockTelemetry -eq "y") {
 
     # Replace the hosts file with the modified version
     Move-Item -Path $tempHostsPath -Destination $hostsPath -Force
+
+    # Exclude the hosts file from Windows Defender scans to prevent flagging
+#    Write-Host "Adding hosts file to Windows Defender exclusions..." -ForegroundColor Cyan
+    Set-MpPreference -ExclusionPath "$env:SystemRoot\System32\drivers\etc\hosts" -ErrorAction SilentlyContinue
+
+    # Disable Windows Defender PUA protection to prevent rollback
+#    Write-Host "Disabling Windows Defender PUA protection..." -ForegroundColor Cyan
+    Set-MpPreference -PUAProtection 0 -ErrorAction SilentlyContinue
 
     # Re-enable Windows Defender real-time protection
     Write-Host "Re-enabling Windows Defender real-time protection..." -ForegroundColor Yellow
