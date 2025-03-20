@@ -109,9 +109,10 @@ $scriptsFolder = "$parentFolder\scripts"
 $backupFolder = "$parentFolder\backups"
 $registryBackup = "$backupFolder\registry"
 #$bin = "$parentFolder\bin"
+$logFolder = "$parentFolder\logs"
 
 # Ensure all necessary folders exist
-$folders = @($parentFolder, $backupFolder, $registryBackup, $downloadsFolder, $configsFolder, $tempFolder, $scriptsFolder) # add ass needed $redistributableFolder, $imagesFolder, $driversFolder, $pythonFolder, $bin
+$folders = @($parentFolder, $backupFolder, $registryBackup, $downloadsFolder, $configsFolder, $tempFolder, $scriptsFolder, $logFolder) # add ass needed $redistributableFolder, $imagesFolder, $driversFolder, $pythonFolder, $bin
 foreach ($folder in $folders) {
     if (-not (Test-Path $folder)) { 
         New-Item -Path $folder -ItemType Directory -Force | Out-Null 
