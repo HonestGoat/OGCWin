@@ -10,7 +10,7 @@ function Test-Admin {
     $isAdmin = $principal.IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator)
 
     if (-not $isAdmin) {
-        Start-Process pwsh.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`"" -Verb RunAs
+        Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`"" -Verb RunAs
         exit
     }
 }
@@ -134,8 +134,7 @@ if (-Not (Test-ExclusionSet $parentFolder)) {
 $ogclaunch = "$scriptsFolder\launch.ps1"
 $ogcwinbat = "$parentFolder\OGCWin.bat"
 $ogcmode = "$scriptsFolder\OGCMode.ps1"
-$ogcwin10 = "$scriptsFolder\OGCWin10.ps1"
-$ogcwin11 = "$scriptsFolder\OGCWin11.ps1"
+$ogcwin = "$scriptsFolder\OGCWin.ps1"
 $ogcwiz10 = "$scriptsFolder\OGCWiz10.ps1"
 $ogcwiz11 = "$scriptsFolder\OGCWiz11.ps1"
 $sysinfo = "$scriptsFolder\sysinfo.ps1"
@@ -184,7 +183,7 @@ function Get-Scripts {
         "OGClaunch" = $ogclaunch
         "OGCMode" = $ogcmode
         "OGCWin10" = $ogcwin10
-        "OGCWin11" = $ogcwin11
+        "OGCWin11" = $ogcwin
         "OGCWiz10" = $ogcwiz10
         "OGCWiz11" = $ogcwiz11
         "OGCWinBat" = $ogcwinbat
@@ -364,7 +363,7 @@ Start-Sleep -Seconds 1
 Write-Host ""
 
 # Launch OGCWin mode selector in PowerShell 7
-Start-Process pwsh.exe -ArgumentList "-NoExit -ExecutionPolicy Bypass -NoProfile -Command `" 
+Start-Process pwsh.exe -NoExit -ExecutionPolicy Bypass -NoProfile -Verb RunAs -Wait -Command " 
     `$host.UI.RawUI.BackgroundColor = 'Black'; 
     `$host.UI.RawUI.ForegroundColor = 'White'; 
     Clear-Host; 

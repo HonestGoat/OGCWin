@@ -216,7 +216,7 @@ function Get-UserSelection {
 #            Write-Host "Starting OGC Windows Utility..." -ForegroundColor Magenta
 #            Start-Sleep -Seconds 1
 #            $scriptPath = if ($windowsVersion -eq "Windows 10") { "$scriptsFolder\OGCWin10.ps1" } else { "$scriptsFolder\OGCWin11.ps1" }
-#            Start-Process pwsh.exe -ArgumentList "-NoExit -ExecutionPolicy Bypass -NoProfile -WindowStyle Normal -Command `" 
+#            Start-Process pwsh.exe -NoExit -ExecutionPolicy Bypass -NoProfile -Verb RunAs -Wait -Command " 
 #                `$host.UI.RawUI.BackgroundColor = 'Black'; 
 #                `$host.UI.RawUI.ForegroundColor = 'White'; 
 #                Clear-Host; 
@@ -230,7 +230,7 @@ function Get-UserSelection {
             Write-Host "Starting OGC Fresh Installation Setup Wizard..." -ForegroundColor Magenta
             Start-Sleep -Seconds 2
             $scriptPath = if ($windowsVersion -eq "Windows 10") { "$scriptsFolder\OGCWiz10.ps1" } else { "$scriptsFolder\OGCWiz11.ps1" }
-            Start-Process pwsh.exe -ArgumentList "-NoExit -ExecutionPolicy Bypass -NoProfile -WindowStyle Normal -Command `" 
+            Start-Process pwsh.exe -NoExit -ExecutionPolicy Bypass -NoProfile -Verb RunAs -Wait -Command " 
                 `$host.UI.RawUI.BackgroundColor = 'Black'; 
                 `$host.UI.RawUI.ForegroundColor = 'White'; 
                 Clear-Host; 
