@@ -134,8 +134,7 @@ if (-Not (Test-ExclusionSet $parentFolder)) {
 $ogclaunch = "$scriptsFolder\launch.ps1"
 $ogcwinbat = "$parentFolder\OGCWin.bat"
 $ogcmode = "$scriptsFolder\OGCMode.ps1"
-$ogcwin10 = "$scriptsFolder\OGCWin10.ps1"
-$ogcwin11 = "$scriptsFolder\OGCWin11.ps1"
+$ogcwin = "$scriptsFolder\OGCWin.ps1"
 $ogcwiz10 = "$scriptsFolder\OGCWiz10.ps1"
 $ogcwiz11 = "$scriptsFolder\OGCWiz11.ps1"
 $sysinfo = "$scriptsFolder\sysinfo.ps1"
@@ -183,8 +182,7 @@ function Get-Scripts {
     $scripts = @{
         "OGClaunch" = $ogclaunch
         "OGCMode" = $ogcmode
-        "OGCWin10" = $ogcwin10
-        "OGCWin11" = $ogcwin11
+        "OGCWin" = $ogcwin
         "OGCWiz10" = $ogcwiz10
         "OGCWiz11" = $ogcwiz11
         "OGCWinBat" = $ogcwinbat
@@ -206,8 +204,7 @@ function Get-ScriptPath {
     $scriptPaths = @{
         "OGClaunch" = "$parentFolder\launch.ps1"
         "OGCWinBat" = "$parentFolder\OGCWin.bat"
-        "OGCWin10" = "$scriptsFolder\OGCWin10.ps1"
-        "OGCWin11" = "$scriptsFolder\OGCWin11.ps1"
+        "OGCWin" = "$scriptsFolder\OGCWin.ps1"
         "OGCWiz10" = "$scriptsFolder\OGCWiz10.ps1"
         "OGCWiz11" = "$scriptsFolder\OGCWiz11.ps1"
         "SysInfo" = "$scriptsFolder\sysinfo.ps1"
@@ -351,13 +348,13 @@ if (-not (Test-WinGet)) {
     Write-Host "All required dependencies are already installed." -ForegroundColor Green
 }
 
-# Check PowerShell version
-Start-Sleep -Seconds 1
-Write-Host "Checking Powershell version..." -ForegroundColor Magenta
+## Check PowerShell version
+#Start-Sleep -Seconds 1
+#Write-Host "Checking Powershell version..." -ForegroundColor Magenta
 
-# Install latest PowerShell using WinGet
-winget install Microsoft.Powershell --source winget --silent --accept-package-agreements --accept-source-agreements
-Start-Sleep -Seconds 1
+## Install PowerShell 7 using WinGet
+#winget install Microsoft.Powershell --source winget --silent --accept-package-agreements --accept-source-agreements
+#Start-Sleep -Seconds 1
 
 Write-Host "All dependencies installed." -ForegroundColor Green
 Start-Sleep -Seconds 1

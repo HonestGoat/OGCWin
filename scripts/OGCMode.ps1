@@ -9,7 +9,7 @@ function Test-Admin {
     $isAdmin = $principal.IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator)
 
     if (-not $isAdmin) {
-        Start-Process pwsh.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`"" -Verb RunAs
+        Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`"" -Verb RunAs
         exit
     }
 }
@@ -216,7 +216,7 @@ function Get-UserSelection {
 #            Write-Host "Starting OGC Windows Utility..." -ForegroundColor Magenta
 #            Start-Sleep -Seconds 1
 #            $scriptPath = if ($windowsVersion -eq "Windows 10") { "$scriptsFolder\OGCWin10.ps1" } else { "$scriptsFolder\OGCWin11.ps1" }
-#            Start-Process pwsh.exe -ArgumentList "-NoExit -ExecutionPolicy Bypass -NoProfile -WindowStyle Normal -Command `" 
+#            powershell.exe -ArgumentList "-NoExit -ExecutionPolicy Bypass -NoProfile -WindowStyle Normal -Command `" 
 #                `$host.UI.RawUI.BackgroundColor = 'Black'; 
 #                `$host.UI.RawUI.ForegroundColor = 'White'; 
 #                Clear-Host; 
@@ -230,7 +230,7 @@ function Get-UserSelection {
             Write-Host "Starting OGC Fresh Installation Setup Wizard..." -ForegroundColor Magenta
             Start-Sleep -Seconds 2
             $scriptPath = if ($windowsVersion -eq "Windows 10") { "$scriptsFolder\OGCWiz10.ps1" } else { "$scriptsFolder\OGCWiz11.ps1" }
-            Start-Process pwsh.exe -ArgumentList "-NoExit -ExecutionPolicy Bypass -NoProfile -WindowStyle Normal -Command `" 
+            powershell.exe -ArgumentList "-NoExit -ExecutionPolicy Bypass -NoProfile -WindowStyle Normal -Command `" 
                 `$host.UI.RawUI.BackgroundColor = 'Black'; 
                 `$host.UI.RawUI.ForegroundColor = 'White'; 
                 Clear-Host; 
@@ -242,7 +242,7 @@ function Get-UserSelection {
             Stop-Process -Id $PID -Force
         } elseif ($modeChoice -eq "3") {
             Start-Sleep -Seconds 1
-            pwsh.exe -ExecutionPolicy Bypass -NoProfile -File "$scriptsFolder\sysinfo.ps1"
+            powershell.exe -ExecutionPolicy Bypass -NoProfile -File "$scriptsFolder\sysinfo.ps1"
             Write-Host ""
             continue
         } else {
