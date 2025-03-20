@@ -629,27 +629,28 @@ function Test-AppInstallation {
     return ($null -ne (Get-AppxPackage -Name $AppName -AllUsers -ErrorAction SilentlyContinue))
 }
 
-# List of Xbox Apps
-$requiredXboxApps = @(
-    "Microsoft.Xbox.TCUI",
-    "Microsoft.XboxApp",
-    "Microsoft.XboxGameOverlay",
-    "Microsoft.XboxGamingOverlay",
-    "Microsoft.XboxIdentityProvider",
-    "Microsoft.XboxSpeechToTextOverlay",
-    "Microsoft.XboxConsoleCompanion",
-    "Microsoft.GamingApp",
-    "Microsoft.GamingServices"
-)
+# List of Xbox Apps and their corresponding Winget/Microsoft Store IDs
+$requiredXboxApps = @{
+    "Microsoft.Xbox.TCUI"                = "Microsoft.Xbox.TCUI"
+    "Microsoft.XboxApp"                  = "Microsoft.XboxApp"
+    "Microsoft.XboxGameOverlay"          = "Microsoft.XboxGameOverlay"
+    "Microsoft.XboxGamingOverlay"        = "Microsoft.XboxGamingOverlay"
+    "Microsoft.XboxIdentityProvider"     = "Microsoft.XboxIdentityProvider"
+    "Microsoft.XboxSpeechToTextOverlay"  = "Microsoft.XboxSpeechToTextOverlay"
+    "Microsoft.XboxConsoleCompanion"     = "Microsoft.XboxConsoleCompanion"
+    "Microsoft.GamingApp"                = "9MWPM2CQNLHN"  # Microsoft Store ID
+    "Microsoft.GamingServices"           = "9NZKPSTSNW4P"  # Microsoft Store ID
+}
 
 # Check if any Xbox features are installed
 $anyXboxInstalled = $false
-foreach ($app in $requiredXboxApps) {
+foreach ($app in $requiredXboxApps.Keys) {
     if (Test-AppInstallation -AppName $app) {
         $anyXboxInstalled = $true
         break
     }
 }
+
 
 # Prompt user if they want to use Xbox/Game Pass features
 $useXbox = Read-Host "Do you want to use Xbox features, including Game Pass and Windows Game Bar? (y/n)"
@@ -665,12 +666,12 @@ if ($useXbox -match "^[Nn]$") {
             Stop-Process -Name $proc -Force -ErrorAction SilentlyContinue
         }
 
-        Get-Service -Name "*Xbox*" -ErrorAction SilentlyContinue | Stop-Service -Force -ErrorAction SilentlyContinue
-        Get-Service -Name "*GamingServices*" -ErrorAction SilentlyContinue | Stop-Service -Force -ErrorAction SilentlyContinue
+        Get-Service -Name "*Xbox*" | Stop-Service -Force -ErrorAction SilentlyContinue
+        Get-Service -Name "*GamingServices*" | Stop-Service -Force -ErrorAction SilentlyContinue
 
         # Remove all Xbox-related Appx packages
         Write-Host "Removing Xbox-related Appx packages..." -ForegroundColor Yellow
-        foreach ($app in $requiredXboxApps) {
+        foreach ($app in $requiredXboxApps.Keys) {
             Get-AppxPackage -Name $app -AllUsers | Remove-AppxPackage -AllUsers -ErrorAction SilentlyContinue
             Get-AppxProvisionedPackage -Online | Where-Object DisplayName -like "*$app*" | Remove-AppxProvisionedPackage -Online -ErrorAction SilentlyContinue
         }
@@ -712,8 +713,8 @@ if ($useXbox -match "^[Nn]$") {
 
         # Disable Xbox services permanently
         Write-Host "Disabling Xbox services permanently..." -ForegroundColor Yellow
-        Get-Service -Name "*Xbox*" -ErrorAction SilentlyContinue | Set-Service -StartupType Disabled -ErrorAction SilentlyContinue
-        Get-Service -Name "*GamingServices*" -ErrorAction SilentlyContinue | Set-Service -StartupType Disabled -ErrorAction SilentlyContinue
+        Get-Service -Name "*Xbox*" | Set-Service -StartupType Disabled
+        Get-Service -Name "*GamingServices*" | Set-Service -StartupType Disabled
 
         Write-Host "ALL Xbox apps, services, and features have been **COMPLETELY REMOVED**!" -ForegroundColor Green
     } else {
@@ -731,7 +732,7 @@ if ($useXbox -match "^[Nn]$") {
     }
 
     # Reinstall missing Xbox components
-    foreach ($app in $requiredXboxApps) {
+    foreach ($app in $requiredXboxApps.Keys) {
         if (-not (Test-AppInstallation -AppName $app)) {
             Write-Host "Installing missing Xbox feature: $app ..." -ForegroundColor Magenta
             Try {
@@ -745,12 +746,18 @@ if ($useXbox -match "^[Nn]$") {
                 }
             } Catch {
                 Write-Host "Failed to install $app via AppxPackage. Trying winget..." -ForegroundColor Yellow
+                $wingetID = $requiredXboxApps[$app]
                 Try {
-                    winget install --id "$app" --silent --accept-package-agreements --accept-source-agreements
-                    Write-Host "$app installed successfully using winget." -ForegroundColor Green
+                    if ($wingetID -match "^[0-9A-Z]{12}$") {
+                        Write-Host "Installing $app from Microsoft Store..." -ForegroundColor Yellow
+                        Start-Process -FilePath "ms-windows-store://pdp/?productid=$wingetID"
+                    } else {
+                        winget install --id "$wingetID" --silent --accept-package-agreements --accept-source-agreements
+                        Write-Host "$app installed successfully using winget." -ForegroundColor Green
+                    }
                 } Catch {
                     Write-Host "Failed to install $app using winget. Trying Microsoft Store..." -ForegroundColor Yellow
-                    Start-Process -FilePath "ms-windows-store://pdp/?productid=$app"
+                    Start-Process -FilePath "ms-windows-store://pdp/?productid=$wingetID"
                 }
             }
         }
