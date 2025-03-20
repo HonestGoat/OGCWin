@@ -354,12 +354,8 @@ Start-Sleep -Seconds 1
 Write-Host ""
 
 # Launch OGCWin mode selector
-Start-Process powershell.exe -Verb RunAs -WindowStyle Normal -ArgumentList "-ExecutionPolicy Bypass -NoProfile -NoExit -Command `" `
+powershell.exe -Verb RunAs -WindowStyle Normal -ArgumentList "-ExecutionPolicy Bypass -NoProfile -NoExit -Command `" `
     `$host.UI.RawUI.BackgroundColor = 'Black'; `
     `$host.UI.RawUI.ForegroundColor = 'White'; `
     `Clear-Host; `
     `& '$scriptsFolder\OGCMode.ps1'`""
-
-Start-Sleep -Seconds 2
-#$host.UI.RawUI.FlushInputBuffer()
-Stop-Process -Id $PID -Force
