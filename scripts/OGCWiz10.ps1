@@ -1841,11 +1841,11 @@ Stop-Process -Id $PID -Force
 #$continue = Read-Host "Do you want to return to the OGC Windows Utility to make additional optimizations or changes to your PC? (Y/N)"
 #if ($continue -match "^[Yy]$") {
 #    # Launch OGC Windows Utility
-#    pwsh.exe -NoExit -ExecutionPolicy Bypass -NoProfile -Verb RunAs -Wait -Command "
+#    pwsh.exe -NoExit -ExecutionPolicy Bypass -NoProfile -Command "
 #        `$host.UI.RawUI.BackgroundColor = 'Black'; 
 #        `$host.UI.RawUI.ForegroundColor = 'White'; 
 #        Clear-Host;
-#        & '$scriptsFolder\OGCWin.ps1'
+#        & '$scriptsFolder\OGCWiz11.ps1'
 #    "
 #} else {
 #    Write-Host "This window will now close" -ForegroundColor Green

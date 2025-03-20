@@ -134,7 +134,8 @@ if (-Not (Test-ExclusionSet $parentFolder)) {
 $ogclaunch = "$scriptsFolder\launch.ps1"
 $ogcwinbat = "$parentFolder\OGCWin.bat"
 $ogcmode = "$scriptsFolder\OGCMode.ps1"
-$ogcwin = "$scriptsFolder\OGCWin.ps1"
+$ogcwin10 = "$scriptsFolder\OGCWin10.ps1"
+$ogcwin11 = "$scriptsFolder\OGCWin11.ps1"
 $ogcwiz10 = "$scriptsFolder\OGCWiz10.ps1"
 $ogcwiz11 = "$scriptsFolder\OGCWiz11.ps1"
 $sysinfo = "$scriptsFolder\sysinfo.ps1"
@@ -182,7 +183,8 @@ function Get-Scripts {
     $scripts = @{
         "OGClaunch" = $ogclaunch
         "OGCMode" = $ogcmode
-        "OGCWin" = $ogcwin
+        "OGCWin10" = $ogcwin10
+        "OGCWin11" = $ogcwin11
         "OGCWiz10" = $ogcwiz10
         "OGCWiz11" = $ogcwiz11
         "OGCWinBat" = $ogcwinbat
@@ -361,16 +363,10 @@ Write-Host "All dependencies installed." -ForegroundColor Green
 Start-Sleep -Seconds 1
 Write-Host ""
 
-# Launch OGCWin mode selector in PowerShell 7
-Start-Process pwsh.exe -ExecutionPolicy Bypass -NoProfile -Verb RunAs -Wait -Command " 
+# Launch OGCWin mode selector
+powershell.exe -NoExit -ExecutionPolicy Bypass -NoProfile -Command "
     `$host.UI.RawUI.BackgroundColor = 'Black'; 
     `$host.UI.RawUI.ForegroundColor = 'White'; 
-    Clear-Host; 
-    & '$scriptsFolder\OGCMode.ps1'`" -Verb RunAs -Wait
+    Clear-Host;
+    & '$scriptsFolder\OGCMode.ps1'
 "
-
-# Close this window
-Start-Sleep -Seconds 2
-$host.UI.RawUI.FlushInputBuffer()
-Stop-Process -Id $PID -Force
-
