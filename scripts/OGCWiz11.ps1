@@ -2034,9 +2034,9 @@ Write-Host "GPU tracking and telemetry disabled where applicable." -ForegroundCo
 # Restart explorer one last time.
 Stop-Process -Name explorer -Force
 Start-Process -FilePath "explorer.exe" -ArgumentList "/n" -WindowStyle Hidden
-Start-Sleep -Seconds 2
-
+Start-Sleep -Seconds 1
 Clear-Host
+Start-Sleep -Seconds 1
 Clear-Host
 Write-Host ""
 Write-Host ""
