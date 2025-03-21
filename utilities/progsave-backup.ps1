@@ -2,6 +2,12 @@
 # Version: 0.1
 
 # Start with administrator privileges, bypass execution policy and force black background
+
+param (
+    [Parameter(Mandatory = $true)]
+    [ValidateSet("Backup", "Restore")]
+    [string]$Mode
+)
 function Test-Admin {
     $currentUser = [System.Security.Principal.WindowsIdentity]::GetCurrent()
     $principal = New-Object System.Security.Principal.WindowsPrincipal($currentUser)
@@ -64,22 +70,16 @@ Write-Host "program data from your pc, including the stuff in appdata" -Foregrou
 # Confirm User Wants to Continue
 Write-Host "!!! MAKE SURE THIS SCRIPT IS IN THE FOLDER YOU WANT TO BACKUP TO !!!" -ForegroundColor Magenta
 Write-Host "!!! IF ITS NOT, THEN YOU SHOULD CLOSE THIS, MOVE THE SCRIPT AND RUN IT AGIAN !!!" -ForegroundColor Magenta
-$continueScript = Read-Host "Is this script located in the folder that you want to backup your data to (y/n)?" -ForegroundColor Cyan
+$continueScript = Read-Host "Is this script located in the folder that you want to backup your data to (y/n)?"
 Start-Sleep -Seconds 1
-$continueScript = Read-Host "!!! DISCLAIMER !!! You assume all risk of data loss. Press (y/n) to agree and continue" -ForegroundColor Red
+$continueScript = Read-Host "!!! DISCLAIMER !!! You assume all risk of data loss. Press (y/n) to agree and continue"
 
 if ($continueScript -ne "y") {
-    Write-Host "Exiting script. No changes have been made." -ForegroundColor Yellow
+    Write-Host "Exiting script. No changes have been made." -ForegroundColor Blue
     Start-Sleep -Seconds 2
     exit
 }
 
-
-param (
-    [Parameter(Mandatory = $true)]
-    [ValidateSet("Backup", "Restore")]
-    [string]$Mode
-)
 
 # Determine working directory
 $ScriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
