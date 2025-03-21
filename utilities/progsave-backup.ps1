@@ -57,16 +57,16 @@ Write-Host "=======================================" -ForegroundColor DarkBlue
 Write-Host ""
 Write-Host ""
 Write-Host ""
-Write-Host "This utility will backup saved games and other"
-Write-Host "program data from your pc, including the stuff in appdata"
+Write-Host "This utility will backup saved games and other" -ForegroundColor Yellow
+Write-Host "program data from your pc, including the stuff in appdata" -ForegroundColor Yellow
 
 
 # Confirm User Wants to Continue
-Write-Host "!!! MAKE SURE THIS SCRIPT IS IN THE FOLDER YOU WANT TO BACKUP TO !!!"
-Write-Host "!!! IF ITS NOT, THEN YOU SHOULD CLOSE THIS, MOVE THE SCRIPT AND RUN IT AGIAN !!!"
-$continueScript = Read-Host "Is this script located in the folder that you want to backup your data to (y/n)?"
+Write-Host "!!! MAKE SURE THIS SCRIPT IS IN THE FOLDER YOU WANT TO BACKUP TO !!!" -ForegroundColor Magenta
+Write-Host "!!! IF ITS NOT, THEN YOU SHOULD CLOSE THIS, MOVE THE SCRIPT AND RUN IT AGIAN !!!" -ForegroundColor Magenta
+$continueScript = Read-Host "Is this script located in the folder that you want to backup your data to (y/n)?" -ForegroundColor Cyan
 Start-Sleep -Seconds 1
-$continueScript = Read-Host "!!! DISCLAIMER !!! You assume all risk of data loss. Press (y/n) to agree and continue"
+$continueScript = Read-Host "!!! DISCLAIMER !!! You assume all risk of data loss. Press (y/n) to agree and continue" -ForegroundColor Red
 
 if ($continueScript -ne "y") {
     Write-Host "Exiting script. No changes have been made." -ForegroundColor Yellow
