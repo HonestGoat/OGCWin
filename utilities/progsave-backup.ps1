@@ -1,3 +1,80 @@
+# OGC New Windows Setup Wizard by Honest Goat
+# Version: 0.1
+
+# Start with administrator privileges, bypass execution policy and force black background
+function Test-Admin {
+    $currentUser = [System.Security.Principal.WindowsIdentity]::GetCurrent()
+    $principal = New-Object System.Security.Principal.WindowsPrincipal($currentUser)
+    $isAdmin = $principal.IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator)
+
+    if (-not $isAdmin) {
+        Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`"" -Verb RunAs
+        exit
+    }
+}
+Test-Admin
+
+Set-ExecutionPolicy Bypass -Scope Process -Force
+$host.UI.RawUI.WindowTitle = "OGC New Windows Wizard"
+$Host.UI.RawUI.BackgroundColor = "Black"
+$Host.UI.RawUI.ForegroundColor = "White"
+Clear-Host
+
+# Define colour functions and progress bars
+function Write-Color {
+    param (
+        [string]$Text,
+        [string]$ForegroundColor = "White",
+        [string]$BackgroundColor = "Black"
+    )
+    Write-Host $Text -ForegroundColor $ForegroundColor -BackgroundColor $BackgroundColor
+}
+
+function Show-Progress {
+    param (
+        [string]$Message
+    )
+    for ($i = 1; $i -le 100; $i += 10) {
+        Write-Progress -Activity $Message -Status "$i% Complete" -PercentComplete $i
+        Start-Sleep -Milliseconds 300
+    }
+    Write-Host "`n[$Message Complete]" -ForegroundColor Green
+}
+
+# OGC Banner
+Write-Host "=======================================" -ForegroundColor DarkBlue
+Write-Host "       OOOOOO    GGGGGG    CCCCCC      " -ForegroundColor Cyan
+Write-Host "      OO    OO  GG        CC           " -ForegroundColor Cyan
+Write-Host "      OO    OO  GG   GGG  CC           " -ForegroundColor Cyan
+Write-Host "      OO    OO  GG    GG  CC           " -ForegroundColor Cyan
+Write-Host "       OOOOOO    GGGGGG    CCCCCC      " -ForegroundColor Cyan
+Write-Host "                                       " -ForegroundColor Cyan
+Write-Host "    OGC Saves and Settings Utility     " -ForegroundColor Yellow
+Write-Host "    Game Saves and Program Settings    " -ForegroundColor Yellow
+Write-Host "        https://discord.gg/ogc         " -ForegroundColor Magenta
+Write-Host "        Created by Honest Goat         " -ForegroundColor Green
+Write-Host "=======================================" -ForegroundColor DarkBlue
+Write-Host ""
+Write-Host ""
+Write-Host ""
+Write-Host "This utility will backup saved games and other"
+Write-Host "program data from your pc, including the stuff in appdata"
+
+
+# Confirm User Wants to Continue
+Write-Host "!!! MAKE SURE THIS SCRIPT IS IN THE FOLDER YOU WANT TO BACKUP TO !!!"
+Write-Host "!!! IF ITS NOT, THEN YOU SHOULD CLOSE THIS, MOVE THE SCRIPT AND RUN IT AGIAN !!!"
+$continueScript = Read-Host "Is this script located in the folder that you want to backup your data to (y/n)?"
+Start-Sleep -Seconds 1
+$continueScript = Read-Host "!!! DISCLAIMER !!! You assume all risk of data loss. Press (y/n) to agree and continue"
+
+if ($continueScript -ne "y") {
+    Write-Host "Exiting script. No changes have been made." -ForegroundColor Yellow
+    Start-Sleep -Seconds 2
+    exit
+}
+
+
 param (
     [Parameter(Mandatory = $true)]
     [ValidateSet("Backup", "Restore")]
