@@ -39,20 +39,7 @@ Write-Host "This utility will backup saved games and other" -ForegroundColor Yel
 Write-Host "program data from your pc, including the stuff in appdata" -ForegroundColor Yellow
 
 
-# Confirm User Wants to Continue
-Write-Host "!!! MAKE SURE THIS SCRIPT IS IN THE FOLDER YOU WANT TO BACKUP TO !!!" -ForegroundColor Magenta
-Write-Host "!!! IF ITS NOT, THEN YOU SHOULD CLOSE THIS, MOVE THE SCRIPT AND RUN IT AGIAN !!!" -ForegroundColor Magenta
-$continueScript = Read-Host "Is this script located in the folder that you want to backup your data to (y/n)?"
-Start-Sleep -Seconds 1
-$continueScript = Read-Host "!!! DISCLAIMER !!! You assume all risk of data loss. Press (y/n) to agree and continue"
-
-if ($continueScript -ne "y") {
-    Write-Host "Exiting script. No changes have been made." -ForegroundColor Blue
-    Start-Sleep -Seconds 2
-    exit
-}
-
-# Prompt user for action
+# Prompt user
 Write-Host ""
 Write-Host "Would you like to (B)ackup or (R)estore?" -ForegroundColor Yellow
 $actionChoice = Read-Host "Enter B for Backup or R for Restore"
@@ -62,27 +49,20 @@ if ($actionChoice -notin @("B", "b", "R", "r")) {
 }
 $Mode = if ($actionChoice -in @("B", "b")) { "Backup" } else { "Restore" }
 
-# Confirm folder placement and risk
 Write-Host ""
 Write-Host "!!! MAKE SURE THIS SCRIPT IS IN THE FOLDER YOU WANT TO BACKUP TO !!!" -ForegroundColor Magenta
-Write-Host "!!! IF NOT, THEN YOU SHOULD CLOSE THIS, MOVE THE SCRIPT AND RUN IT AGAIN !!!" -ForegroundColor Magenta
-$confirmFolder = Read-Host "Is this script located in the folder that you want to backup your data to (y/n)?"
-if ($confirmFolder -ne "y") {
-    Write-Host "Exiting script. No changes have been made." -ForegroundColor Blue
-    exit
-}
+$confirmFolder = Read-Host "Is this the correct backup folder location? (y/n)"
+if ($confirmFolder -ne "y") { exit }
 
 $disclaimer = Read-Host "!!! DISCLAIMER !!! You assume all risk of data loss. Press (y/n) to agree and continue"
-if ($disclaimer -ne "y") {
-    Write-Host "Exiting script. No changes have been made." -ForegroundColor Blue
-    exit
-}
+if ($disclaimer -ne "y") { exit }
 
-# Working paths
+# Paths
 $ScriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $Timestamp = Get-Date -Format "yyyyMMdd_HHmm"
 $BackupRoot = Join-Path -Path $ScriptRoot -ChildPath "Backup_$Timestamp"
 $LogFile = Join-Path -Path $ScriptRoot -ChildPath "progsave.log"
+$ProfileFile = Join-Path -Path $ScriptRoot -ChildPath "restore-profile.txt"
 
 function Write-Log {
     param ([string]$Message)
@@ -143,13 +123,16 @@ if ($Mode -eq "Backup") {
     Export-OutlookRegistry -ExportPath $BackupRoot
 
     $i = 0
+    $total = $PathsRelative.Count
     foreach ($relPath in $PathsRelative) {
+        $i++
+        $percent = [math]::Round(($i / $total) * 100)
+        Write-Progress -Activity "Backing up data" -Status "$relPath ($percent%)" -PercentComplete $percent
+
         $source = Join-Path -Path $env:USERPROFILE -ChildPath $relPath
         if (Test-Path $source) {
             $destination = Join-Path -Path $BackupRoot -ChildPath $relPath
             New-Item -ItemType Directory -Path (Split-Path $destination) -Force | Out-Null
-            Write-Progress -Activity "Backing Up" -Status $relPath -PercentComplete (($i++ / $PathsRelative.Count) * 100)
-
             try {
                 robocopy $source $destination /E /XD $Exclusions /NFL /NDL /NJH /NJS /NC | Out-Null
                 Write-Log "Backed up $relPath"
@@ -159,27 +142,41 @@ if ($Mode -eq "Backup") {
         }
     }
 
+    $BackupFolderName = Split-Path -Leaf $BackupRoot
+    Set-Content -Path $ProfileFile -Value $BackupFolderName
     Write-Host "Backup complete. Files are saved to $BackupRoot" -ForegroundColor Green
-    Write-Log "Backup complete."
+    Write-Log "Backup complete. Profile saved as $BackupFolderName"
 }
 
 if ($Mode -eq "Restore") {
     Write-Host "Starting restore..." -ForegroundColor Cyan
     Write-Log "Restore initiated."
 
-    $folders = Get-ChildItem -Path $ScriptRoot -Directory | Where-Object { $_.Name -like "Backup_*" } | Sort-Object LastWriteTime -Descending
-    if ($folders.Count -eq 0) {
-        Write-Host "No backup folders found." -ForegroundColor Red
-        Write-Log "No backup found."
+    if (-Not (Test-Path $ProfileFile)) {
+        Write-Host "No restore-profile.txt found. Cannot proceed." -ForegroundColor Red
+        Write-Log "No profile file found."
         exit
     }
 
-    $latest = $folders[0].FullName
-    Write-Host "Restoring from: $latest"
+    $BackupFolderName = Get-Content $ProfileFile
+    $RestoreSource = Join-Path -Path $ScriptRoot -ChildPath $BackupFolderName
 
-    $items = Get-ChildItem -Path $latest -Recurse
+    if (-Not (Test-Path $RestoreSource)) {
+        Write-Host "Backup folder '$BackupFolderName' not found!" -ForegroundColor Red
+        Write-Log "Backup folder missing: $RestoreSource"
+        exit
+    }
+
+    $items = Get-ChildItem -Path $RestoreSource -Recurse
+    $total = $items.Count
+    $index = 0
+
     foreach ($item in $items) {
-        $relPath = $item.FullName.Substring($latest.Length).TrimStart('\')
+        $index++
+        $percent = [math]::Round(($index / $total) * 100)
+        Write-Progress -Activity "Restoring data" -Status "$($item.Name) ($percent%)" -PercentComplete $percent
+
+        $relPath = $item.FullName.Substring($RestoreSource.Length).TrimStart('\')
         $targetPath = Join-Path -Path $env:USERPROFILE -ChildPath $relPath
         try {
             if ($item.PSIsContainer) {
@@ -193,6 +190,6 @@ if ($Mode -eq "Restore") {
         }
     }
 
-    Write-Host "Restore complete." -ForegroundColor Green
-    Write-Log "Restore complete."
+    Write-Host "Restore complete from profile: $BackupFolderName" -ForegroundColor Green
+    Write-Log "Restore complete from $BackupFolderName"
 }
