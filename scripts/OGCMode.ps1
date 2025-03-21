@@ -234,7 +234,7 @@ function Get-UserSelection {
             
         } elseif ($modeChoice -eq "3") {
             Start-Sleep -Seconds 1
-            powershell.exe -ExecutionPolicy Bypass -NoProfile -File "$scriptsFolder\sysinfo.ps1"
+            powershell.exe -File "$scriptsFolder\sysinfo.ps1" -ExecutionPolicy Bypass -NoProfile
             Write-Host ""
             continue
 
