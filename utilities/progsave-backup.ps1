@@ -1,13 +1,6 @@
 # OGC New Windows Setup Wizard by Honest Goat
-# Version: 0.1
+# Version: 0.2 - No Compression, Enhanced Exclusions, User Prompt
 
-# Start with administrator privileges, bypass execution policy and force black background
-
-param (
-    [Parameter(Mandatory = $true)]
-    [ValidateSet("Backup", "Restore")]
-    [string]$Mode
-)
 function Test-Admin {
     $currentUser = [System.Security.Principal.WindowsIdentity]::GetCurrent()
     $principal = New-Object System.Security.Principal.WindowsPrincipal($currentUser)
@@ -25,27 +18,6 @@ $host.UI.RawUI.WindowTitle = "OGC New Windows Wizard"
 $Host.UI.RawUI.BackgroundColor = "Black"
 $Host.UI.RawUI.ForegroundColor = "White"
 Clear-Host
-
-# Define colour functions and progress bars
-function Write-Color {
-    param (
-        [string]$Text,
-        [string]$ForegroundColor = "White",
-        [string]$BackgroundColor = "Black"
-    )
-    Write-Host $Text -ForegroundColor $ForegroundColor -BackgroundColor $BackgroundColor
-}
-
-function Show-Progress {
-    param (
-        [string]$Message
-    )
-    for ($i = 1; $i -le 100; $i += 10) {
-        Write-Progress -Activity $Message -Status "$i% Complete" -PercentComplete $i
-        Start-Sleep -Milliseconds 300
-    }
-    Write-Host "`n[$Message Complete]" -ForegroundColor Green
-}
 
 # OGC Banner
 Write-Host "=======================================" -ForegroundColor DarkBlue
@@ -80,49 +52,44 @@ if ($continueScript -ne "y") {
     exit
 }
 
+# Prompt user for action
+Write-Host ""
+Write-Host "Would you like to (B)ackup or (R)estore?" -ForegroundColor Yellow
+$actionChoice = Read-Host "Enter B for Backup or R for Restore"
+if ($actionChoice -notin @("B", "b", "R", "r")) {
+    Write-Host "Invalid selection. Exiting." -ForegroundColor Red
+    exit
+}
+$Mode = if ($actionChoice -in @("B", "b")) { "Backup" } else { "Restore" }
 
-# Determine working directory
+# Confirm folder placement and risk
+Write-Host ""
+Write-Host "!!! MAKE SURE THIS SCRIPT IS IN THE FOLDER YOU WANT TO BACKUP TO !!!" -ForegroundColor Magenta
+Write-Host "!!! IF NOT, THEN YOU SHOULD CLOSE THIS, MOVE THE SCRIPT AND RUN IT AGAIN !!!" -ForegroundColor Magenta
+$confirmFolder = Read-Host "Is this script located in the folder that you want to backup your data to (y/n)?"
+if ($confirmFolder -ne "y") {
+    Write-Host "Exiting script. No changes have been made." -ForegroundColor Blue
+    exit
+}
+
+$disclaimer = Read-Host "!!! DISCLAIMER !!! You assume all risk of data loss. Press (y/n) to agree and continue"
+if ($disclaimer -ne "y") {
+    Write-Host "Exiting script. No changes have been made." -ForegroundColor Blue
+    exit
+}
+
+# Working paths
 $ScriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $Timestamp = Get-Date -Format "yyyyMMdd_HHmm"
 $BackupRoot = Join-Path -Path $ScriptRoot -ChildPath "Backup_$Timestamp"
-$BackupArchive = "$BackupRoot.7z"
 $LogFile = Join-Path -Path $ScriptRoot -ChildPath "progsave.log"
 
-# Log helper
 function Write-Log {
     param ([string]$Message)
     $time = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
     Add-Content -Path $LogFile -Value "$time - $Message"
 }
 
-# 7-Zip detection
-function Get-7ZipPath {
-    $possiblePaths = @(
-        "C:\Program Files\7-Zip\7z.exe",
-        "C:\Program Files (x86)\7-Zip\7z.exe"
-    )
-    foreach ($path in $possiblePaths) {
-        if (Test-Path $path) { return $path }
-    }
-    return $null
-}
-
-# Install 7-Zip if missing
-function Install-7Zip {
-    if (-Not (Get-7ZipPath)) {
-        Write-Log "7-Zip not found. Attempting installation..."
-        if (Get-Command winget -ErrorAction SilentlyContinue) {
-            winget install --id 7zip.7zip -e --accept-source-agreements --accept-package-agreements
-        } else {
-            $Installer = "$env:TEMP\7zSetup.exe"
-            Invoke-WebRequest -Uri "https://www.7-zip.org/a/7z1900-x64.exe" -OutFile $Installer
-            Start-Process -FilePath $Installer -ArgumentList "/S" -Wait
-            Remove-Item $Installer -Force
-        }
-    }
-}
-
-# Export Outlook Registry Profiles
 function Export-OutlookRegistry {
     param ([string]$ExportPath)
     try {
@@ -141,31 +108,6 @@ function Export-OutlookRegistry {
     }
 }
 
-# Compress a directory
-function Compress-Directory {
-    param ($SourceDir, $DestinationArchive)
-    $7z = Get-7ZipPath
-    if ($7z) {
-        & "$7z" a -mx=9 -mmt "$DestinationArchive" "$SourceDir\*" | Out-Null
-        Write-Log "Created archive at $DestinationArchive"
-    } else {
-        Write-Log "7-Zip not found."
-    }
-}
-
-# Decompress an archive
-function Expand-ArchiveCustom {
-    param ($ArchivePath, $DestinationDir)
-    $7z = Get-7ZipPath
-    if ($7z) {
-        & "$7z" x "$ArchivePath" -o"$DestinationDir" -y | Out-Null
-        Write-Log "Extracted archive to $DestinationDir"
-    } else {
-        Write-Log "7-Zip not found."
-    }
-}
-
-# Paths to back up (all relative to USERPROFILE)
 $PathsRelative = @(
     "AppData\Roaming",
     "AppData\Local",
@@ -175,20 +117,28 @@ $PathsRelative = @(
 )
 
 $Exclusions = @(
-    "AppData\Local\Temp",
-    "AppData\Local\Microsoft\Windows\Explorer",
-    "AppData\Local\Microsoft\Windows\Caches",
-    "AppData\Roaming\Microsoft\Windows",
-    "AppData\Roaming\Microsoft\Windows\Recent",
-    "AppData\Roaming\Microsoft\Windows\Themes"
+    "*\AppData\Local\Temp*",
+    "*\AppData\Local\Microsoft\Windows*",
+    "*\AppData\Roaming\Microsoft\Windows*",
+    "*\AppData\Roaming\Microsoft\Themes*",
+    "*\AppData\Roaming\Microsoft\Windows\Recent*",
+    "*\AppData\Local\Microsoft\Windows\Caches*",
+    "*\AppData\Local\Microsoft\Windows\Explorer*",
+    "*\AppData\Local\Intel*",
+    "*\AppData\Local\AMD*",
+    "*\AppData\Local\NVIDIA*",
+    "*\AppData\Roaming\Intel*",
+    "*\AppData\Roaming\AMD*",
+    "*\AppData\Roaming\NVIDIA*",
+    "*\AppData\Local\Microsoft\Edge*",
+    "*\AppData\Roaming\Microsoft\Edge*",
+    "*\AppData\Local\Packages*"
 )
 
-# Perform backup
 if ($Mode -eq "Backup") {
-    Write-Output "Starting backup..."
+    Write-Host "Starting backup..." -ForegroundColor Cyan
     Write-Log "Backup initiated."
 
-    Install-7Zip
     New-Item -ItemType Directory -Path $BackupRoot -Force | Out-Null
     Export-OutlookRegistry -ExportPath $BackupRoot
 
@@ -196,11 +146,12 @@ if ($Mode -eq "Backup") {
     foreach ($relPath in $PathsRelative) {
         $source = Join-Path -Path $env:USERPROFILE -ChildPath $relPath
         if (Test-Path $source) {
-            $relativeTarget = Join-Path -Path $BackupRoot -ChildPath $relPath
-            New-Item -ItemType Directory -Path (Split-Path $relativeTarget) -Force | Out-Null
+            $destination = Join-Path -Path $BackupRoot -ChildPath $relPath
+            New-Item -ItemType Directory -Path (Split-Path $destination) -Force | Out-Null
             Write-Progress -Activity "Backing Up" -Status $relPath -PercentComplete (($i++ / $PathsRelative.Count) * 100)
+
             try {
-                robocopy $source $relativeTarget /E /NFL /NDL /NJH /NJS /NC /XD $Exclusions | Out-Null
+                robocopy $source $destination /E /XD $Exclusions /NFL /NDL /NJH /NJS /NC | Out-Null
                 Write-Log "Backed up $relPath"
             } catch {
                 Write-Log "Failed to backup ${relPath}: $($_.Exception.Message)"
@@ -208,31 +159,27 @@ if ($Mode -eq "Backup") {
         }
     }
 
-    Compress-Directory -SourceDir $BackupRoot -DestinationArchive $BackupArchive
-    Write-Output "Backup completed: $BackupArchive"
-    Write-Log "Backup completed."
+    Write-Host "Backup complete. Files are saved to $BackupRoot" -ForegroundColor Green
+    Write-Log "Backup complete."
 }
 
-# Perform restore
 if ($Mode -eq "Restore") {
-    Write-Output "Starting restore..."
+    Write-Host "Starting restore..." -ForegroundColor Cyan
     Write-Log "Restore initiated."
 
-    $archives = Get-ChildItem -Path $ScriptRoot -Filter "Backup_*.7z" | Sort-Object LastWriteTime -Descending
-    if ($archives.Count -eq 0) {
-        Write-Output "No backup archive found."
+    $folders = Get-ChildItem -Path $ScriptRoot -Directory | Where-Object { $_.Name -like "Backup_*" } | Sort-Object LastWriteTime -Descending
+    if ($folders.Count -eq 0) {
+        Write-Host "No backup folders found." -ForegroundColor Red
         Write-Log "No backup found."
         exit
     }
 
-    $latest = $archives[0].FullName
-    $tempRestore = Join-Path -Path $ScriptRoot -ChildPath "Restore_$Timestamp"
-    New-Item -ItemType Directory -Path $tempRestore -Force | Out-Null
-    Expand-ArchiveCustom -ArchivePath $latest -DestinationDir $tempRestore
+    $latest = $folders[0].FullName
+    Write-Host "Restoring from: $latest"
 
-    $items = Get-ChildItem -Path $tempRestore -Recurse
+    $items = Get-ChildItem -Path $latest -Recurse
     foreach ($item in $items) {
-        $relPath = ${item}.FullName.Substring($tempRestore.Length).TrimStart('\')
+        $relPath = $item.FullName.Substring($latest.Length).TrimStart('\')
         $targetPath = Join-Path -Path $env:USERPROFILE -ChildPath $relPath
         try {
             if ($item.PSIsContainer) {
@@ -246,7 +193,6 @@ if ($Mode -eq "Restore") {
         }
     }
 
-    Write-Output "Restore complete."
+    Write-Host "Restore complete." -ForegroundColor Green
     Write-Log "Restore complete."
 }
-
