@@ -32,17 +32,6 @@ function Backup-Outlook {
         Log "No PST or OST files found or error during backup: $_"
     }
 
-    # Export Outlook Rules
-    try {
-        $outlook = New-Object -ComObject Outlook.Application
-        $namespace = $outlook.GetNamespace("MAPI")
-        $rulesBackup = "$backupPath\OutlookRules.rwz"
-        $namespace.SaveRulesToFile($rulesBackup)
-        Log "Rules exported successfully."
-    } catch {
-        Log "Failed to export Outlook rules: $_"
-    }
-
     # Backup Signatures
     try {
         $signatureSource = "$env:APPDATA\Microsoft\Signatures"
@@ -70,9 +59,9 @@ function Backup-Outlook {
         $regBackupFolder = "$backupPath\Registry"
         New-Item -ItemType Directory -Path $regBackupFolder -Force | Out-Null
         $regKeys = @(
-            "HKCU:\Software\Microsoft\Office",
-            "HKCU:\Software\Microsoft\Outlook",
-            "HKCU:\Software\Microsoft\Windows NT\CurrentVersion\Windows Messaging Subsystem"
+            "HKEY_CURRENT_USER\Software\Microsoft\Office",
+            "HKEY_CURRENT_USER\Software\Microsoft\Outlook",
+            "HKEY_CURRENT_USER\Software\Microsoft\Windows NT\CurrentVersion\Windows Messaging Subsystem"
         )
         foreach ($key in $regKeys) {
             $safeKey = ($key -replace "[\\:\s]", "_")
