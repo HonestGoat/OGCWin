@@ -1,4 +1,4 @@
-# OGC New Windows Setup Wizard by Honest Goat
+# OGC Save Game and Program Data Backup Utility by Honest Goat
 # Version: 0.2 - No Compression, Enhanced Exclusions, User Prompt
 
 function Test-Admin {
