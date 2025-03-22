@@ -64,10 +64,14 @@ function Backup-Outlook {
             "HKEY_CURRENT_USER\Software\Microsoft\Windows NT\CurrentVersion\Windows Messaging Subsystem"
         )
         foreach ($key in $regKeys) {
-            $safeKey = ($key -replace "[\\:\s]", "_")
-            $regFile = "$regBackupFolder\$safeKey.reg"
-            reg export "$key" "$regFile" /y | Out-Null
-            Log "Exported registry key: $key"
+            $keyExists = reg query "$key" 2>$null
+            if ($keyExists) {
+                $safeKey = ($key -replace "[\\:\s]", "_")
+                $regFile = "$regBackupFolder\$safeKey.reg"
+                reg export "$key" "$regFile" /y | Out-Null
+            } else {
+                Log "Exported registry key: $key"
+            }    
         }
     } catch {
         Log "Error exporting registry keys: $_"
