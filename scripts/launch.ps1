@@ -342,6 +342,11 @@ Write-Host ""
 # ==========================================
 #        SHORTCUT CREATION SECTION
 # ==========================================
+
+# Desktop shortcut path and icon.
+$desktopPath = [System.IO.Path]::Combine([System.Environment]::GetFolderPath("Desktop"), "OGC Windows Utility.lnk")
+$windowsIcon = "C:\Windows\System32\shell32.dll,272"
+
 # Function to create a desktop shortcut for OGCWin.bat
 function New-Shortcut {
     param (
@@ -361,30 +366,23 @@ function New-Shortcut {
     }
 }
 
-# Define desktop shortcut path
-$desktopPath = [System.IO.Path]::Combine([System.Environment]::GetFolderPath("Desktop"), "OGC Windows Utility.lnk")
-
-# Use Windows Start Menu-style icon
-$windowsIcon = "C:\Windows\System32\imageres.dll,97"  # Windows-style system icon
-
-# Create the shortcut with the Windows icon
+# Create the shortcut with the Blue Windows icon
 New-Shortcut -TargetPath $ogcwinbat -ShortcutPath $desktopPath -Description "Launch OGC Windows Utility" -IconPath $windowsIcon
 
-# ==========================================
-#           SETUP COMPLETE
-# ==========================================    
-
+# Setup complete.
 Write-Host "OGCWin setup complete. In the future you can launch OGCWin from the desktop shortcut." -ForegroundColor Green
 Start-Sleep -Seconds 1
+
 # ==========================================
 #        LAUNCH OGCWin MODE SELECTOR
 # ==========================================
 
-# Launch OGCWin mode selector
+# Launch OGCWin mode selector in new window.
 Write-Host "Launching OGCWindows Utility..." -ForegroundColor Cyan
 Start-Sleep -Seconds 1
-powershell.exe -Verb RunAs -WindowStyle Normal -ArgumentList "-ExecutionPolicy Bypass -NoProfile -NoExit -Command `" `
+Start-Process powershell.exe -Verb RunAs -WindowStyle Normal -ArgumentList "-ExecutionPolicy Bypass -NoProfile -NoExit -Command `" `
     `$host.UI.RawUI.BackgroundColor = 'Black'; `
     `$host.UI.RawUI.ForegroundColor = 'White'; `
     `Clear-Host; `
     `& '$scriptsFolder\OGCMode.ps1'`""
+exit
