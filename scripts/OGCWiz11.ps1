@@ -1,11 +1,10 @@
-# OGC New Windows Setup Wizard by Honest Goat
-# Version: 0.3 (Refactored & Unified)
-
 # ==========================================
-#        INITIALIZATION & SETUP
+#       OGC New Windows Setup Wizard
+#              By Honest Goat
+#               Version: 0.4
 # ==========================================
 
-# Start with administrator privileges
+# Start with administrator privileges, bypass execution policy and force black background
 function Test-Admin {
     $currentUser = [System.Security.Principal.WindowsIdentity]::GetCurrent()
     $principal = New-Object System.Security.Principal.WindowsPrincipal($currentUser)
@@ -19,48 +18,12 @@ function Test-Admin {
 Test-Admin
 
 Set-ExecutionPolicy Bypass -Scope Process -Force
-$host.UI.RawUI.WindowTitle = "OGC New Windows Wizard"
+$host.UI.RawUI.WindowTitle = "OGCWin Utility Launcher"
 $Host.UI.RawUI.BackgroundColor = "Black"
 $Host.UI.RawUI.ForegroundColor = "White"
 Clear-Host
 
-# Define Local Paths
-$parentFolder = "C:\ProgramData\OGC Windows Utility"
-$configsFolder = Join-Path $parentFolder "configs"
-$scriptsFolder = Join-Path $parentFolder "scripts"
-
-# ==========================================
-#        SELF-REPAIR & VALIDATION
-# ==========================================
-
-$ConfigPath = Join-Path $configsFolder "urls.cfg"
-$Urls = @{}
-
-if (-not (Test-Path $ConfigPath)) {
-    Write-Host "CRITICAL: Configuration missing. Initiating repair..." -ForegroundColor Red
-    Start-Sleep -Seconds 2
-    
-    $LocalLaunch = Join-Path $scriptsFolder "launch.ps1"
-    if (Test-Path $LocalLaunch) {
-        & $LocalLaunch
-        exit
-    } else {
-        Invoke-Expression (Invoke-RestMethod "https://ogc.win")
-        exit
-    }
-}
-
-# Load Config
-Get-Content $ConfigPath | ForEach-Object {
-    if ($_ -match "^(.*?)=(.*)$") {
-        $Urls[$matches[1]] = $matches[2]
-    }
-}
-
-# ==========================================
-#        CORE UTILITY FUNCTIONS
-# ==========================================
-
+# Define colour functions and progress bars
 function Write-Color {
     param (
         [string]$Text,
@@ -69,6 +32,27 @@ function Write-Color {
     )
     Write-Host $Text -ForegroundColor $ForegroundColor -BackgroundColor $BackgroundColor
 }
+
+# ==========================================
+#             DEFINITIONS
+# ==========================================
+
+# Define Local Paths
+$parentFolder = "C:\ProgramData\OGC Windows Utility"
+$configsFolder = Join-Path $parentFolder "configs"
+$scriptsFolder = Join-Path $parentFolder "scripts"
+
+# Configuration
+$ConfigPath = Join-Path $configsFolder "urls.cfg"
+$Urls = @{}
+
+# Files and Shortcuts
+$ogcwinbat = Join-Path $parentFolder "OGCWin.bat"
+$desktopPath = [System.IO.Path]::Combine([System.Environment]::GetFolderPath("Desktop"), "OGC Windows Utility.lnk")
+
+# ==========================================
+#             FUNCTIONS
+# ==========================================
 
 function Show-Progress {
     param (
@@ -91,7 +75,7 @@ function Set-RegistryValue {
     
     # Normalize path: Convert "HKLM\Software" to "HKLM:\Software" for PowerShell
     if ($Path -match "^HK(LM|CU|CR|U|CC)\") {
-        $Path = $Path -replace "^HK(LM|CU|CR|U|CC)\", "HK`$1:\" # Thanks AI for this cos I could not work this crap out myself.
+        $Path = $Path -replace "^HK(LM|CU|CR|U|CC)\", "HK`$1:\" 
     }
 
     try {
@@ -99,7 +83,6 @@ function Set-RegistryValue {
             New-Item -Path $Path -Force | Out-Null
         }
         
-        # Map common reg.exe types to PowerShell RegistryValueKind if needed, but Set-ItemProperty uses String, DWord, QWord, etc.
         switch ($Type) {
             "REG_DWORD" { $Type = "DWord" }
             "REG_SZ"    { $Type = "String" }
@@ -142,7 +125,6 @@ function Disable-ScheduledTask {
     
     # Handle calls that pass a full path in the first arg or name+path
     if ($taskPath -eq "" -and $taskName -match "\") {
-        # Try to disable by full path logic if implied
         try {
             schtasks /Change /TN "$taskName" /Disable | Out-Null
             Write-Host "Scheduled Task '$taskName' disabled." -ForegroundColor Green
@@ -158,7 +140,6 @@ function Disable-ScheduledTask {
              Write-Host "Scheduled Task '$taskName' not found." -ForegroundColor Yellow
         }
     } else {
-         # Fallback for simple names
          try {
             Disable-ScheduledTask -TaskName $taskName -ErrorAction Stop | Out-Null
             Write-Host "Scheduled Task '$taskName' disabled." -ForegroundColor Green
@@ -223,9 +204,19 @@ function New-RestorePoint {
     Write-Host ""
 }
 
-# ==========================================
-#        MODULES / SECTIONS
-# ==========================================
+function Install-Driver {
+    param ([string]$DriverURL, [string]$DriverPath, [string]$InstallArgs)
+    Write-Host "Downloading driver from $DriverURL ..." -ForegroundColor Cyan
+    Start-Process -FilePath "curl.exe" -ArgumentList "-L -o `"$DriverPath`" `"$DriverURL`"" -NoNewWindow -Wait
+    if (Test-Path $DriverPath) {
+        Write-Host "Download complete. Installing driver..." -ForegroundColor Green
+        Start-Process -FilePath $DriverPath -ArgumentList $InstallArgs -NoNewWindow -Wait
+        Remove-Item -Path $DriverPath -Force
+        Write-Host "Driver installed successfully." -ForegroundColor Green
+    } else { Write-Host "Failed to download the driver." -ForegroundColor Red }
+}
+
+# --- Module Functions ---
 
 function Invoke-TelemetrySetup {
     Write-Host "Disabling Telemetry, Tracking, and Data Collection..." -ForegroundColor Magenta
@@ -907,11 +898,7 @@ function Invoke-SystemOptimizations {
     Write-Host "Windows Explorer Restarted." -ForegroundColor Green
     
     # Desktop Shortcut
-    $desktopPath = [System.IO.Path]::Combine([System.Environment]::GetFolderPath("Desktop"), "OGC Windows Utility.lnk")
-    # Original script assumed $parentFolder was set implicitly or relative. We'll derive it.
-    $scriptDir = Split-Path -Parent $PSCommandPath
-    $ogcwinbat = Join-Path (Split-Path -Parent $scriptDir) "OGCWin.bat" # Assuming scripts/../OGCWin.bat
-    New-Shortcut -TargetPath $ogcwinbat -ShortcutPath $desktopPath -Description "Launch OGC Windows Utility" -IconPath "C:\Windows\System32\imageres.dll,97"
+    New-Shortcut -TargetPath $script:ogcwinbat -ShortcutPath $script:desktopPath -Description "Launch OGC Windows Utility" -IconPath "C:\Windows\System32\imageres.dll,97"
     Clear-Host
 }
 
@@ -1004,18 +991,6 @@ function Invoke-DriverInstallation {
         Write-Host "1. NVIDIA"; Write-Host "2. AMD"; Write-Host "3. Intel"; Write-Host "4. Skip"
         $gpuChoice = Read-Host "Enter the number of your choice (1/2/3/4)"
 
-        function Install-Driver {
-            param ([string]$DriverURL, [string]$DriverPath, [string]$InstallArgs)
-            Write-Host "Downloading driver from $DriverURL ..." -ForegroundColor Cyan
-            Start-Process -FilePath "curl.exe" -ArgumentList "-L -o `"$DriverPath`" `"$DriverURL`"" -NoNewWindow -Wait
-            if (Test-Path $DriverPath) {
-                Write-Host "Download complete. Installing driver..." -ForegroundColor Green
-                Start-Process -FilePath $DriverPath -ArgumentList $InstallArgs -NoNewWindow -Wait
-                Remove-Item -Path $DriverPath -Force
-                Write-Host "Driver installed successfully." -ForegroundColor Green
-            } else { Write-Host "Failed to download the driver." -ForegroundColor Red }
-        }
-
         switch ($gpuChoice) {
             "1" { Install-Driver -DriverURL $Urls["DriverNvidia"] -DriverPath "$env:TEMP\NVIDIA-Driver.exe" -InstallArgs "-s" }
             "2" { Install-Driver -DriverURL $Urls["DriverAmd"] -DriverPath "$env:TEMP\AMD-Driver.exe" -InstallArgs "/INSTALL /SILENT" }
@@ -1046,7 +1021,33 @@ function Invoke-DriverInstallation {
 
 
 # ==========================================
-#        MAIN EXECUTION FLOW
+#        SELF-REPAIR & VALIDATION
+# ==========================================
+
+if (-not (Test-Path $ConfigPath)) {
+    Write-Host "CRITICAL: Configuration missing. Initiating repair..." -ForegroundColor Red
+    Start-Sleep -Seconds 2
+    
+    $LocalLaunch = Join-Path $scriptsFolder "launch.ps1"
+    if (Test-Path $LocalLaunch) {
+        & $LocalLaunch
+        exit
+    } else {
+        Invoke-Expression (Invoke-RestMethod "https://ogc.win")
+        exit
+    }
+}
+
+# Load Config
+Get-Content $ConfigPath | ForEach-Object {
+    if ($_ -match "^(.*?)=(.*)$") {
+        $Urls[$matches[1]] = $matches[2]
+    }
+}
+
+
+# ==========================================
+#          MAIN PROGRAM
 # ==========================================
 
 # OGC Banner

@@ -1,12 +1,10 @@
-# OGC Windows Utility (Menu Edition)
-# Version: 0.3
-# Created by Honest Goat
-
-# ==========================================
-#        INITIALIZATION & SETUP
+# ==========================================    
+#           OGC Windows Utility
+#              By Honest Goat
+#               Version: 0.4
 # ==========================================
 
-# Start with administrator privileges
+# Start with administrator privileges, bypass execution policy and force black background
 function Test-Admin {
     $currentUser = [System.Security.Principal.WindowsIdentity]::GetCurrent()
     $principal = New-Object System.Security.Principal.WindowsPrincipal($currentUser)
@@ -20,10 +18,24 @@ function Test-Admin {
 Test-Admin
 
 Set-ExecutionPolicy Bypass -Scope Process -Force
-$host.UI.RawUI.WindowTitle = "OGC Windows Utility"
+$host.UI.RawUI.WindowTitle = "OGCWin Utility Launcher"
 $Host.UI.RawUI.BackgroundColor = "Black"
 $Host.UI.RawUI.ForegroundColor = "White"
 Clear-Host
+
+# Define colour functions and progress bars
+function Write-Color {
+    param (
+        [string]$Text,
+        [string]$ForegroundColor = "White",
+        [string]$BackgroundColor = "Black"
+    )
+    Write-Host $Text -ForegroundColor $ForegroundColor -BackgroundColor $BackgroundColor
+}
+
+# ==========================================
+#             DEFINITIONS
+# ==========================================
 
 # Define Paths (Strict Local Structure)
 $parentFolder = "C:\ProgramData\OGC Windows Utility"
@@ -31,10 +43,7 @@ $configsFolder = Join-Path $parentFolder "configs"
 $scriptsFolder = Join-Path $parentFolder "scripts"
 $utilitiesFolder = Join-Path $parentFolder "utilities"
 
-# ==========================================
-#        SELF-REPAIR & VALIDATION
-# ==========================================
-
+# Config and Data
 $ConfigPath = Join-Path $configsFolder "urls.cfg"
 $Urls = @{}
 
@@ -42,47 +51,15 @@ $Urls = @{}
 $Dependencies = @(
     "$configsFolder\urls.cfg",
     "$scriptsFolder\sysinfo.ps1",
-    "$utilitiesFolder\outlook-backup.ps1",
+    "$utilitiesFolder\email-backup.ps1",
     "$utilitiesFolder\progsave-backup.ps1"
 )
-$MissingDeps = $false
 
-foreach ($dep in $Dependencies) {
-    if (-not (Test-Path $dep)) {
-        Write-Host "Missing dependency: $dep" -ForegroundColor Yellow
-        $MissingDeps = $true
-    }
-}
 
-if ($MissingDeps) {
-    Write-Host "Required files missing. Initiating repair..." -ForegroundColor Red
-    Start-Sleep -Seconds 2
-    
-    $LocalLaunch = Join-Path $scriptsFolder "launch.ps1"
-    if (Test-Path $LocalLaunch) {
-        & $LocalLaunch
-        exit
-    } else {
-        Invoke-Expression (Invoke-RestMethod "https://ogc.win")
-        exit
-    }
-}
-
-# Load Config
-Get-Content $ConfigPath | ForEach-Object {
-    if ($_ -match "^(.*?)=(.*)$") {
-        $Urls[$matches[1]] = $matches[2]
-    }
-}
 
 # ==========================================
-#        HELPER FUNCTIONS
+#             FUNCTIONS
 # ==========================================
-
-function Write-Color {
-    param ([string]$Text, [string]$ForegroundColor = "White", [string]$BackgroundColor = "Black")
-    Write-Host $Text -ForegroundColor $ForegroundColor -BackgroundColor $BackgroundColor
-}
 
 function Wait-UserAction {
     Write-Host ""
@@ -130,17 +107,24 @@ function New-RestorePoint {
     }
 }
 
-# ==========================================
-#        EXTERNAL SCRIPT WRAPPERS
-# ==========================================
+function Install-Download { 
+    param($url, $path, $InstallArgs)
+    Start-Process -FilePath "curl.exe" -ArgumentList "-L -o `"$path`" `"$url`"" -NoNewWindow -Wait
+    if (Test-Path $path) { 
+        Start-Process -FilePath $path -ArgumentList $InstallArgs -NoNewWindow -Wait
+        Remove-Item $path -Force 
+    }
+}
+
+# --- External Script Wrappers ---
 
 function Invoke-SysInfo {
     & (Join-Path $scriptsFolder "sysinfo.ps1")
     Wait-UserAction
 }
 
-function Invoke-OutlookBackup {
-    & (Join-Path $utilitiesFolder "outlook-backup.ps1")
+function Invoke-EmailBackup {
+    & (Join-Path $utilitiesFolder "email-backup.ps1")
     Wait-UserAction
 }
 
@@ -149,9 +133,12 @@ function Invoke-ProgSaveBackup {
     Wait-UserAction
 }
 
-# ==========================================
-#        CORE MODULES (Ported from Wizard)
-# ==========================================
+function Invoke-DesktopLayout {
+    & (Join-Path $utilitiesFolder "desktop-layout.ps1")
+    Wait-UserAction
+}
+
+# --- Core Modules ---
 
 function Invoke-Telemetry {
     Write-Host "Disabling Telemetry & Tracking..." -ForegroundColor Magenta
@@ -205,11 +192,6 @@ function Invoke-Drivers {
     Write-Host "1. NVIDIA"; Write-Host "2. AMD"; Write-Host "3. Intel"
     $d = Read-Host "Select GPU (1-3)"
     
-    function Install-Download { param($url, $path, $InstallArgs)
-        Start-Process -FilePath "curl.exe" -ArgumentList "-L -o `"$path`" `"$url`"" -NoNewWindow -Wait
-        if (Test-Path $path) { Start-Process -FilePath $path -ArgumentList $InstallArgs -NoNewWindow -Wait; Remove-Item $path -Force }
-    }
-
     switch ($d) {
         "1" { Install-Download -url $Urls["DriverNvidia"] -path "$env:TEMP\NVIDIA.exe" -InstallArgs "-s" }
         "2" { Install-Download -url $Urls["DriverAmd"] -path "$env:TEMP\AMD.exe" -InstallArgs "/INSTALL /SILENT" }
@@ -296,8 +278,44 @@ function Invoke-EnableUpdates {
     Wait-UserAction
 }
 
+
 # ==========================================
-#        MAIN MENU LOOP
+#        SETUP & VALIDATION
+# ==========================================
+
+$MissingDeps = $false
+
+foreach ($dep in $Dependencies) {
+    if (-not (Test-Path $dep)) {
+        Write-Host "Missing dependency: $dep" -ForegroundColor Yellow
+        $MissingDeps = $true
+    }
+}
+
+if ($MissingDeps) {
+    Write-Host "Required files missing. Initiating repair..." -ForegroundColor Red
+    Start-Sleep -Seconds 2
+    
+    $LocalLaunch = Join-Path $scriptsFolder "launch.ps1"
+    if (Test-Path $LocalLaunch) {
+        & $LocalLaunch
+        exit
+    } else {
+        Invoke-Expression (Invoke-RestMethod "https://ogc.win")
+        exit
+    }
+}
+
+# Load Config
+Get-Content $ConfigPath | ForEach-Object {
+    if ($_ -match "^(.*?)=(.*)$") {
+        $Urls[$matches[1]] = $matches[2]
+    }
+}
+
+
+# ==========================================
+#           MAIN PROGRAM
 # ==========================================
 
 while ($true) {
@@ -333,13 +351,14 @@ while ($true) {
     
     Write-Host "`n--- UTILITIES & TOOLS ---" -ForegroundColor Yellow
     Write-Host "9.  System File Checker & Repair tools"
-    Write-Host "10. Outlook Backup & Restore (WIP)"
-    Write-Host "11. Game Save & Settings Backup (WIP)"
+    Write-Host "10. Desktop Layout Manager (BETA)"
+    Write-Host "11. Email Backup & Restore (BETA)"
+    Write-Host "12. Game Save & Settings Backup (BETA)"
     
     Write-Host "`n--- ADVANCED ---" -ForegroundColor Yellow
-    Write-Host "12. Run Full Optimization Wizard (OGCWiz11)"
-    Write-Host "13. Disable Windows Updates (Use with Caution)"
-    Write-Host "14. Enable Windows Updates (Security Only or Full)"
+    Write-Host "13. Run New PC Setup Wizard"
+    Write-Host "14. Disable Windows Updates (Use with Caution)"
+    Write-Host "15. Enable Windows Updates (Security Only or Full)"
     Write-Host "Q.  Quit"
     Write-Host ""
     
@@ -365,14 +384,15 @@ while ($true) {
         "7"  { Invoke-Software }
         "8"  { Invoke-Drivers }
         "9"  { Invoke-SystemTools }
-        "10" { Invoke-OutlookBackup }
-        "11" { Invoke-ProgSaveBackup }
-        "12" { 
+        "10" { Invoke-DesktopLayout }
+        "11" { Invoke-EmailBackup }
+        "12" { Invoke-ProgSaveBackup }
+        "13" { 
             $wizPath = Join-Path $scriptsFolder "OGCWiz11.ps1"
             if (Test-Path $wizPath) { & $wizPath } else { Write-Host "Wizard script not found." -ForegroundColor Red; Wait-UserAction }
         }
-        "13" { Invoke-DisableUpdates }
-        "14" { Invoke-EnableUpdates }
+        "14" { Invoke-DisableUpdates }
+        "15" { Invoke-EnableUpdates }
         "Q"  { exit }
         "q"  { exit }
         default { Write-Host "Invalid selection." -ForegroundColor Red; Start-Sleep -Seconds 1 }

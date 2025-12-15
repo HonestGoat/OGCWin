@@ -1,10 +1,8 @@
 # ==========================================
 #        OGC Windows Utility Launcher
 #              By Honest Goat
-#               Version: 0.3
+#               Version: 0.4
 # ==========================================
-# This script checks for software dependencies, update powershell,
-# update the folder structure and files for the Utility and then launch the mode selector.
 
 # Start with administrator privileges, bypass execution policy and force black background
 function Test-Admin {
@@ -36,52 +34,10 @@ function Write-Color {
 }
 
 # ==========================================
-#             START OF UTILITY
+#             DEFINITIONS
 # ==========================================
 
-# OGC Banner
-Write-Color "OGC Banner" -ForegroundColor Yellow
-Write-Color "=======================================" -ForegroundColor DarkBlue
-Write-Color "       OOOOOO    GGGGGG    CCCCCC      " -ForegroundColor Cyan
-Write-Color "      OO    OO  GG        CC           " -ForegroundColor Cyan
-Write-Color "      OO    OO  GG   GGG  CC           " -ForegroundColor Cyan
-Write-Color "      OO    OO  GG    GG  CC           " -ForegroundColor Cyan
-Write-Color "       OOOOOO    GGGGGG    CCCCCC      " -ForegroundColor Cyan
-Write-Color "                                       " -ForegroundColor Cyan
-Write-Color "     OGC Windows Utility Launcher      " -ForegroundColor Yellow
-Write-Color "        https://discord.gg/ogc         " -ForegroundColor Magenta
-Write-Color "        Created by Honest Goat         " -ForegroundColor Green
-Write-Color "=======================================" -ForegroundColor DarkBlue
-Start-Sleep -Seconds 1
-
-# Function to determine Windows version
-function Get-WindowsVersion {
-    $winVer = (Get-CimInstance Win32_OperatingSystem).Caption
-    if ($winVer -match "Windows 10 Home" -or $winVer -match "Windows 10 Pro") {
-        return "Windows10"
-        Write-Host "Windows 10 detected." -ForegroundColor Cyan
-        Start-Sleep -Seconds 1
-        Write-Host "Windows 10 is no longer supported by the OGC Windows Utility." -ForegroundColor Red
-        Write-Host "Some features may not work and may corrupt system files or delete personal data." -ForegroundColor Red
-        Write-Host "Continue at your own risk." -ForegroundColor Red
-        Start-Sleep -Seconds 5
-        Write-Host "Running in LEGACY mode..." -ForegroundColor Cyan
-    } elseif ($winVer -match "Windows 11 Home" -or $winVer -match "Windows 11 Pro") {
-        return "Windows11"
-        Write-Host "Running in Windows 11 mode." -ForegroundColor Cyan
-    } else {
-        Write-Host "Unsupported Windows Version. Exiting." -ForegroundColor Red
-        Start-Sleep -Seconds 2
-        exit
-    }
-}
-
-# ==========================================
-#        INSTALLATION & SETUP
-# ==========================================
-
-# Install OGCWin to ProgramData folder on C Drive.
-# Define OGCWin folder paths
+# OGCWin folder definitions
 $parentFolder = "C:\ProgramData\OGC Windows Utility"
 $downloadsFolder = "$parentFolder\downloads"
 $configsFolder = "$parentFolder\configs"
@@ -92,14 +48,41 @@ $backupFolder = "$parentFolder\backups"
 $registryBackup = "$backupFolder\registry"
 $binDir = "$parentFolder\bin"
 $logFolder = "$parentFolder\logs"
+$desktopProfiles = "$parentFolder\backups\desktop profiles"
+$powerProfiles = "$parentFolder\backups\power profiles"
+$driverBackups = "$parentFolder\backups\drivers"
 
-# Ensure all necessary folders exist
-$folders = @($parentFolder, $backupFolder, $registryBackup, $downloadsFolder, $configsFolder, $tempFolder, $scriptsFolder, $utilitiesFolder, $logFolder, $binDir) # add as needed $redistributableFolder, $imagesFolder, $driversFolder, $pythonFolder
-foreach ($folder in $folders) {
-    if (-not (Test-Path $folder)) { 
-        New-Item -Path $folder -ItemType Directory -Force | Out-Null 
-    }
-}
+# Filename definitions
+$ogclaunch = "$scriptsFolder\launch.ps1"
+$ogcwinbat = "$parentFolder\OGCWin.bat"
+$ogcmode = "$scriptsFolder\OGCMode.ps1"
+$ogcwin = "$scriptsFolder\OGCWin.ps1"
+$ogcwiz11 = "$scriptsFolder\OGCWiz11.ps1"
+$sysinfo = "$scriptsFolder\sysinfo.ps1"
+$progsavebackup = "$utilitiesFolder\progsave-backup.ps1"
+$emailBackup = "$utilitiesFolder\outlook-backup.ps1"
+$desktopLayout = "$utilitiesFolder\desktop-layout.ps1"
+
+# Config URLs & Paths
+$urlsConfigPath = "$configsFolder\urls.cfg"
+$urlsConfigUrl = "https://raw.githubusercontent.com/HonestGoat/OGCWin/main/configs/urls.cfg"
+$versionLocal = "$configsFolder\version.cfg"
+$versionOnline = "https://raw.githubusercontent.com/HonestGoat/OGCWin/main/configs/version.cfg"
+
+# Dependency Paths
+$vclibsPath = "$downloadsFolder\Microsoft.VCLibs.x64.14.00.Desktop.appx"
+$xamlPath = "$downloadsFolder\Microsoft.UI.Xaml.2.8_8.2501.31001.0_x64.appx"
+
+# Desktop shortcut path and icon
+$desktopPath = [System.IO.Path]::Combine([System.Environment]::GetFolderPath("Desktop"), "OGC Windows Utility.lnk")
+$windowsIcon = "C:\Windows\System32\shell32.dll,272"
+
+# Folder structure
+$folders = @($parentFolder, $backupFolder, $registryBackup, $downloadsFolder, $configsFolder, $tempFolder, $scriptsFolder, $utilitiesFolder, $logFolder, $binDir, $desktopProfiles, $powerProfiles, $driverBackups)
+
+# ==========================================
+#             FUNCTIONS
+# ==========================================
 
 function Show-Progress {
     param (
@@ -111,48 +94,37 @@ function Show-Progress {
     }
 }
 
+function Get-WindowsVersion {
+    $winVer = (Get-CimInstance Win32_OperatingSystem).Caption
+    if ($winVer -match "Windows 10 Home" -or $winVer -match "Windows 10 Pro") {
+        Write-Host "Windows 10 detected." -ForegroundColor Cyan
+        Start-Sleep -Seconds 1
+        Write-Host "Windows 10 is no longer supported by the OGC Windows Utility." -ForegroundColor Red
+        Write-Host "Some features may not work and may corrupt system files or delete personal data." -ForegroundColor Red
+        Write-Host "Continue at your own risk." -ForegroundColor Red
+        Start-Sleep -Seconds 5
+        Write-Host "Running in LEGACY mode..." -ForegroundColor Cyan
+        return "Windows10"
+    } elseif ($winVer -match "Windows 11 Home" -or $winVer -match "Windows 11 Pro") {
+        Write-Host "Running in Windows 11 mode." -ForegroundColor Cyan
+        return "Windows11"
+    } else {
+        Write-Host "Unsupported Windows Version. Exiting." -ForegroundColor Red
+        Start-Sleep -Seconds 2
+        exit
+    }
+}
+
 # Function to check if an exclusion exists in Windows Defender
 function Test-ExclusionSet {
     param ([string]$path)
     $existingExclusions = Get-MpPreference | Select-Object -ExpandProperty ExclusionPath
     return $existingExclusions -contains $path
 }
-# Add Windows Defender exclusion for OGCWin parent folder only
-if (-Not (Test-ExclusionSet $parentFolder)) {
-    Add-MpPreference -ExclusionPath "$parentFolder" -ErrorAction SilentlyContinue
-}
 
-# Define file names and locations
-$ogclaunch = "$scriptsFolder\launch.ps1"
-$ogcwinbat = "$parentFolder\OGCWin.bat"
-$ogcmode = "$scriptsFolder\OGCMode.ps1"
-$ogcwin = "$scriptsFolder\OGCWin.ps1"
-$ogcwiz11 = "$scriptsFolder\OGCWiz11.ps1"
-$sysinfo = "$scriptsFolder\sysinfo.ps1"
-$progsavebackup = "$utilitiesFolder\progsave-backup.ps1"
-$outlookbackup = "$utilitiesFolder\outlook-backup.ps1"
-
-# Download config files (Always overwrite to ensure updates)
-$urlsConfigPath = "$configsFolder\urls.cfg"
-$urlsConfigUrl = "https://raw.githubusercontent.com/HonestGoat/OGCWin/main/configs/urls.cfg"
-$versionConfigPath = "$configsFolder\version.cfg"
-$versionConfigUrl = "https://raw.githubusercontent.com/HonestGoat/OGCWin/main/configs/version.cfg"
-if (Test-Path $urlsConfigPath) {
-    Write-Host "Updating OGCWin..." -ForegroundColor Yellow
-    Start-Process -FilePath "curl.exe" -ArgumentList "-s -L -o `"$urlsConfigPath`" `"$urlsConfigUrl`"" -NoNewWindow -Wait
-    Start-Process -FilePath "curl.exe" -ArgumentList "-s -L -o `"$versionConfigPath`" `"$versionConfigUrl`"" -NoNewWindow -Wait
-} else {
-    Write-Host "Downloading OGCWin..." -ForegroundColor Yellow
-    Start-Process -FilePath "curl.exe" -ArgumentList "-s -L -o `"$urlsConfigPath`" `"$urlsConfigUrl`"" -NoNewWindow -Wait
-    Start-Process -FilePath "curl.exe" -ArgumentList "-s -L -o `"$versionConfigPath`" `"$versionConfigUrl`"" -NoNewWindow -Wait
-    Start-Sleep -Seconds 1
-    Write-Host "Installing OGCWin..." -ForegroundColor Yellow
-}
-
-# Function to load URLs from urls.cfg
 function Get-Url {
     param ($key)
-    $configData = Get-Content -Path $urlsConfigPath | Where-Object { $_ -match "=" }
+    $configData = Get-Content -Path $script:urlsConfigPath | Where-Object { $_ -match "=" }
     $urlMap = @{}
 
     foreach ($line in $configData) {
@@ -170,17 +142,18 @@ function Get-Url {
     }
 }
 
-# Function to always update files from GitHub
+# Load URLs from urls.cfg and always update files from GitHub
 function Get-Scripts {
     $scripts = @{
-        "OGClaunch" = $ogclaunch
-        "OGCMode" = $ogcmode
-        "OGCWin" = $ogcwin
-        "OGCWiz11" = $ogcwiz11
-        "OGCWinBat" = $ogcwinbat
-        "SysInfo" = $sysinfo
-        "ProgSaveBackup" = $progsavebackup
-        "OutlookBackup" = $outlookbackup
+        "OGClaunch" = $script:ogclaunch
+        "OGCMode" = $script:ogcmode
+        "OGCWin" = $script:ogcwin
+        "OGCWiz11" = $script:ogcwiz11
+        "OGCWinBat" = $script:ogcwinbat
+        "SysInfo" = $script:sysinfo
+        "ProgSaveBackup" = $script:progsavebackup
+        "EmailBackup" = $script:emailbackup
+        "DesktopLayout" = $script:desktopLayout
     }
 
     foreach ($script in $scripts.Keys) {
@@ -192,39 +165,24 @@ function Get-Scripts {
     }
 }
 
-# Function to get script paths dynamically
-function Get-ScriptPath {
-    param ($scriptKey)
-    $scriptPaths = @{
-        "OGClaunch" = "$parentFolder\launch.ps1"
-        "OGCWinBat" = "$parentFolder\OGCWin.bat"
-        "OGCMode" = "$scriptsFolder\OGCMode.ps1"
-        "OGCWin" = "$scriptsFolder\OGCWin.ps1"
-        "OGCWiz11" = "$scriptsFolder\OGCWiz11.ps1"
-        "SysInfo" = "$scriptsFolder\sysinfo.ps1"
-        "ProgSaveBackup" = "$utilitiesFolder\progsave-backup.ps1"
-        "OutlookBackup" = "$utilitiesFolder\outlook-backup.ps1"
-    }
+# Function to create a desktop shortcut for OGCWin.bat
+function New-Shortcut {
+    param (
+        [string]$TargetPath,
+        [string]$ShortcutPath,
+        [string]$Description,
+        [string]$IconPath
+    )
 
-    if ($scriptPaths.ContainsKey($scriptKey)) {
-        return $scriptPaths[$scriptKey]
-    } else {
-        Write-Host "Warning: Script key '$scriptKey' not found in script paths" -ForegroundColor Red
-        return $null
+    if (-Not (Test-Path $ShortcutPath)) {
+        $WScriptShell = New-Object -ComObject WScript.Shell
+        $Shortcut = $WScriptShell.CreateShortcut($ShortcutPath)
+        $Shortcut.TargetPath = $TargetPath
+        $Shortcut.Description = $Description
+        $Shortcut.IconLocation = $IconPath
+        $Shortcut.Save()
     }
 }
-
-# Call function to update scripts
-Get-Scripts
-
-
-# ==========================================
-#        DEPENDENCY CHECKING SECTION
-# ==========================================    
-# Check for dependencies for OGCWin
-Start-Sleep -Seconds 1
-Write-Host "Checking for OGCWin dependencies..." -ForegroundColor Cyan
-Start-Sleep -Seconds 2
 
 # Function to check if WinGet is installed properly
 function Test-WinGet {
@@ -251,30 +209,25 @@ function Test-AppxInstalled {
     }
 }
 
-
 # Function to install dependencies and WinGet
 function Install-WinGet {
     # Load URLs from config
     $vclibsUrl = Get-Url "VCLibs"
     $xamlUrl = Get-Url "UIXaml"
     $wingetApiUrl = Get-Url "WinGetAPI"
-
-    # Set download paths
-    $vclibsPath = "$downloadsFolder\Microsoft.VCLibs.x64.14.00.Desktop.appx"
-    $xamlPath = "$downloadsFolder\Microsoft.UI.Xaml.2.8_8.2501.31001.0_x64.appx"
-
+    
     # Install Microsoft.VCLibs
     if (-not (Test-AppxInstalled "Microsoft.VCLibs.140.00.UWPDesktop")) {
         Write-Host "Downloading and Installing Microsoft.VCLibs.140.00.UWPDesktop..." -ForegroundColor Yellow
-        Start-Process -FilePath "curl.exe" -ArgumentList "-L -o `"$vclibsPath`" `"$vclibsUrl`"" -NoNewWindow -Wait
-        Add-AppxPackage -Path $vclibsPath
+        Start-Process -FilePath "curl.exe" -ArgumentList "-L -o `"$script:vclibsPath`" `"$vclibsUrl`"" -NoNewWindow -Wait
+        Add-AppxPackage -Path $script:vclibsPath
     }
 
     # Install Microsoft.UI.Xaml
     if (-not (Test-AppxInstalled "Microsoft.UI.Xaml.2.8")) {
         Write-Host "Downloading and Installing Microsoft.UI.Xaml.2.8..." -ForegroundColor Yellow
-        Start-Process -FilePath "curl.exe" -ArgumentList "-L -o `"$xamlPath`" `"$xamlUrl`"" -NoNewWindow -Wait
-        Add-AppxPackage -Path $xamlPath
+        Start-Process -FilePath "curl.exe" -ArgumentList "-L -o `"$script:xamlPath`" `"$xamlUrl`"" -NoNewWindow -Wait
+        Add-AppxPackage -Path $script:xamlPath
     }
 
     # Install WinGet
@@ -283,7 +236,7 @@ function Install-WinGet {
         $latestRelease = Invoke-RestMethod -Uri $wingetApiUrl
         $wingetAsset = $latestRelease.assets | Where-Object { $_.name -like "*.msixbundle" }
         $wingetUrl = $wingetAsset.browser_download_url
-        $wingetPath = "$downloadsFolder\$($wingetAsset.name)"
+        $wingetPath = "$script:downloadsFolder\$($wingetAsset.name)"
 
         Start-Process -FilePath "curl.exe" -ArgumentList "-L -o `"$wingetPath`" `"$wingetUrl`"" -NoNewWindow -Wait
         Add-AppxPackage -Path $wingetPath
@@ -294,11 +247,66 @@ function Install-WinGet {
         Test-AppxInstalled "Microsoft.UI.Xaml.2.8" -and `
         Test-WinGet) {
         Write-Host "All dependencies installed successfully." -ForegroundColor Green
-        Remove-Item -Path "$downloadsFolder\*" -Force -ErrorAction SilentlyContinue
+        Remove-Item -Path "$script:downloadsFolder\*" -Force -ErrorAction SilentlyContinue
     } else {
         Write-Host "Some dependencies failed to install." -ForegroundColor Red
     }
 }
+
+
+# ==========================================
+#        INSTALLATION & SETUP
+# ==========================================
+
+# Display Banner
+Write-Color "=======================================" -ForegroundColor DarkBlue
+Write-Color "       OOOOOO    GGGGGG    CCCCCC      " -ForegroundColor Cyan
+Write-Color "      OO    OO  GG        CC           " -ForegroundColor Cyan
+Write-Color "      OO    OO  GG   GGG  CC           " -ForegroundColor Cyan
+Write-Color "      OO    OO  GG    GG  CC           " -ForegroundColor Cyan
+Write-Color "       OOOOOO    GGGGGG    CCCCCC      " -ForegroundColor Cyan
+Write-Color "                                       " -ForegroundColor Cyan
+Write-Color "     OGC Windows Utility Launcher      " -ForegroundColor Yellow
+Write-Color "        https://discord.gg/ogc         " -ForegroundColor Magenta
+Write-Color "        Created by Honest Goat         " -ForegroundColor Green
+Write-Color "=======================================" -ForegroundColor DarkBlue
+Start-Sleep -Seconds 1
+
+# Check Windows Version
+Get-WindowsVersion | Out-Null
+
+# Ensure all necessary folders exist
+foreach ($folder in $folders) {
+    if (-not (Test-Path $folder)) { 
+        New-Item -Path $folder -ItemType Directory -Force | Out-Null 
+    }
+}
+
+# Add Windows Defender exclusion for OGCWin parent folder only
+if (-Not (Test-ExclusionSet $parentFolder)) {
+    Add-MpPreference -ExclusionPath "$parentFolder" -ErrorAction SilentlyContinue
+}
+
+# Download config files (Always overwrite to ensure updates)
+if (Test-Path $urlsConfigPath) {
+    Write-Host "Updating OGCWin..." -ForegroundColor Yellow
+    Start-Process -FilePath "curl.exe" -ArgumentList "-s -L -o `"$urlsConfigPath`" `"$urlsConfigUrl`"" -NoNewWindow -Wait
+    Start-Process -FilePath "curl.exe" -ArgumentList "-s -L -o `"$versionLocal`" `"$versionOnline`"" -NoNewWindow -Wait
+} else {
+    Write-Host "Downloading OGCWin..." -ForegroundColor Yellow
+    Start-Process -FilePath "curl.exe" -ArgumentList "-s -L -o `"$urlsConfigPath`" `"$urlsConfigUrl`"" -NoNewWindow -Wait
+    Start-Process -FilePath "curl.exe" -ArgumentList "-s -L -o `"$versionLocal`" `"$versionOnline`"" -NoNewWindow -Wait
+    Start-Sleep -Seconds 1
+    Write-Host "Installing OGCWin..." -ForegroundColor Yellow
+}
+
+# Call function to update scripts
+Get-Scripts
+
+# Check for dependencies for OGCWin
+Start-Sleep -Seconds 1
+Write-Host "Checking for OGCWin dependencies..." -ForegroundColor Cyan
+Start-Sleep -Seconds 2
 
 # Winget installation check
 if (-not (Test-WinGet)) {
@@ -338,33 +346,6 @@ if (-not (winget list --exact --id Fastfetch-cli.Fastfetch 2>&1)) {
 Write-Host "All dependencies installed." -ForegroundColor Green
 Start-Sleep -Seconds 1
 Write-Host ""
-
-# ==========================================
-#        SHORTCUT CREATION SECTION
-# ==========================================
-
-# Desktop shortcut path and icon.
-$desktopPath = [System.IO.Path]::Combine([System.Environment]::GetFolderPath("Desktop"), "OGC Windows Utility.lnk")
-$windowsIcon = "C:\Windows\System32\shell32.dll,272"
-
-# Function to create a desktop shortcut for OGCWin.bat
-function New-Shortcut {
-    param (
-        [string]$TargetPath,
-        [string]$ShortcutPath,
-        [string]$Description,
-        [string]$IconPath
-    )
-
-    if (-Not (Test-Path $ShortcutPath)) {
-        $WScriptShell = New-Object -ComObject WScript.Shell
-        $Shortcut = $WScriptShell.CreateShortcut($ShortcutPath)
-        $Shortcut.TargetPath = $TargetPath
-        $Shortcut.Description = $Description
-        $Shortcut.IconLocation = $IconPath
-        $Shortcut.Save()
-    }
-}
 
 # Create the shortcut with the Blue Windows icon
 New-Shortcut -TargetPath $ogcwinbat -ShortcutPath $desktopPath -Description "Launch OGC Windows Utility" -IconPath $windowsIcon

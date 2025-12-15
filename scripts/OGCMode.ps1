@@ -1,11 +1,10 @@
-# OGC Windows Utility Mode Selector by Honest Goat
-# Version: 0.2 (Refactored)
-
 # ==========================================
-#        INITIALIZATION & SETUP
+#       OGC Windows Utility Mode Selector
+#              By Honest Goat
+#               Version: 0.4
 # ==========================================
 
-# Start with administrator privileges
+# Start with administrator privileges, bypass execution policy and force black background
 function Test-Admin {
     $currentUser = [System.Security.Principal.WindowsIdentity]::GetCurrent()
     $principal = New-Object System.Security.Principal.WindowsPrincipal($currentUser)
@@ -24,24 +23,83 @@ $Host.UI.RawUI.BackgroundColor = "Black"
 $Host.UI.RawUI.ForegroundColor = "White"
 Clear-Host
 
-# Define Paths (Strict Local Structure)
+# Define colour functions and progress bars
+function Write-Color {
+    param (
+        [string]$Text,
+        [string]$ForegroundColor = "White",
+        [string]$BackgroundColor = "Black"
+    )
+    Write-Host $Text -ForegroundColor $ForegroundColor -BackgroundColor $BackgroundColor
+}
+
+
+# ==========================================
+#             DEFINITIONS
+# ==========================================
+
+# OGCWin folder definitions
 $parentFolder = "C:\ProgramData\OGC Windows Utility"
 $configsFolder = Join-Path $parentFolder "configs"
 $scriptsFolder = Join-Path $parentFolder "scripts"
 $binDir = Join-Path $parentFolder "bin"
 $tempFolder = Join-Path $parentFolder "temp"
 
-# Ensure folders exist
-foreach ($folder in @($configsFolder, $binDir, $tempFolder)) {
-    if (-not (Test-Path $folder)) { New-Item -Path $folder -ItemType Directory -Force | Out-Null }
+# Filename definitions
+$ogcWin = Join-Path $scriptsFolder "OGCWin.ps1"
+$ogcWiz11 = Join-Path $scriptsFolder "OGCWiz11.ps1"
+$sysInfo = Join-Path $scriptsFolder "sysinfo.ps1"
+$launchScript = Join-Path $scriptsFolder "launch.ps1"
+$versionLocal = "$configsFolder\version.cfg"
+
+# Update configurations
+$versionOnline = "https://raw.githubusercontent.com/HonestGoat/OGCWin/main/configs/version.cfg"
+
+# Validation Lists
+$RequiredScripts = @("OGCWin.ps1", "OGCWiz11.ps1", "sysinfo.ps1")
+
+# Folder structure
+$folders = @($parentFolder, $configsFolder, $scriptsFolder, $binDir, $tempFolder)
+
+# System Info
+$winVer = (Get-CimInstance Win32_OperatingSystem).Caption
+
+
+# ==========================================
+#             FUNCTIONS
+# ==========================================
+
+function Show-Progress {
+    param (
+        [string]$Message
+    )
+    for ($i = 1; $i -le 100; $i += 10) {
+        Write-Progress -Activity $Message -Status "$i% Complete" -PercentComplete $i
+        Start-Sleep -Milliseconds 300
+    }
 }
 
+function Get-VersionNumber {
+    param ($fileContent)
+    if ($fileContent -match "Version=([\d]+(?:\.\d{1,3})?)") { 
+        return [version]$matches[1]
+    }
+    return [version]"0.0"
+}
+
+
 # ==========================================
-#        SELF-REPAIR & VALIDATION
+#        SETUP & VALIDATION
 # ==========================================
 
-# Critical Scripts that must exist
-$RequiredScripts = @("OGCWin.ps1", "OGCWiz11.ps1", "sysinfo.ps1")
+# Ensure folders exist
+foreach ($folder in $folders) {
+    if (-not (Test-Path $folder)) { 
+        New-Item -Path $folder -ItemType Directory -Force | Out-Null 
+    }
+}
+
+# Check for Critical Scripts
 $MissingScripts = $false
 
 foreach ($s in $RequiredScripts) {
@@ -51,14 +109,14 @@ foreach ($s in $RequiredScripts) {
     }
 }
 
+# Repair Logic if scripts are missing
 if ($MissingScripts) {
     Write-Host "Installation incomplete or corrupt. Attempting repair..." -ForegroundColor Red
     Start-Sleep -Seconds 2
     
-    $LocalLaunch = Join-Path $scriptsFolder "launch.ps1"
-    if (Test-Path $LocalLaunch) {
+    if (Test-Path $launchScript) {
         Write-Host "Launching local repair..." -ForegroundColor Cyan
-        & $LocalLaunch
+        & $launchScript
         exit
     } else {
         Write-Host "Local repair script missing. Initiating full web reinstall..." -ForegroundColor Magenta
@@ -67,34 +125,20 @@ if ($MissingScripts) {
     }
 }
 
-# ==========================================
-#        UPDATE CHECK
-# ==========================================
-
-$localVersionFile = "$configsFolder\version.cfg"
-$remoteVersionURL = "https://raw.githubusercontent.com/HonestGoat/OGCWin/main/configs/version.cfg"
-
-function Get-VersionNumber {
-    param ($fileContent)
-    if ($fileContent -match "Version=([\d]+(?:\.\d{1,3})?)") { # Thank AI for this cos I could not work this crap out myself.
-        return [version]$matches[1]
-    }
-    return [version]"0.0"
-}
-
-if (Test-Path $localVersionFile) {
-    $localVersion = Get-VersionNumber (Get-Content $localVersionFile -Raw)
+# Update Check Logic
+if (Test-Path $versionLocal) {
+    $localVersion = Get-VersionNumber (Get-Content $versionLocal -Raw)
 } else {
     $localVersion = [version]"0.0"
 }
 
 try {
-    $remoteVersion = Get-VersionNumber (Invoke-RestMethod -Uri $remoteVersionURL -UseBasicParsing)
+    $remoteVersion = Get-VersionNumber (Invoke-RestMethod -Uri $versionOnline -UseBasicParsing)
     
     if ($localVersion -lt $remoteVersion) {
         Write-Host "New version available ($remoteVersion). Updating..." -ForegroundColor Cyan
         Start-Sleep -Seconds 2
-        & (Join-Path $scriptsFolder "launch.ps1")
+        & $launchScript
         exit
     } else {
         Write-Host "OGCWin is up to date (Version $localVersion)." -ForegroundColor Green
@@ -103,11 +147,11 @@ try {
     Write-Host "Could not check for updates (Offline?). Skipping." -ForegroundColor DarkGray
 }
 
+
 # ==========================================
-#        MENU SYSTEM
+#           MAIN PROGRAM
 # ==========================================
 
-$winVer = (Get-CimInstance Win32_OperatingSystem).Caption
 Write-Host ""
 Write-Host "=======================================" -ForegroundColor DarkBlue
 Write-Host "       OOOOOO    GGGGGG    CCCCCC      " -ForegroundColor Cyan
@@ -142,7 +186,7 @@ while ($true) {
         "1" { 
             Write-Host "Starting Utility..." -ForegroundColor Magenta
             Start-Sleep -Seconds 1
-            & (Join-Path $scriptsFolder "OGCWin.ps1")
+            & $ogcWin
         }
         "2" {
             if ($winVer -notmatch "Windows 11") {
@@ -153,11 +197,11 @@ while ($true) {
             }
             Write-Host "Starting Wizard..." -ForegroundColor Magenta
             Start-Sleep -Seconds 1
-            & (Join-Path $scriptsFolder "OGCWiz11.ps1")
+            & $ogcWiz11
         }
         "3" {
             Start-Sleep -Seconds 1
-            & (Join-Path $scriptsFolder "sysinfo.ps1")
+            & $sysInfo
             Write-Host ""
         }
         "Q" { exit }

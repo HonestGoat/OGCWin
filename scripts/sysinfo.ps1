@@ -1,14 +1,15 @@
-# OGC Windows System Information Tool by Honest Goat
-# Version: 1.5 (Hybrid Fastfetch/NVIDIA-SMI)
-
 # ==========================================
-#        INITIALIZATION & SETUP
+#    OGC Windows System Information Tool
+#              By Honest Goat
+#               Version: 0.8
 # ==========================================
 
+# Start with administrator privileges, bypass execution policy and force black background
 function Test-Admin {
     $currentUser = [System.Security.Principal.WindowsIdentity]::GetCurrent()
     $principal = New-Object System.Security.Principal.WindowsPrincipal($currentUser)
     $isAdmin = $principal.IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator)
+
     if (-not $isAdmin) {
         Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`"" -Verb RunAs
         exit
@@ -17,44 +18,39 @@ function Test-Admin {
 Test-Admin
 
 Set-ExecutionPolicy Bypass -Scope Process -Force
-$host.UI.RawUI.BackgroundColor = "Black"
+$host.UI.RawUI.WindowTitle = "OGCWin Utility Launcher"
+$Host.UI.RawUI.BackgroundColor = "Black"
 $Host.UI.RawUI.ForegroundColor = "White"
 Clear-Host
+
+# Define colour functions and progress bars
+function Write-Color {
+    param (
+        [string]$Text,
+        [string]$ForegroundColor = "White",
+        [string]$BackgroundColor = "Black"
+    )
+    Write-Host $Text -ForegroundColor $ForegroundColor -BackgroundColor $BackgroundColor
+}
+
+# ==========================================
+#             DEFINITIONS
+# ==========================================
 
 # Define Paths
 $parentFolder = "C:\ProgramData\OGC Windows Utility"
 $configsFolder = Join-Path $parentFolder "configs"
+$scriptsFolder = Join-Path $parentFolder "scripts"
 $binDir = Join-Path $parentFolder "bin"
 $tempFolder = Join-Path $parentFolder "temp"
 
-foreach ($folder in @($configsFolder, $binDir, $tempFolder)) {
-    if (-not (Test-Path $folder)) { New-Item -Path $folder -ItemType Directory -Force | Out-Null }
-}
-
-write-host "Gathering system information..." -ForegroundColor Green
-
-# ==========================================
-#        DEPENDENCY CHECKS & REPAIR
-# ==========================================
-
-if (-not (Get-Command "fastfetch" -ErrorAction SilentlyContinue)) {
-    Write-Host "CRITICAL: Dependency 'fastfetch' missing." -ForegroundColor Red
-    Write-Host "The program will restart to repair dependencies..." -ForegroundColor Yellow
-    Start-Sleep -Seconds 4
-    
-    # Repair via Web Install (Bypasses local files to ensure full fix)
-    Invoke-Expression (Invoke-RestMethod "http://ogc.win")
-    exit
-}
-
-# Gather Fastfetch Data
+# Files
 $ffJsonPath = Join-Path $tempFolder "fastfetch.json"
-# Structure: cpu, gpu, memory, disk, os, board, display
-fastfetch --structure "cpu:gpu:memory:disk:os:board:display" --format json > $ffJsonPath
-try { $FFData = Get-Content $ffJsonPath | ConvertFrom-Json } catch { $FFData = $null }
+$keyPath = Join-Path $configsFolder "windows_key.txt"
+$ogcMode = Join-Path $scriptsFolder "OGCMode.ps1"
 
 # ==========================================
-#        HELPER FUNCTIONS
+#             FUNCTIONS
 # ==========================================
 
 function Format-AuDate {
@@ -63,28 +59,6 @@ function Format-AuDate {
         try { return (Get-Date $DateObj).ToString("dd/MM/yyyy") } catch { return "Unknown" }
     }
     return "N/A"
-}
-
-function Get-OsDetail {
-    $os = Get-CimInstance Win32_OperatingSystem
-    $ver = Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion"
-    $keyInfo = Get-WindowsProductKey
-    
-    $updateSession = New-Object -ComObject Microsoft.Update.Session
-    $searcher = $updateSession.CreateUpdateSearcher()
-    try {
-        $history = $searcher.QueryHistory(0, 1)
-        $lastUpdate = if ($history) { Format-AuDate $history[0].Date } else { "Never" }
-    } catch { $lastUpdate = "Unknown" }
-
-    return [PSCustomObject]@{
-        Name = $os.Caption
-        Version = "$($ver.DisplayVersion) ($($ver.EditionID))"
-        Build = $os.BuildNumber
-        Installed = Format-AuDate $os.InstallDate
-        LastUpdate = $lastUpdate
-        ProductKey = $keyInfo
-    }
 }
 
 function Get-WindowsProductKey {
@@ -118,6 +92,28 @@ function Get-WindowsProductKey {
     return "Not Found"
 }
 
+function Get-OsDetail {
+    $os = Get-CimInstance Win32_OperatingSystem
+    $ver = Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion"
+    $keyInfo = Get-WindowsProductKey
+    
+    $updateSession = New-Object -ComObject Microsoft.Update.Session
+    $searcher = $updateSession.CreateUpdateSearcher()
+    try {
+        $history = $searcher.QueryHistory(0, 1)
+        $lastUpdate = if ($history) { Format-AuDate $history[0].Date } else { "Never" }
+    } catch { $lastUpdate = "Unknown" }
+
+    return [PSCustomObject]@{
+        Name = $os.Caption
+        Version = "$($ver.DisplayVersion) ($($ver.EditionID))"
+        Build = $os.BuildNumber
+        Installed = Format-AuDate $os.InstallDate
+        LastUpdate = $lastUpdate
+        ProductKey = $keyInfo
+    }
+}
+
 function Get-MoboDetail {
     $mb = Get-CimInstance Win32_BaseBoard
     $bios = Get-CimInstance Win32_BIOS
@@ -131,8 +127,8 @@ function Get-MoboDetail {
          $ver = $bios.BIOSVersion | Select-Object -First 1 
     }
     
-    if ($FFData) {
-        $ffBoard = $FFData | Where-Object { $_.type -eq "Board" }
+    if ($script:FFData) {
+        $ffBoard = $script:FFData | Where-Object { $_.type -eq "Board" }
         if ($ffBoard) {
             if ($ffBoard.result.name) { $model = $ffBoard.result.name }
             if ($ffBoard.result.vendor) { $vendor = $ffBoard.result.vendor }
@@ -166,8 +162,8 @@ function Get-CpuDetail {
     $microcodeStr = if ($microcode) { "0x{0:X}" -f $microcode[0] } else { "Unknown" }
 
     $cpuName = $cpu.Name
-    if ($FFData) {
-        $ffCpu = $FFData | Where-Object { $_.type -eq "CPU" }
+    if ($script:FFData) {
+        $ffCpu = $script:FFData | Where-Object { $_.type -eq "CPU" }
         # Check if brand exists and is not empty before overriding
         if ($ffCpu -and $ffCpu.result.brand) { $cpuName = $ffCpu.result.brand }
     }
@@ -257,8 +253,8 @@ function Get-GpuDetail {
         }
 
         # 2. Fastfetch Route (Fallback or Non-NVIDIA)
-        if (-not $smiFound -and $FFData) {
-            $ffGpu = $FFData | Where-Object { $_.type -eq "GPU" }
+        if (-not $smiFound -and $script:FFData) {
+            $ffGpu = $script:FFData | Where-Object { $_.type -eq "GPU" }
             if ($ffGpu) {
                 # Attempt to match GPU by name in Fastfetch results
                 $ffGpuObj = $ffGpu.result | Where-Object { $_.name -match $name -or $name -match $_.name } | Select-Object -First 1
@@ -391,8 +387,8 @@ function Get-GamingFeatures {
 
     # HDR
     $hdr = "Disabled"
-    if ($FFData) {
-        $displays = $FFData | Where-Object { $_.type -eq "Display" }
+    if ($script:FFData) {
+        $displays = $script:FFData | Where-Object { $_.type -eq "Display" }
         if ($displays) {
              foreach ($d in $displays.result) {
                  if ($d.hdr -eq $true -or $d.hdr -eq "true") { $hdr = "Enabled" }
@@ -423,7 +419,34 @@ function Get-AdvancedInfo {
 }
 
 # ==========================================
-#        REPORT BUILDER
+#        SETUP & VALIDATION
+# ==========================================
+
+foreach ($folder in @($configsFolder, $binDir, $tempFolder)) {
+    if (-not (Test-Path $folder)) { New-Item -Path $folder -ItemType Directory -Force | Out-Null }
+}
+
+write-host "Gathering system information..." -ForegroundColor Green
+
+# Dependency Checks
+if (-not (Get-Command "fastfetch" -ErrorAction SilentlyContinue)) {
+    Write-Host "CRITICAL: Dependency 'fastfetch' missing." -ForegroundColor Red
+    Write-Host "The program will restart to repair dependencies..." -ForegroundColor Yellow
+    Start-Sleep -Seconds 4
+    
+    # Repair via Web Install (Bypasses local files to ensure full fix)
+    Invoke-Expression (Invoke-RestMethod "http://ogc.win")
+    exit
+}
+
+# Gather Fastfetch Data
+# Structure: cpu, gpu, memory, disk, os, board, display
+fastfetch --structure "cpu:gpu:memory:disk:os:board:display" --format json > $ffJsonPath
+try { $script:FFData = Get-Content $ffJsonPath | ConvertFrom-Json } catch { $script:FFData = $null }
+
+
+# ==========================================
+#           MAIN PROGRAM
 # ==========================================
 
 $os = Get-OsDetail
@@ -506,10 +529,7 @@ Hyper-V Status : $($adv.HyperV)
 Generated by OGC Windows Utility
 "@
 
-# ==========================================
-#        OUTPUT & EXPORT
-# ==========================================
-
+# Output & Export
 Write-Host $ReportText -ForegroundColor Cyan
 
 $save = Read-Host "`nDo you want to save this report to Desktop? (y/n)"
@@ -535,7 +555,6 @@ if ($save -eq "y") {
 
 # Save key for OGCWin persistence
 if ($os.ProductKey -ne "Not Found") {
-    $keyPath = Join-Path $configsFolder "windows_key.txt"
     Set-Content -Path $keyPath -Value $os.ProductKey -Force -ErrorAction SilentlyContinue
 }
 
@@ -544,4 +563,4 @@ if (Test-Path $tempFolder) { Remove-Item "$tempFolder\*" -Recurse -Force -ErrorA
 
 Write-Host "`nReturning to Main Menu..." -ForegroundColor DarkGray
 Start-Sleep -Seconds 2
-& "C:\ProgramData\OGC Windows Utility\scripts\OGCMode.ps1"
+& $ogcMode
