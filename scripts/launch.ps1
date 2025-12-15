@@ -328,12 +328,12 @@ if (-not (Test-WinGet)) {
 }
 
 # Fastfetch installation check
-if (-not (winget list --exact --id Fastfetch-cli.Fastfetch 2>&1)) {
+if (-not (Get-Command "fastfetch" -ErrorAction SilentlyContinue)) {
     Write-Host "Fastfetch is not installed. Attempting to install..." -ForegroundColor Yellow
-    winget install --id Fastfetch-cli.Fastfetch --exact --silent --accept-package-agreements --accept-source-agreements
+    winget install --id Fastfetch-cli.Fastfetch --exact --silent --accept-package-agreements --accept-source-agreements --disable-interactivity
     Start-Sleep -Seconds 5
 
-    if (-not (winget list --exact --id Fastfetch-cli.Fastfetch 2>&1)) {
+    if (-not (Get-Command "fastfetch" -ErrorAction SilentlyContinue)) {
         Write-Host "Fastfetch installation failed." -ForegroundColor Red
         Write-Host "Please manually install Fastfetch and restart the Utility." -ForegroundColor Red
         Write-Host "Exiting Utility..." -ForegroundColor Red
