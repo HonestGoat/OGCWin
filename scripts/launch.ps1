@@ -145,15 +145,15 @@ function Get-Url {
 # Load URLs from urls.cfg and always update files from GitHub
 function Get-Scripts {
     $scripts = @{
-        "OGClaunch" = $script:ogclaunch
-        "OGCMode" = $script:ogcmode
-        "OGCWin" = $script:ogcwin
-        "OGCWiz11" = $script:ogcwiz11
-        "OGCWinBat" = $script:ogcwinbat
-        "SysInfo" = $script:sysinfo
-        "ProgSaveBackup" = $script:progsavebackup
-        "EmailBackup" = $script:emailbackup
-        "DesktopLayout" = $script:desktopLayout
+        "OGClaunch" = $ogclaunch
+        "OGCMode" = $ogcmode
+        "OGCWin" = $ogcwin
+        "OGCWiz11" = $ogcwiz11
+        "OGCWinBat" = $ogcwinbat
+        "SysInfo" = $sysinfo
+        "ProgSaveBackup" = $progsavebackup
+        "EmailBackup" = $emailbackup
+        "DesktopLayout" = $desktopLayout
     }
 
     foreach ($script in $scripts.Keys) {
@@ -183,6 +183,7 @@ function New-Shortcut {
         $Shortcut.Save()
     }
 }
+
 
 # Function to check if WinGet is installed properly
 function Test-WinGet {
