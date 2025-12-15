@@ -60,7 +60,7 @@ $ogcwin = "$scriptsFolder\OGCWin.ps1"
 $ogcwiz11 = "$scriptsFolder\OGCWiz11.ps1"
 $sysinfo = "$scriptsFolder\sysinfo.ps1"
 $progsavebackup = "$utilitiesFolder\progsave-backup.ps1"
-$emailBackup = "$utilitiesFolder\outlook-backup.ps1"
+$emailBackup = "$utilitiesFolder\email-backup.ps1"
 $desktopLayout = "$utilitiesFolder\desktop-layout.ps1"
 
 # Config URLs & Paths
