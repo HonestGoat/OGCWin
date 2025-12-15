@@ -364,7 +364,7 @@ New-Shortcut -TargetPath $ogcwinbat -ShortcutPath $desktopPath -Description "Lau
 
 # Setup complete.
 Write-Host "OGCWin setup complete. In the future you can launch OGCWin from the desktop shortcut." -ForegroundColor Green
-Start-Sleep -Seconds 1
+Start-Sleep -Seconds 5
 
 # ==========================================
 #        LAUNCH OGCWin MODE SELECTOR
