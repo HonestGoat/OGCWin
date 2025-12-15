@@ -122,6 +122,13 @@ function Test-ExclusionSet {
     return $existingExclusions -contains $path
 }
 
+# Function to refresh Environment Variables in the current session without restarting
+function Update-SessionEnvironment {
+    $machinePath = [System.Environment]::GetEnvironmentVariable("Path", "Machine")
+    $userPath = [System.Environment]::GetEnvironmentVariable("Path", "User")
+    $env:Path = $machinePath + ";" + $userPath
+}
+
 function Get-Url {
     param ($key)
     $configData = Get-Content -Path $script:urlsConfigPath | Where-Object { $_ -match "=" }
@@ -313,7 +320,10 @@ Start-Sleep -Seconds 2
 if (-not (Test-WinGet)) {
     Write-Host "WinGet is not installed. Attempting to install..." -ForegroundColor Yellow
     Install-WinGet
-    Start-Sleep -Seconds 5
+    Start-Sleep -Seconds 2
+    
+    Update-SessionEnvironment
+    Start-Sleep -Seconds 1
 
     if (-not (Test-WinGet)) {
         Write-Host "WinGet installation failed." -ForegroundColor Red
@@ -330,8 +340,9 @@ if (-not (Test-WinGet)) {
 # Fastfetch installation check
 if (-not (Get-Command "fastfetch" -ErrorAction SilentlyContinue)) {
     Write-Host "Fastfetch is not installed. Attempting to install..." -ForegroundColor Yellow
-    winget install --id Fastfetch-cli.Fastfetch --exact --silent --accept-package-agreements --accept-source-agreements --disable-interactivity
-    Start-Sleep -Seconds 5
+    winget install --id Fastfetch-cli.Fastfetch --exact --silent --accept-package-agreements --accept-source-agreements --disable-interactivity *>$null
+    Update-SessionEnvironment
+    Start-Sleep -Seconds 1
 
     if (-not (Get-Command "fastfetch" -ErrorAction SilentlyContinue)) {
         Write-Host "Fastfetch installation failed." -ForegroundColor Red
@@ -359,12 +370,5 @@ Start-Sleep -Seconds 1
 #        LAUNCH OGCWin MODE SELECTOR
 # ==========================================
 
-# Launch OGCWin mode selector in new window.
-Write-Host "Launching OGCWindows Utility..." -ForegroundColor Cyan
-Start-Sleep -Seconds 1
-Start-Process powershell.exe -Verb RunAs -WindowStyle Normal -ArgumentList "-ExecutionPolicy Bypass -NoProfile -NoExit -Command `" `
-    `$host.UI.RawUI.BackgroundColor = 'Black'; `
-    `$host.UI.RawUI.ForegroundColor = 'White'; `
-    `Clear-Host; `
-    `& '$scriptsFolder\OGCMode.ps1'`""
-exit
+Clear-Host
+& $ogcmode
