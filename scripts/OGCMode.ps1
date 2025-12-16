@@ -44,25 +44,23 @@ $configsFolder = Join-Path $parentFolder "configs"
 $scriptsFolder = Join-Path $parentFolder "scripts"
 $binDir = Join-Path $parentFolder "bin"
 $tempFolder = Join-Path $parentFolder "temp"
+$logFolder = Join-Path $parentFolder "logs"
 
 # Filename definitions
 $ogcWin = Join-Path $scriptsFolder "OGCWin.ps1"
 $ogcWiz11 = Join-Path $scriptsFolder "OGCWiz11.ps1"
 $sysInfo = Join-Path $scriptsFolder "sysinfo.ps1"
 $launchScript = Join-Path $scriptsFolder "launch.ps1"
+$logFile = Join-Path $logFolder "OGCWiz11_log.txt"
+$winVer = (Get-CimInstance Win32_OperatingSystem).Caption
 $versionLocal = "$configsFolder\version.cfg"
-
-# Update configurations
 $versionOnline = "https://raw.githubusercontent.com/HonestGoat/OGCWin/main/configs/version.cfg"
 
 # Validation Lists
 $RequiredScripts = @("OGCWin.ps1", "OGCWiz11.ps1", "sysinfo.ps1")
 
 # Folder structure
-$folders = @($parentFolder, $configsFolder, $scriptsFolder, $binDir, $tempFolder)
-
-# System Info
-$winVer = (Get-CimInstance Win32_OperatingSystem).Caption
+$folders = @($parentFolder, $configsFolder, $scriptsFolder, $binDir, $tempFolder, $logFolder)
 
 
 # ==========================================
@@ -76,6 +74,26 @@ function Show-Progress {
     for ($i = 1; $i -le 100; $i += 10) {
         Write-Progress -Activity $Message -Status "$i% Complete" -PercentComplete $i
         Start-Sleep -Milliseconds 300
+    }
+}
+
+function Write-Log {
+    param (
+        [string]$Message,
+        [string]$Type = "INFO"
+    )
+    # Create log folder if it doesn't exist
+    if (-not (Test-Path $logFolder)) { New-Item -Path $logFolder -ItemType Directory -Force | Out-Null }
+    
+    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+    $logEntry = "[$timestamp] [$Type] $Message"
+    
+    # Write to text file
+    Add-Content -Path $logFile -Value $logEntry -Force
+
+    # If it's an error, show a brief warning in console so you know something happened without spamming text
+    if ($Type -eq "ERROR") {
+        Write-Host "Error logged: $Message" -ForegroundColor Red
     }
 }
 
@@ -94,10 +112,17 @@ function Get-VersionNumber {
 
 # Ensure folders exist
 foreach ($folder in $folders) {
-    if (-not (Test-Path $folder)) { 
-        New-Item -Path $folder -ItemType Directory -Force | Out-Null 
+    try {
+        if (-not (Test-Path $folder)) { 
+            New-Item -Path $folder -ItemType Directory -Force | Out-Null 
+            Write-Log "Created directory: $folder"
+        }
+    } catch {
+        Write-Log "Failed to create directory $folder : $_" "ERROR"
     }
 }
+
+Write-Log "Starting OGCWin Mode Selector. Detected OS: $winVer"
 
 # Check for Critical Scripts
 $MissingScripts = $false
@@ -105,6 +130,7 @@ $MissingScripts = $false
 foreach ($s in $RequiredScripts) {
     if (-not (Test-Path (Join-Path $scriptsFolder $s))) {
         Write-Host "Missing critical script: $s" -ForegroundColor Yellow
+        Write-Log "Critical script missing: $s" "WARNING"
         $MissingScripts = $true
     }
 }
@@ -112,16 +138,27 @@ foreach ($s in $RequiredScripts) {
 # Repair Logic if scripts are missing
 if ($MissingScripts) {
     Write-Host "Installation incomplete or corrupt. Attempting repair..." -ForegroundColor Red
+    Write-Log "Missing scripts detected. Initiating repair." "WARNING"
     Start-Sleep -Seconds 2
     
     if (Test-Path $launchScript) {
         Write-Host "Launching local repair..." -ForegroundColor Cyan
-        & $launchScript
-        exit
+        try {
+            Write-Log "Launching local repair script."
+            & $launchScript
+            exit
+        } catch {
+            Write-Log "Failed to execute local repair script: $_" "ERROR"
+        }
     } else {
         Write-Host "Local repair script missing. Initiating full web reinstall..." -ForegroundColor Magenta
-        Invoke-Expression (Invoke-RestMethod "https://ogc.win")
-        exit
+        try {
+            Write-Log "Local repair missing. Starting web reinstall."
+            Invoke-Expression (Invoke-RestMethod "https://ogc.win")
+            exit
+        } catch {
+            Write-Log "Failed to initiate web reinstall: $_" "ERROR"
+        }
     }
 }
 
@@ -133,18 +170,27 @@ if (Test-Path $versionLocal) {
 }
 
 try {
-    $remoteVersion = Get-VersionNumber (Invoke-RestMethod -Uri $versionOnline -UseBasicParsing)
+    Write-Log "Checking for updates..."
+    $remoteVersion = Get-VersionNumber (Invoke-RestMethod -Uri $versionOnline -UseBasicParsing -ErrorAction Stop)
     
     if ($localVersion -lt $remoteVersion) {
         Write-Host "New version available ($remoteVersion). Updating..." -ForegroundColor Cyan
+        Write-Log "Update available: Local ($localVersion) < Remote ($remoteVersion). Updating."
         Start-Sleep -Seconds 2
-        & $launchScript
-        exit
+        
+        try {
+            & $launchScript
+            exit
+        } catch {
+            Write-Log "Failed to launch update script: $_" "ERROR"
+        }
     } else {
         Write-Host "OGCWin is up to date (Version $localVersion)." -ForegroundColor Green
+        Write-Log "OGCWin is up to date (Version $localVersion)."
     }
 } catch {
     Write-Host "Could not check for updates (Offline?). Skipping." -ForegroundColor DarkGray
+    Write-Log "Update check failed (Likely offline): $_" "WARNING"
 }
 
 
@@ -185,28 +231,54 @@ while ($true) {
     switch ($choice) {
         "1" { 
             Write-Host "Starting Utility..." -ForegroundColor Magenta
+            Write-Log "User selected Utility Mode."
             Start-Sleep -Seconds 1
-            & $ogcWin
+            try {
+                & $ogcWin
+            } catch {
+                Write-Log "Failed to launch OGCWin: $_" "ERROR"
+                Write-Host "Error launching OGCWin. Check logs." -ForegroundColor Red
+            }
         }
         "2" {
+            Write-Log "User selected Wizard Mode."
             if ($winVer -notmatch "Windows 11") {
                 Write-Host "WARNING: This wizard is optimized for Windows 11." -ForegroundColor Red
                 Write-Host "Running it on $winVer may cause issues or break features." -ForegroundColor Red
                 $confirm = Read-Host "Are you sure you want to proceed? (y/n)"
-                if ($confirm -ne "y") { continue }
+                if ($confirm -ne "y") { 
+                    Write-Log "User cancelled Wizard Mode due to OS warning."
+                    continue 
+                }
+                Write-Log "User proceeded with Wizard Mode despite OS warning." "WARNING"
             }
             Write-Host "Starting Wizard..." -ForegroundColor Magenta
             Start-Sleep -Seconds 1
-            & $ogcWiz11
+            try {
+                & $ogcWiz11
+            } catch {
+                Write-Log "Failed to launch OGCWiz11: $_" "ERROR"
+                Write-Host "Error launching Wizard. Check logs." -ForegroundColor Red
+            }
         }
         "3" {
             Start-Sleep -Seconds 1
-            & $sysInfo
+            Write-Log "User selected System Information."
+            try {
+                & $sysInfo
+            } catch {
+                Write-Log "Failed to launch SysInfo: $_" "ERROR"
+            }
             Write-Host ""
         }
-        "Q" { exit }
-        "q" { exit }
-        default { Write-Host "Invalid selection." -ForegroundColor Red; Start-Sleep -Seconds 1 }
+        "q" { 
+            Write-Log "User selected Quit."
+            exit 
+        }
+        default { 
+            Write-Host "Invalid selection." -ForegroundColor Red
+            Start-Sleep -Seconds 1 
+        }
     }
     Clear-Host
 }

@@ -1,7 +1,7 @@
 # ==========================================
 #        OGC Windows Utility Launcher
 #              By Honest Goat
-#               Version: 0.4
+#               Version: 0.5
 # ==========================================
 
 # Start with administrator privileges, bypass execution policy and force black background
@@ -62,6 +62,7 @@ $sysinfo = "$scriptsFolder\sysinfo.ps1"
 $progsavebackup = "$utilitiesFolder\progsave-backup.ps1"
 $emailBackup = "$utilitiesFolder\email-backup.ps1"
 $desktopLayout = "$utilitiesFolder\desktop-layout.ps1"
+$logFile = "$logFolder\OGCWiz11_log.txt"
 
 # Config URLs & Paths
 $urlsConfigPath = "$configsFolder\urls.cfg"
@@ -75,7 +76,7 @@ $xamlPath = "$downloadsFolder\Microsoft.UI.Xaml.2.8_8.2501.31001.0_x64.appx"
 
 # Desktop shortcut path and icon
 $desktopPath = [System.IO.Path]::Combine([System.Environment]::GetFolderPath("Desktop"), "OGC Windows Utility.lnk")
-$windowsIcon = "C:\Windows\System32\shell32.dll,272"
+$ogcIcon = "C:\Windows\System32\shell32.dll,272"
 
 # Folder structure
 $folders = @($parentFolder, $backupFolder, $registryBackup, $downloadsFolder, $configsFolder, $tempFolder, $scriptsFolder, $utilitiesFolder, $logFolder, $binDir, $desktopProfiles, $powerProfiles, $driverBackups)
@@ -94,8 +95,30 @@ function Show-Progress {
     }
 }
 
+function Write-Log {
+    param (
+        [string]$Message,
+        [string]$Type = "INFO"
+    )
+    # Create log folder if it doesn't exist
+    if (-not (Test-Path $logFolder)) { New-Item -Path $logFolder -ItemType Directory -Force | Out-Null }
+    
+    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+    $logEntry = "[$timestamp] [$Type] $Message"
+    
+    # Write to text file
+    Add-Content -Path $logFile -Value $logEntry -Force
+
+    # If it's an error, show a brief warning in console so you know something happened without spamming text
+    if ($Type -eq "ERROR") {
+        Write-Host "Error logged: $Message" -ForegroundColor Red
+    }
+}
+
 function Get-WindowsVersion {
     $winVer = (Get-CimInstance Win32_OperatingSystem).Caption
+    Write-Log "Detected OS: $winVer"
+    
     if ($winVer -match "Windows 10 Home" -or $winVer -match "Windows 10 Pro") {
         Write-Host "Windows 10 detected." -ForegroundColor Cyan
         Start-Sleep -Seconds 1
@@ -104,12 +127,15 @@ function Get-WindowsVersion {
         Write-Host "Continue at your own risk." -ForegroundColor Red
         Start-Sleep -Seconds 5
         Write-Host "Running in LEGACY mode..." -ForegroundColor Cyan
+        Write-Log "Running in LEGACY mode (Windows 10)."
         return "Windows10"
     } elseif ($winVer -match "Windows 11 Home" -or $winVer -match "Windows 11 Pro") {
         Write-Host "Running in Windows 11 mode." -ForegroundColor Cyan
+        Write-Log "Running in Windows 11 mode."
         return "Windows11"
     } else {
         Write-Host "Unsupported Windows Version. Exiting." -ForegroundColor Red
+        Write-Log "Unsupported Windows Version: $winVer. Exiting." "ERROR"
         Start-Sleep -Seconds 2
         exit
     }
@@ -124,27 +150,38 @@ function Test-ExclusionSet {
 
 # Function to refresh Environment Variables in the current session without restarting
 function Update-SessionEnvironment {
-    $machinePath = [System.Environment]::GetEnvironmentVariable("Path", "Machine")
-    $userPath = [System.Environment]::GetEnvironmentVariable("Path", "User")
-    $env:Path = $machinePath + ";" + $userPath
+    try {
+        $machinePath = [System.Environment]::GetEnvironmentVariable("Path", "Machine")
+        $userPath = [System.Environment]::GetEnvironmentVariable("Path", "User")
+        $env:Path = $machinePath + ";" + $userPath
+        Write-Log "Session environment variables updated."
+    } catch {
+        Write-Log "Failed to update session environment variables: $_" "ERROR"
+    }
 }
 
 function Get-Url {
     param ($key)
-    $configData = Get-Content -Path $script:urlsConfigPath | Where-Object { $_ -match "=" }
-    $urlMap = @{}
+    try {
+        $configData = Get-Content -Path $script:urlsConfigPath -ErrorAction Stop | Where-Object { $_ -match "=" }
+        $urlMap = @{}
 
-    foreach ($line in $configData) {
-        $parts = $line -split "=", 2
-        if ($parts.Count -eq 2) {
-            $urlMap[$parts[0].Trim()] = $parts[1].Trim()
+        foreach ($line in $configData) {
+            $parts = $line -split "=", 2
+            if ($parts.Count -eq 2) {
+                $urlMap[$parts[0].Trim()] = $parts[1].Trim()
+            }
         }
-    }
 
-    if ($urlMap.ContainsKey($key)) {
-        return $urlMap[$key]
-    } else {
-        Write-Host "Warning: URL key '$key' not found in urls.cfg" -ForegroundColor Red
+        if ($urlMap.ContainsKey($key)) {
+            return $urlMap[$key]
+        } else {
+            Write-Host "Warning: URL key '$key' not found in urls.cfg" -ForegroundColor Red
+            Write-Log "URL key '$key' not found in urls.cfg" "ERROR"
+            return $null
+        }
+    } catch {
+        Write-Log "Failed to read URLs config: $_" "ERROR"
         return $null
     }
 }
@@ -159,16 +196,23 @@ function Get-Scripts {
         "OGCWinBat" = $ogcwinbat
         "SysInfo" = $sysinfo
         "ProgSaveBackup" = $progsavebackup
-        "EmailBackup" = $emailbackup
+        "EmailBackup" = $emailBackup
         "DesktopLayout" = $desktopLayout
     }
 
     foreach ($script in $scripts.Keys) {
-        $scriptPath = $scripts[$script]
-        $scriptUrl = Get-Url $script
+        try {
+            $scriptPath = $scripts[$script]
+            $scriptUrl = Get-Url $script
 
-        # Always redownload and overwrite the scripts silently
-        Start-Process -FilePath "curl.exe" -ArgumentList "-s -L -o `"$scriptPath`" `"$scriptUrl`"" -WindowStyle Hidden -Wait
+            if ($scriptUrl) {
+                # Always redownload and overwrite the scripts silently
+                Start-Process -FilePath "curl.exe" -ArgumentList "-s -L -o `"$scriptPath`" `"$scriptUrl`"" -WindowStyle Hidden -Wait -ErrorAction Stop
+                Write-Log "Downloaded/Updated script: $script"
+            }
+        } catch {
+            Write-Log "Failed to download script '$script': $_" "ERROR"
+        }
     }
 }
 
@@ -181,13 +225,20 @@ function New-Shortcut {
         [string]$IconPath
     )
 
-    if (-Not (Test-Path $ShortcutPath)) {
-        $WScriptShell = New-Object -ComObject WScript.Shell
-        $Shortcut = $WScriptShell.CreateShortcut($ShortcutPath)
-        $Shortcut.TargetPath = $TargetPath
-        $Shortcut.Description = $Description
-        $Shortcut.IconLocation = $IconPath
-        $Shortcut.Save()
+    try {
+        if (-Not (Test-Path $ShortcutPath)) {
+            $WScriptShell = New-Object -ComObject WScript.Shell
+            $Shortcut = $WScriptShell.CreateShortcut($ShortcutPath)
+            $Shortcut.TargetPath = $TargetPath
+            $Shortcut.Description = $Description
+            $Shortcut.IconLocation = $IconPath
+            $Shortcut.Save()
+            Write-Log "Desktop shortcut created at $ShortcutPath"
+        } else {
+            Write-Log "Desktop shortcut already exists."
+        }
+    } catch {
+        Write-Log "Failed to create desktop shortcut: $_" "ERROR"
     }
 }
 
@@ -227,27 +278,42 @@ function Install-WinGet {
     # Install Microsoft.VCLibs
     if (-not (Test-AppxInstalled "Microsoft.VCLibs.140.00.UWPDesktop")) {
         Write-Host "Downloading and Installing Microsoft.VCLibs.140.00.UWPDesktop..." -ForegroundColor Yellow
-        Start-Process -FilePath "curl.exe" -ArgumentList "-L -o `"$script:vclibsPath`" `"$vclibsUrl`"" -NoNewWindow -Wait
-        Add-AppxPackage -Path $script:vclibsPath
+        try {
+            Start-Process -FilePath "curl.exe" -ArgumentList "-L -o `"$script:vclibsPath`" `"$vclibsUrl`"" -NoNewWindow -Wait -ErrorAction Stop
+            Add-AppxPackage -Path $script:vclibsPath -ErrorAction Stop
+            Write-Log "Installed Microsoft.VCLibs.140.00.UWPDesktop"
+        } catch {
+            Write-Log "Failed to install Microsoft.VCLibs: $_" "ERROR"
+        }
     }
 
     # Install Microsoft.UI.Xaml
     if (-not (Test-AppxInstalled "Microsoft.UI.Xaml.2.8")) {
         Write-Host "Downloading and Installing Microsoft.UI.Xaml.2.8..." -ForegroundColor Yellow
-        Start-Process -FilePath "curl.exe" -ArgumentList "-L -o `"$script:xamlPath`" `"$xamlUrl`"" -NoNewWindow -Wait
-        Add-AppxPackage -Path $script:xamlPath
+        try {
+            Start-Process -FilePath "curl.exe" -ArgumentList "-L -o `"$script:xamlPath`" `"$xamlUrl`"" -NoNewWindow -Wait -ErrorAction Stop
+            Add-AppxPackage -Path $script:xamlPath -ErrorAction Stop
+            Write-Log "Installed Microsoft.UI.Xaml.2.8"
+        } catch {
+            Write-Log "Failed to install Microsoft.UI.Xaml: $_" "ERROR"
+        }
     }
 
     # Install WinGet
     if (-not (Test-WinGet)) {
         Write-Host "Downloading and Installing WinGet..." -ForegroundColor Yellow
-        $latestRelease = Invoke-RestMethod -Uri $wingetApiUrl
-        $wingetAsset = $latestRelease.assets | Where-Object { $_.name -like "*.msixbundle" }
-        $wingetUrl = $wingetAsset.browser_download_url
-        $wingetPath = "$script:downloadsFolder\$($wingetAsset.name)"
+        try {
+            $latestRelease = Invoke-RestMethod -Uri $wingetApiUrl -ErrorAction Stop
+            $wingetAsset = $latestRelease.assets | Where-Object { $_.name -like "*.msixbundle" }
+            $wingetUrl = $wingetAsset.browser_download_url
+            $wingetPath = "$script:downloadsFolder\$($wingetAsset.name)"
 
-        Start-Process -FilePath "curl.exe" -ArgumentList "-L -o `"$wingetPath`" `"$wingetUrl`"" -NoNewWindow -Wait
-        Add-AppxPackage -Path $wingetPath
+            Start-Process -FilePath "curl.exe" -ArgumentList "-L -o `"$wingetPath`" `"$wingetUrl`"" -NoNewWindow -Wait -ErrorAction Stop
+            Add-AppxPackage -Path $wingetPath -ErrorAction Stop
+            Write-Log "Installed WinGet"
+        } catch {
+            Write-Log "Failed to install WinGet: $_" "ERROR"
+        }
     }
 
     # Confirm installations
@@ -255,9 +321,15 @@ function Install-WinGet {
         Test-AppxInstalled "Microsoft.UI.Xaml.2.8" -and `
         Test-WinGet) {
         Write-Host "All dependencies installed successfully." -ForegroundColor Green
-        Remove-Item -Path "$script:downloadsFolder\*" -Force -ErrorAction SilentlyContinue
+        try {
+            Remove-Item -Path "$script:downloadsFolder\*" -Force -ErrorAction SilentlyContinue
+            Write-Log "Cleaned up download folder."
+        } catch {
+            Write-Log "Failed to cleanup downloads folder: $_" "WARNING"
+        }
     } else {
         Write-Host "Some dependencies failed to install." -ForegroundColor Red
+        Write-Log "Dependency installation check failed." "ERROR"
     }
 }
 
@@ -280,32 +352,50 @@ Write-Color "        Created by Honest Goat         " -ForegroundColor Green
 Write-Color "=======================================" -ForegroundColor DarkBlue
 Start-Sleep -Seconds 1
 
+Write-Log "Starting OGCWin Utility Launcher Setup."
+
 # Check Windows Version
 Get-WindowsVersion | Out-Null
 
 # Ensure all necessary folders exist
 foreach ($folder in $folders) {
-    if (-not (Test-Path $folder)) { 
-        New-Item -Path $folder -ItemType Directory -Force | Out-Null 
+    try {
+        if (-not (Test-Path $folder)) { 
+            New-Item -Path $folder -ItemType Directory -Force | Out-Null 
+            Write-Log "Created directory: $folder"
+        }
+    } catch {
+        Write-Log "Failed to create directory $folder : $_" "ERROR"
     }
 }
 
 # Add Windows Defender exclusion for OGCWin parent folder only
 if (-Not (Test-ExclusionSet $parentFolder)) {
-    Add-MpPreference -ExclusionPath "$parentFolder" -ErrorAction SilentlyContinue
+    try {
+        Add-MpPreference -ExclusionPath "$parentFolder" -ErrorAction Stop
+        Write-Log "Added Windows Defender exclusion for $parentFolder"
+    } catch {
+        Write-Log "Failed to add Windows Defender exclusion: $_" "ERROR"
+    }
 }
 
 # Download config files (Always overwrite to ensure updates)
-if (Test-Path $urlsConfigPath) {
-    Write-Host "Updating OGCWin..." -ForegroundColor Yellow
-    Start-Process -FilePath "curl.exe" -ArgumentList "-s -L -o `"$urlsConfigPath`" `"$urlsConfigUrl`"" -NoNewWindow -Wait
-    Start-Process -FilePath "curl.exe" -ArgumentList "-s -L -o `"$versionLocal`" `"$versionOnline`"" -NoNewWindow -Wait
-} else {
-    Write-Host "Downloading OGCWin..." -ForegroundColor Yellow
-    Start-Process -FilePath "curl.exe" -ArgumentList "-s -L -o `"$urlsConfigPath`" `"$urlsConfigUrl`"" -NoNewWindow -Wait
-    Start-Process -FilePath "curl.exe" -ArgumentList "-s -L -o `"$versionLocal`" `"$versionOnline`"" -NoNewWindow -Wait
-    Start-Sleep -Seconds 1
-    Write-Host "Installing OGCWin..." -ForegroundColor Yellow
+try {
+    if (Test-Path $urlsConfigPath) {
+        Write-Host "Updating OGCWin..." -ForegroundColor Yellow
+        Start-Process -FilePath "curl.exe" -ArgumentList "-s -L -o `"$urlsConfigPath`" `"$urlsConfigUrl`"" -NoNewWindow -Wait -ErrorAction Stop
+        Start-Process -FilePath "curl.exe" -ArgumentList "-s -L -o `"$versionLocal`" `"$versionOnline`"" -NoNewWindow -Wait -ErrorAction Stop
+        Write-Log "Updated config files."
+    } else {
+        Write-Host "Downloading OGCWin..." -ForegroundColor Yellow
+        Start-Process -FilePath "curl.exe" -ArgumentList "-s -L -o `"$urlsConfigPath`" `"$urlsConfigUrl`"" -NoNewWindow -Wait -ErrorAction Stop
+        Start-Process -FilePath "curl.exe" -ArgumentList "-s -L -o `"$versionLocal`" `"$versionOnline`"" -NoNewWindow -Wait -ErrorAction Stop
+        Start-Sleep -Seconds 1
+        Write-Host "Installing OGCWin..." -ForegroundColor Yellow
+        Write-Log "Downloaded initial config files."
+    }
+} catch {
+    Write-Log "Failed to download config files: $_" "ERROR"
 }
 
 # Call function to update scripts
@@ -319,6 +409,7 @@ Start-Sleep -Seconds 2
 # Winget installation check
 if (-not (Test-WinGet)) {
     Write-Host "WinGet is not installed. Attempting to install..." -ForegroundColor Yellow
+    Write-Log "WinGet missing. Starting installation."
     Install-WinGet
     Start-Sleep -Seconds 2
     
@@ -330,29 +421,39 @@ if (-not (Test-WinGet)) {
         Write-Host "Please manually install WinGet from the Microsoft Store and retart the Utility." -ForegroundColor Red
         Write-Host "https://apps.microsoft.com/store/detail/9NBLGGH4NNS1" -ForegroundColor Magenta
         Write-Host "Exiting Utility..." -ForegroundColor Red
+        Write-Log "WinGet installation failed. Exiting." "ERROR"
         Start-Sleep -Seconds 3
         exit
     }
 } else {
     Write-Host "All required dependencies are already installed." -ForegroundColor Green
+    Write-Log "WinGet is already installed."
 }
 
 # Fastfetch installation check
-if (-not (Get-Command "fastfetch" -ErrorAction SilentlyContinue)) {
-    Write-Host "Fastfetch is not installed. Attempting to install..." -ForegroundColor Yellow
-    winget install --id Fastfetch-cli.Fastfetch --exact --silent --accept-package-agreements --accept-source-agreements --disable-interactivity *>$null
-    Update-SessionEnvironment
-    Start-Sleep -Seconds 1
-
+try {
     if (-not (Get-Command "fastfetch" -ErrorAction SilentlyContinue)) {
-        Write-Host "Fastfetch installation failed." -ForegroundColor Red
-        Write-Host "Please manually install Fastfetch and restart the Utility." -ForegroundColor Red
-        Write-Host "Exiting Utility..." -ForegroundColor Red
-        Start-Sleep -Seconds 3
-        exit
+        Write-Host "Fastfetch is not installed. Attempting to install..." -ForegroundColor Yellow
+        Write-Log "Fastfetch missing. Attempting install."
+        winget install --id Fastfetch-cli.Fastfetch --exact --silent --accept-package-agreements --accept-source-agreements --disable-interactivity *>$null
+        Update-SessionEnvironment
+        Start-Sleep -Seconds 1
+
+        if (-not (Get-Command "fastfetch" -ErrorAction SilentlyContinue)) {
+            Write-Host "Fastfetch installation failed." -ForegroundColor Red
+            Write-Host "Please manually install Fastfetch and restart the Utility." -ForegroundColor Red
+            Write-Host "Exiting Utility..." -ForegroundColor Red
+            Write-Log "Fastfetch installation failed. Exiting." "ERROR"
+            Start-Sleep -Seconds 3
+            exit
+        }
+        Write-Log "Fastfetch installed successfully."
+    } else {
+        Write-Host "Fastfetch is already installed." -ForegroundColor Green
+        Write-Log "Fastfetch is already installed."
     }
-} else {
-    Write-Host "Fastfetch is already installed." -ForegroundColor Green
+} catch {
+    Write-Log "Error during Fastfetch check/install: $_" "ERROR"
 }
 
 Write-Host "All dependencies installed." -ForegroundColor Green
@@ -360,10 +461,11 @@ Start-Sleep -Seconds 1
 Write-Host ""
 
 # Create the shortcut with the Blue Windows icon
-New-Shortcut -TargetPath $ogcwinbat -ShortcutPath $desktopPath -Description "Launch OGC Windows Utility" -IconPath $windowsIcon
+New-Shortcut -TargetPath $ogcwinbat -ShortcutPath $desktopPath -Description "Launch OGC Windows Utility" -IconPath $ogcIcon
 
 # Setup complete.
 Write-Host "OGCWin setup complete. In the future you can launch OGCWin from the desktop shortcut." -ForegroundColor Green
+Write-Log "OGCWin setup complete."
 Start-Sleep -Seconds 5
 
 # ==========================================
@@ -371,4 +473,11 @@ Start-Sleep -Seconds 5
 # ==========================================
 
 Clear-Host
-& $ogcmode
+try {
+    Write-Log "Launching OGCMode: $ogcmode"
+    & $ogcmode
+} catch {
+    Write-Log "Failed to launch OGCMode script: $_" "ERROR"
+    Write-Host "Failed to launch OGCMode. Please check logs." -ForegroundColor Red
+    Start-Sleep -Seconds 5
+}

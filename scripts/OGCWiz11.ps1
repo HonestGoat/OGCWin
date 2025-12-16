@@ -41,6 +41,9 @@ function Write-Color {
 $parentFolder = "C:\ProgramData\OGC Windows Utility"
 $configsFolder = Join-Path $parentFolder "configs"
 $scriptsFolder = Join-Path $parentFolder "scripts"
+$logFolder = Join-Path $parentFolder "logs"
+$oneDriveUserPath = "$env:UserProfile\OneDrive"
+
 
 # Configuration
 $ConfigPath = Join-Path $configsFolder "urls.cfg"
@@ -49,6 +52,8 @@ $Urls = @{}
 # Files and Shortcuts
 $ogcwinbat = Join-Path $parentFolder "OGCWin.bat"
 $desktopPath = [System.IO.Path]::Combine([System.Environment]::GetFolderPath("Desktop"), "OGC Windows Utility.lnk")
+$logFile = Join-Path $logFolder "OGCWiz11_log.txt"
+$onedriveLog = "$logFolder\OneDrive_log.txt"
 
 # ==========================================
 #             FUNCTIONS
@@ -65,6 +70,26 @@ function Show-Progress {
     Write-Host "`n[$Message Complete]" -ForegroundColor Green
 }
 
+# --- Logging Function ---
+function Write-Log {
+    param (
+        [Parameter(Mandatory=$true)] [string]$Message,
+        [Parameter(Mandatory=$true)] [ValidateSet("SUCCESS","FAILURE","INFO","WARNING")] [string]$Status,
+        [string]$Module = "General"
+    )
+    # Check dir exists
+    if (-not (Test-Path $logFolder)) { New-Item -Path $logFolder -ItemType Directory -Force | Out-Null }
+    # Build string
+    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+    $logEntry = "[$Status] [$timestamp] [$Module] $Message"
+    # Save to file
+    try { Add-Content -Path $logFile -Value $logEntry -Force -ErrorAction Stop }
+    catch { Write-Host "CRITICAL: Can't write to $logFile" -ForegroundColor Red }
+    # Alert console on issues
+    if ($Status -eq "FAILURE") { Write-Host "Error ($Module): $Message" -ForegroundColor Red }
+    elseif ($Status -eq "WARNING") { Write-Host "Warning ($Module): $Message" -ForegroundColor Yellow }
+}
+
 function Set-RegistryValue {
     param (
         [string]$Path,
@@ -74,8 +99,8 @@ function Set-RegistryValue {
     )
     
     # Normalize path: Convert "HKLM\Software" to "HKLM:\Software" for PowerShell
-    if ($Path -match "^HK(LM|CU|CR|U|CC)\") {
-        $Path = $Path -replace "^HK(LM|CU|CR|U|CC)\", "HK`$1:\" 
+    if ($Path -match "^HK(LM|CU|CR|U|CC)\\") {
+        $Path = $Path -replace "^HK(LM|CU|CR|U|CC)\\", "HK`$1:\" 
     }
 
     try {
@@ -92,7 +117,8 @@ function Set-RegistryValue {
         Set-ItemProperty -Path $Path -Name $Name -Value $Value -Type $Type -Force -ErrorAction Stop
     } catch {
         # Fallback to reg.exe if PowerShell fails
-        $regPath = $Path -replace "^HK(LM|CU|CR|U|CC):\", "HK$1\"
+        # FIX: Escaped trailing backslash in regex and escaped $1 in replacement string
+        $regPath = $Path -replace "^HK(LM|CU|CR|U|CC):\\", "HK`$1\"
         $regType = "REG_DWORD" # Default fallback
         if ($Type -eq "String") { $regType = "REG_SZ" }
         if ($Type -eq "Binary") { $regType = "REG_BINARY" }
@@ -184,22 +210,66 @@ function New-Shortcut {
     }
 }
 
+# ==========================================
+#             FUNCTIONS
+# ==========================================
+
 function New-RestorePoint {
     Write-Host "=======================================" -ForegroundColor Cyan
     Write-Host "       Creating System Restore Point   " -ForegroundColor Cyan
     Write-Host "=======================================" -ForegroundColor Cyan
+
     try {
-        # Check if System Restore is enabled
-        Get-ComputerRestorePoint -LastStatus -ErrorAction SilentlyContinue | Out-Null
+        # Check if running in a VM
+        $sysInfo = Get-CimInstance -ClassName Win32_ComputerSystem
+        $isVM = $sysInfo.Model -match "Virtual|VMware|VirtualBox|Hyper-V|KVM"
         
-        # Attempt to create
+        if ($isVM) {
+            Write-Host "Notice: Virtual Machine environment detected." -ForegroundColor Yellow
+        }
+
+        # Check if System Restore is enabled on C:, if not, enable it
+        $restoreStatus = Get-ComputerRestorePoint -ErrorAction SilentlyContinue
+        if (-not $restoreStatus) {
+            Write-Host "System Restore is currently disabled. Attempting to enable..." -ForegroundColor Yellow
+            Enable-ComputerRestore -Drive "C:\" -ErrorAction Stop
+            Write-Host "Success: System Restore enabled." -ForegroundColor Green
+        }
+        
+        # Attempt to create restore point
         Checkpoint-Computer -Description "OGC Wizard Pre-Cleanup" -RestorePointType "MODIFY_SETTINGS" -ErrorAction Stop
+        
+        # Verify success
         Write-Host "Success: Restore point 'OGC Wizard Pre-Cleanup' created." -ForegroundColor Green
+        Add-Content -Path $logFile -Value "$(Get-Date) - INFO: System Restore Point created successfully." -ErrorAction SilentlyContinue
+
     } catch {
-        Write-Host "WARNING: Could not create a System Restore Point." -ForegroundColor Yellow
-        Write-Host "Ensure System Restore is enabled on your C: drive." -ForegroundColor Yellow
-        Write-Host "Error Details: $_" -ForegroundColor Red
-        Start-Sleep -Seconds 2
+        $errorMessage = $_.Exception.Message
+        Write-Host "WARNING: Could not create a System Restore Point." -ForegroundColor Red
+        Write-Host "Error Details: $errorMessage" -ForegroundColor Yellow
+        
+        # Log the error
+        Add-Content -Path $logFile -Value "$(Get-Date) - ERROR: Failed to create Restore Point. Details: $errorMessage" -ErrorAction SilentlyContinue
+        
+        # Ask user how to proceed
+        Write-Host ""
+        Write-Host "Would you like to continue anyway? (Y/N)" -ForegroundColor White
+        $response = Read-Host "Choice"
+
+        if ($response -match "N|n") {
+            Write-Host "Aborting operation and returning to menu..." -ForegroundColor Red
+            Start-Sleep -Seconds 2
+            if (Test-Path $ogcmode) {
+                & $ogcmode
+                exit # Ensure the script stops here
+            } else {
+                Write-Host "Error: Could not find OGCMode.ps1 at $ogcmode" -ForegroundColor Red
+                return
+            }
+        } else {
+            Write-Host "User opted to continue without a Restore Point..." -ForegroundColor Gray
+            Add-Content -Path $logFile -Value "$(Get-Date) - WARNING: User opted to continue without Restore Point." -ErrorAction SilentlyContinue
+        }
     }
     Write-Host ""
 }
@@ -479,7 +549,7 @@ function Invoke-BloatwareRemoval {
             "Microsoft.MicrosoftSolitaireCollection", "Microsoft.MicrosoftStickyNotes", "Microsoft.MicrosoftWhiteboard",
             "Microsoft.MixedReality.Portal", "Microsoft.News", "Microsoft.Office.OneNote", "Microsoft.OneConnect",
             "Microsoft.OneNote", "Microsoft.Paint3D", "Microsoft.People", "Microsoft.Print3D", "Microsoft.ScreenSketch",
-            "Microsoft.SkypeApp", "Microsoft.Todos", "Microsoft.Wallet", "Microsoft.WindowsAlarms", "Microsoft.WindowsCamera",
+            "Microsoft.SkypeApp", "Microsoft.Todos", "Microsoft.WindowsAlarms", "Microsoft.WindowsCamera",
             "Microsoft.WindowsFeedbackHub", "Microsoft.WindowsMaps", "Microsoft.WindowsSoundRecorder", "Microsoft.WindowsCommunicationsApps"
         )
 
@@ -537,146 +607,369 @@ function Invoke-YourPhoneSetup {
     }
 }
 
+# ==========================================
+#             FUNCTIONS
+# ==========================================
+
 function Invoke-XboxSetup {
-    $requiredXboxApps = @{
-        "Microsoft.Xbox.TCUI" = "Microsoft.Xbox.TCUI"; "Microsoft.XboxApp" = "Microsoft.XboxApp"
-        "Microsoft.XboxGameOverlay" = "Microsoft.XboxGameOverlay"; "Microsoft.XboxGamingOverlay" = "Microsoft.XboxGamingOverlay"
-        "Microsoft.XboxIdentityProvider" = "Microsoft.XboxIdentityProvider"; "Microsoft.XboxSpeechToTextOverlay" = "Microsoft.XboxSpeechToTextOverlay"
-        "Microsoft.XboxConsoleCompanion" = "Microsoft.XboxConsoleCompanion"; "Microsoft.GamingApp" = "9MWPM2CQNLHN"
-        "Microsoft.GamingServices" = "9NZKPSTSNW4P"
+    Write-Host "Initializing Xbox Services..." -ForegroundColor Cyan
+    $ErrorActionPreference = "Stop"
+    $mod = "XboxSetup"
+
+    # App Definitions
+    $coreApps = @{
+        "Microsoft.XboxIdentityProvider" = "Microsoft.XboxIdentityProvider"; "Microsoft.Xbox.TCUI" = "Microsoft.Xbox.TCUI"
+        "Microsoft.GamingServices" = "9NZKPSTSNW4P"; "Microsoft.GamingApp" = "9MWPM2CQNLHN"
+    }
+    $barApps = @{
+        "Microsoft.XboxGamingOverlay" = "9NMPJ99VJMLH"; "Microsoft.XboxGameOverlay" = "Microsoft.XboxGameOverlay"
+        "Microsoft.XboxSpeechToTextOverlay" = "Microsoft.XboxSpeechToTextOverlay"
     }
 
-    $anyXboxInstalled = $false
-    foreach ($app in $requiredXboxApps.Keys) { if (Test-AppInstallation $app) { $anyXboxInstalled = $true; break } }
+    # -- Internal Helpers --
 
-    $useXbox = Read-Host "Do you want to use Xbox features, including Game Pass and Windows Game Bar? (y/n)"
+    function Test-XboxAppInstalled { param([string]$Name) return [bool](Get-AppxPackage -Name $Name -ErrorAction SilentlyContinue) }
 
-    if ($useXbox -match "^[Nn]$") {
-        if ($anyXboxInstalled) {
-            Write-Host "Removing all Xbox apps and features..." -ForegroundColor Magenta
-            $xboxProcesses = @("GameBar", "XboxApp", "XboxGameOverlay", "GamingServices")
-            foreach ($proc in $xboxProcesses) { Stop-Process -Name $proc -Force -ErrorAction SilentlyContinue }
-            Get-Service -Name "*Xbox*" | Stop-Service -Force -ErrorAction SilentlyContinue
-            Get-Service -Name "*GamingServices*" | Stop-Service -Force -ErrorAction SilentlyContinue
-
-            foreach ($app in $requiredXboxApps.Keys) { Remove-AppxPackageAllUsers $app }
-
-            $xboxRegistryKeys = @("HKCU\Software\Microsoft\Xbox", "HKCU\Software\Microsoft\GamingServices", "HKLM\Software\Microsoft\GamingServices", "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\GameDVR", "HKCU\Software\Microsoft\GameBar")
-            foreach ($key in $xboxRegistryKeys) { reg delete $key /f 2>$null }
-
-            schtasks /Delete /TN "Microsoft\XblGameSave\XblGameSaveTask" /F 2>$null
-            schtasks /Delete /TN "Microsoft\Xbox\XblGameSaveTask" /F 2>$null
-            schtasks /Delete /TN "Microsoft\Xbox\XblNetworkMonitorTask" /F 2>$null
-
-            $xboxFolders = @(
-                "$env:LOCALAPPDATA\Packages\Microsoft.XboxApp*", "$env:LOCALAPPDATA\Microsoft\XboxGameOverlay",
-                "$env:LOCALAPPDATA\Microsoft\Xbox", "$env:ProgramData\Microsoft\Xbox", "$env:APPDATA\Microsoft\Xbox",
-                "$env:ProgramFiles\WindowsApps\Microsoft.XboxGamingOverlay*", "$env:ProgramFiles\WindowsApps\Microsoft.XboxGameOverlay*",
-                "$env:ProgramFiles\WindowsApps\Microsoft.GamingApp*"
-            )
-            foreach ($folder in $xboxFolders) { Remove-Item -Path $folder -Recurse -Force -ErrorAction SilentlyContinue }
-
-            Get-Service -Name "*Xbox*" | Set-Service -StartupType Disabled
-            Get-Service -Name "*GamingServices*" | Set-Service -StartupType Disabled
-            Write-Host "ALL Xbox apps, services, and features have been **COMPLETELY REMOVED**!" -ForegroundColor Green
-        } else {
-             Write-Host "Xbox features were already removed." -ForegroundColor Cyan
+    function Install-XboxApp {
+        param([string]$Name, [string]$ID)
+        Write-Host "Processing: $Name..." -ForegroundColor DarkGray
+        
+        if (Test-XboxAppInstalled $Name) {
+            Write-Log -Message "$Name is already good to go." -Status "INFO" -Module $mod
+            return
         }
-    } else {
-        Write-Host "Checking for missing Xbox features and installing them if needed..." -ForegroundColor Cyan
-        if (-not (Test-AppInstallation "Microsoft.WindowsStore")) {
-             Write-Host "Microsoft Store is missing! Reinstalling it first..." -ForegroundColor Yellow
-             Get-AppxPackage -AllUsers | Where-Object {$_.Name -like "Microsoft.WindowsStore"} | Foreach-Object {Add-AppxPackage -DisableDevelopmentMode -Register "$($_.InstallLocation)\AppxManifest.xml"}
-             Start-Sleep -Seconds 5
-        }
-        foreach ($app in $requiredXboxApps.Keys) {
-            if (-not (Test-AppInstallation $app)) {
-                Write-Host "Installing missing Xbox feature: $app ..." -ForegroundColor Magenta
-                Try {
-                    $appLocation = (Get-AppxPackage -AllUsers | Where-Object { $_.Name -eq $app }).InstallLocation
-                    if ($appLocation) { Add-AppxPackage -DisableDevelopmentMode -Register "$appLocation\AppxManifest.xml" } else { Throw "Loc not found" }
-                } Catch {
-                    $wingetID = $requiredXboxApps[$app]
-                    Try {
-                        if ($wingetID -match "^[0-9A-Z]{12}$") { Start-Process -FilePath "ms-windows-store://pdp/?productid=$wingetID" } 
-                        else { winget install --id "$wingetID" --silent --accept-package-agreements --accept-source-agreements }
-                    } Catch { Start-Process -FilePath "ms-windows-store://pdp/?productid=$wingetID" }
-                }
+
+        # Method 1: Local Registration (Offline)
+        try {
+            $pkg = Get-AppxPackage -AllUsers -Name $Name -ErrorAction SilentlyContinue
+            if ($pkg) {
+                Add-AppxPackage -Register "$($pkg.InstallLocation)\AppxManifest.xml" -DisableDevelopmentMode -ForceApplicationShutdown
+                Write-Host "  -> Found local files and hooked them up." -ForegroundColor Green
+                Write-Log -Message "Restored $Name from local files." -Status "SUCCESS" -Module $mod
+                return
             }
+        } catch { Write-Log -Message "Couldn't restore $Name locally. Trying download..." -Status "WARNING" -Module $mod }
+
+        # Method 2: Winget Download (Silent)
+        try {
+            if ($ID -match "^[0-9A-Z]{12}$") {
+                Write-Host "  -> Downloading fresh copy (Silent)..." -ForegroundColor Yellow
+                Start-Process -FilePath "winget" -ArgumentList "install --id $ID --source msstore --accept-package-agreements --accept-source-agreements --silent" -Wait -NoNewWindow
+                
+                if (Test-XboxAppInstalled $Name) {
+                    Write-Host "  -> Install success." -ForegroundColor Green
+                    Write-Log -Message "Freshly installed $Name from server." -Status "SUCCESS" -Module $mod
+                } else { throw "Download finished but app is missing." }
+            } else {
+                Write-Host "  -> No download ID available." -ForegroundColor Red
+                Write-Log -Message "Skipped download for $Name (No ID)." -Status "FAILURE" -Module $mod
+            }
+        } catch {
+            Write-Host "  -> Failed to install." -ForegroundColor Red
+            Write-Log -Message "Could not install $Name. $_" -Status "FAILURE" -Module $mod
         }
-        Get-Service -Name "*Xbox*" | Set-Service -StartupType Automatic -ErrorAction SilentlyContinue
-        try { Get-Service -Name "*GamingServices*" | Set-Service -StartupType Automatic -ErrorAction Stop } catch {}
-        Write-Host "Xbox features are installed and enabled." -ForegroundColor Green
     }
-}
+
+    function Remove-XboxApp {
+        param([string]$Name)
+        try {
+            if (Test-XboxAppInstalled $Name) {
+                Get-AppxPackage -AllUsers -Name $Name | Remove-AppxPackage -AllUsers -ErrorAction SilentlyContinue
+                Write-Host "  -> Trashed: $Name" -ForegroundColor Magenta
+                Write-Log -Message "Removed $Name." -Status "SUCCESS" -Module $mod
+            }
+        } catch { Write-Log -Message "Had trouble removing $Name." -Status "FAILURE" -Module $mod }
+    }
+
+    # -- Phase 1: Core Services --
+    Write-Host "`n--- PHASE 1: Core Xbox & Gaming Services ---" -ForegroundColor White
+    Write-Host "Required for Game Pass and logging into games." -ForegroundColor Gray
+    
+    if ((Read-Host "Install/Keep Core Xbox Services? (y/n)") -match "^[Yy]") {
+        Write-Log -Message "User chose to keep Core Services." -Status "INFO" -Module $mod
+        
+        # Start Services
+        Write-Host "Revving up services..." -ForegroundColor Cyan
+        try {
+            $svcs = "GamingServices*", "XboxGipSvc", "XboxNetApiSvc", "XblAuthManager", "XblGameSave"
+            Get-Service -Name $svcs -ErrorAction SilentlyContinue | Set-Service -StartupType Automatic
+            Get-Service -Name $svcs -ErrorAction SilentlyContinue | Start-Service
+            Write-Log -Message "Core services running." -Status "SUCCESS" -Module $mod
+        } catch { Write-Log -Message "Hiccup starting core services." -Status "WARNING" -Module $mod }
+
+        # Install Apps
+        foreach ($k in $coreApps.Keys) { Install-XboxApp -Name $k -ID $coreApps[$k] }
+
+    } else {
+        Write-Log -Message "User chose to kill Core Services." -Status "INFO" -Module $mod
+        Write-Host "Nuking Core Features..." -ForegroundColor Magenta
+
+        # Stop Services
+        $svcs = "GamingServices", "GamingServicesNet", "XboxGipSvc", "XboxNetApiSvc", "XblAuthManager", "XblGameSave"
+        foreach ($s in $svcs) { 
+            try { Stop-Service $s -Force -EA 0; Set-Service $s -StartupType Disabled -EA 0 } catch {} 
+        }
+
+        # Remove Apps & Clean Up
+        foreach ($k in $coreApps.Keys) { Remove-XboxApp -Name $k }
+        
+        $regs = "HKCU\Software\Microsoft\Xbox", "HKCU\Software\Microsoft\GamingServices", "HKLM\SOFTWARE\Microsoft\GamingServices"
+        foreach ($r in $regs) { try { Remove-Item "Registry::$r" -Recurse -Force -EA 0 } catch {} }
+        
+        $dirs = "$env:LOCALAPPDATA\Packages\Microsoft.GamingApp*", "$env:LOCALAPPDATA\Microsoft\Xbox", "$env:ProgramData\Microsoft\Xbox"
+        foreach ($d in $dirs) { if (Test-Path $d) { Remove-Item $d -Recurse -Force -EA 0 } }
+    }
+
+    # -- Phase 2: Game Bar --
+    Write-Host "`n--- PHASE 2: Game Bar & Overlays ---" -ForegroundColor White
+    Write-Host "The 'Win+G' overlay and screen recorder." -ForegroundColor Gray
+
+    if ((Read-Host "Install/Keep Game Bar? (y/n)") -match "^[Yy]") {
+        Write-Log -Message "User chose to keep Game Bar." -Status "INFO" -Module $mod
+        
+        # Enable Reg
+        try {
+            New-ItemProperty "HKCU\Software\Microsoft\Windows\CurrentVersion\GameDVR" -Name "AppCaptureEnabled" -Value 1 -PropertyType DWORD -Force -EA 0 | Out-Null
+            New-ItemProperty "HKCU\System\GameConfigStore" -Name "GameDVR_Enabled" -Value 1 -PropertyType DWORD -Force -EA 0 | Out-Null
+            Write-Log -Message "GameDVR turned on in registry." -Status "SUCCESS" -Module $mod
+        } catch { Write-Log -Message "Couldn't flip GameDVR registry switch." -Status "FAILURE" -Module $mod }
+
+        foreach ($k in $barApps.Keys) { Install-XboxApp -Name $k -ID $barApps[$k] }
+
+    } else {
+        Write-Log -Message "User chose to kill Game Bar." -Status "INFO" -Module $mod
+        Write-Host "Removing Game Bar..." -ForegroundColor Magenta
+
+        # Disable Reg
+        try {
+            New-ItemProperty "HKCU\Software\Microsoft\Windows\CurrentVersion\GameDVR" -Name "AppCaptureEnabled" -Value 0 -PropertyType DWORD -Force -EA 0 | Out-Null
+            New-ItemProperty "HKCU\System\GameConfigStore" -Name "GameDVR_Enabled" -Value 0 -PropertyType DWORD -Force -EA 0 | Out-Null
+        } catch {}
+
+        foreach ($k in $barApps.Keys) { Remove-XboxApp -Name $k }
+
+        $regs = "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\GameDVR", "HKCU\Software\Microsoft\GameBar"
+        foreach ($r in $regs) { try { Remove-Item "Registry::$r" -Recurse -Force -EA 0 } catch {} }
+    }
+
+    Write-Host "`nXbox settings updated." -ForegroundColor Green
+    Write-Log -Message "Xbox setup finished." -Status "INFO" -Module $mod
+    Start-Sleep -Seconds 2
+}    
 
 function Invoke-OneDriveRemoval {
-    $removeOneDrive = Read-Host "Do you want to completely remove Microsoft OneDrive? [Recommended] (y/n)"
-    if ($removeOneDrive -eq "y") {
-        Write-Host "FORCEFULLY REMOVING MICROSOFT ONEDRIVE..." -ForegroundColor Magenta
-        Stop-Process -Name "OneDrive" -Force -ErrorAction SilentlyContinue
-        Stop-Process -Name "explorer" -Force -ErrorAction SilentlyContinue
-        Start-Sleep -Seconds 2
+    
+    
+    # Check if OneDrive is effectively installed (Folder exists or Process exists)
+    $isInstalled = (Test-Path $oneDriveUserPath) -or (Get-Process "OneDrive" -ErrorAction SilentlyContinue)
 
-        $oneDriveExecutables = @("$env:SystemRoot\System32\OneDriveSetup.exe", "$env:SystemRoot\SysWOW64\OneDriveSetup.exe")
-        $oneDriveUninstalled = $false
-        foreach ($exe in $oneDriveExecutables) {
-            if (Test-Path $exe) {
-                try { Start-Process -FilePath $exe -ArgumentList "/uninstall" -NoNewWindow -Wait -WindowStyle Hidden -ErrorAction Stop; $oneDriveUninstalled=$true; break } catch {}
-            }
+    if ($isInstalled) {
+        # --- REMOVAL MODE ---
+        Write-Color "Microsoft OneDrive detected." "Cyan"
+        $choice = Read-Host "Do you want to copy your personal files to local folders and forcefully REMOVE OneDrive? (y/n)"
+        if ($choice -ne "y") { return }
+
+        Write-Color "INITIALIZING REMOVAL PROTOCOL..." "Magenta"
+        Write-Log "Starting OneDrive Removal Protocol." "INFO"
+
+        # 1. Stop Processes (Forcefully)
+        Write-Color "Stopping OneDrive and Explorer services to release file locks..." "Yellow"
+        Write-Log "Terminating processes." "INFO"
+        
+        try {
+            Stop-Process -Name "OneDrive" -Force -ErrorAction SilentlyContinue
+            taskkill /F /IM OneDrive.exe > $null 2>&1
+            Stop-Process -Name "explorer" -Force -ErrorAction SilentlyContinue
+            Start-Sleep -Seconds 3
+        } catch {
+            Write-Log "Error stopping processes: $_" "ERROR"
         }
-        if (-not $oneDriveUninstalled) { try { winget uninstall --id Microsoft.OneDrive --silent --accept-package-agreements --accept-source-agreements > $null 2>&1 } catch {} }
-        Remove-AppxPackageAllUsers "Microsoft.OneDrive"
 
-        # Backup files
-        $oneDriveUserFolder = "$env:UserProfile\OneDrive"
-        $backupFolder = "$env:UserProfile\Onedrive Files"
-        if (Test-Path $oneDriveUserFolder) {
-            $oneDriveSubfolders = @("Attachments", "Desktop", "Documents", "Downloads", "Music", "Pictures", "Videos")
-            foreach ($folder in $oneDriveSubfolders) {
-                $sourcePath = "$oneDriveUserFolder\$folder"; $destinationPath = "$env:UserProfile\$folder"
-                if (Test-Path $sourcePath) {
-                    New-Item -Path $destinationPath -ItemType Directory -Force | Out-Null
-                    robocopy "$sourcePath" "$destinationPath" /E /MOVE /COPY:DAT /R:3 /W:3 /NFL /NDL /NJH /NJS
+        # 2. Data Migration (Robocopy Copy Mode)
+        Write-Color "Migrating files to local user folders..." "Cyan"
+        
+        $migrationSuccess = $true
+        
+        # Physical folder mapping for Migration (Source -> Destination)
+        # We only move the actual data containers here, registry names are handled later.
+        $physicalFolderMap = @{
+            "Desktop"   = "$env:UserProfile\Desktop"
+            "Documents" = "$env:UserProfile\Documents"
+            "Pictures"  = "$env:UserProfile\Pictures"
+            "Music"     = "$env:UserProfile\Music"
+            "Videos"    = "$env:UserProfile\Videos"
+            "Downloads" = "$env:UserProfile\Downloads"
+        }
+
+        # Backup leftovers location
+        $leftoverBackup = "$backupFolder\Onedrive Files"
+        if (!(Test-Path $leftoverBackup)) { New-Item -Path $leftoverBackup -ItemType Directory -Force | Out-Null }
+
+        foreach ($folderName in $physicalFolderMap.Keys) {
+            $source = "$oneDriveUserPath\$folderName"
+            $dest = $physicalFolderMap[$folderName]
+
+            if (Test-Path $source) {
+                Write-Host "Migrating $folderName..." -ForegroundColor Gray
+                Write-Log "Robocopy Start: $source -> $dest" "INFO"
+                
+                # Create destination if missing
+                if (!(Test-Path $dest)) { New-Item -Path $dest -ItemType Directory -Force | Out-Null }
+
+                # Robocopy /E (Recurse) /COPY:DAT (Data/Attributes/Time) /R:3 /W:3 (Retry/Wait) /NP (No Progress) /NFL /NDL (No File/Dir List)
+                $proc = Start-Process -FilePath "robocopy.exe" -ArgumentList "`"$source`" `"$dest`" /E /COPY:DAT /R:3 /W:3 /NP /NFL /NDL" -NoNewWindow -PassThru -Wait
+                
+                # Robocopy Exit Codes: 0-7 are success/partial success. 8+ is failure.
+                if ($proc.ExitCode -ge 8) {
+                    Write-Color "CRITICAL ERROR COPYING $folderName. Aborting." "Red"
+                    Write-Log "Robocopy Failed for $folderName. Exit Code: $($proc.ExitCode)" "ERROR"
+                    $migrationSuccess = $false
+                    break
                 }
             }
-            if ((Get-ChildItem -Path $oneDriveUserFolder -Recurse -ErrorAction SilentlyContinue).Count -gt 0) {
-                New-Item -Path $backupFolder -ItemType Directory -Force | Out-Null
-                robocopy "$oneDriveUserFolder" "$backupFolder" /E /MOVE /COPY:DAT /R:3 /W:3 /NFL /NDL /NJH /NJS
+        }
+
+        # 3. Handle Leftovers
+        if ($migrationSuccess) {
+            Write-Host "Backing up remaining OneDrive files..." -ForegroundColor Gray
+            Write-Log "Scanning for leftovers in root OneDrive folder." "INFO"
+            
+            # Get all items in OneDrive root that match the known folder names so we can EXCLUDE them
+            $excludedNames = $physicalFolderMap.Keys
+            
+            # Robocopy Root -> Backup, excluding the standard folders we already moved
+            $argsList = "`"$oneDriveUserPath`" `"$leftoverBackup`" /E /COPY:DAT /XD $($excludedNames -join ' ') /R:3 /W:3 /NP /NFL /NDL"
+            $proc = Start-Process -FilePath "robocopy.exe" -ArgumentList $argsList -NoNewWindow -PassThru -Wait
+            
+            if ($proc.ExitCode -ge 8) {
+                Write-Color "Error backing up leftover files." "Red"
+                Write-Log "Robocopy Leftovers Failed. Exit Code: $($proc.ExitCode)" "ERROR"
+                $migrationSuccess = $false
             }
         }
 
-        # Cleanup
-        $oneDriveFolders = @("$oneDriveUserFolder", "$env:LocalAppData\Microsoft\OneDrive", "$env:ProgramData\Microsoft OneDrive", "$env:SystemDrive\OneDriveTemp")
-        foreach ($folder in $oneDriveFolders) { if (Test-Path $folder) { Remove-Item -Path $folder -Recurse -Force -ErrorAction SilentlyContinue } }
-
-        reg delete "HKEY_CLASSES_ROOT\CLSID\{018D5C66-4533-4307-9B53-224DE2ED1FE6}" /f 2>$null
-        reg delete "HKEY_CLASSES_ROOT\Wow6432Node\CLSID\{018D5C66-4533-4307-9B53-224DE2ED1FE6}" /f 2>$null
-        reg delete "HKCU\Software\Microsoft\OneDrive" /f 2>$null
-        reg delete "HKLM\Software\Microsoft\OneDrive" /f 2>$null
-        Set-RegistryValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\OneDrive" -Name "DisableFileSyncNGSC" -Value 1
-
-        schtasks /Delete /TN "OneDrive Standalone Update Task-S-1-5-21" /F 2>$null
-        schtasks /Delete /TN "OneDrive Per-Machine Standalone Update Task" /F 2>$null
-        reg delete "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v "OneDrive" /f 2>$null
-
-        # Restore Shell Folders
-        $registryPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders"
-        $folders = @{
-            "Desktop"="$env:USERPROFILE\Desktop"; "Documents"="$env:USERPROFILE\Documents"; "Personal"="$env:USERPROFILE\Documents"
-            "Downloads"="$env:USERPROFILE\Downloads"; "Music"="$env:USERPROFILE\Music"; "My Music"="$env:USERPROFILE\Music"
-            "Pictures"="$env:USERPROFILE\Pictures"; "My Pictures"="$env:USERPROFILE\Pictures"; "Videos"="$env:USERPROFILE\Videos"; "My Video"="$env:USERPROFILE\Videos"
+        # 4. Verification and Revert/Commit
+        if (-not $migrationSuccess) {
+            Write-Color "DATA MIGRATION FAILED. REVERTING CHANGES..." "Red"
+            Write-Log "Migration failed. Restarting Explorer. No uninstalls performed." "CRITICAL"
+            Start-Process "explorer.exe"
+            Write-Host "Explorer restarted. OneDrive was NOT removed to ensure data safety." -ForegroundColor Yellow
+            Write-Host "Check logs at: $onedriveLog" -ForegroundColor Yellow
+            return
         }
-        foreach ($folder in $folders.Keys) {
-            $defaultPath = $folders[$folder]
+
+        Write-Color "Data migration verified successfully." "Green"
+        Write-Log "Data migration success. Proceeding to Uninstall." "INFO"
+
+        # 5. Update Registry (Shell Folders)
+        Write-Host "Restoring Windows Shell Folders to defaults..." -ForegroundColor Cyan
+        $regPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders"
+        
+        # Extended list of registry keys including legacy names
+        $shellFolders = @{
+            "Desktop"     = "$env:USERPROFILE\Desktop"
+            "Documents"   = "$env:USERPROFILE\Documents"
+            "Personal"    = "$env:USERPROFILE\Documents"
+            "Downloads"   = "$env:USERPROFILE\Downloads"
+            "Music"       = "$env:USERPROFILE\Music"
+            "My Music"    = "$env:USERPROFILE\Music"
+            "Pictures"    = "$env:USERPROFILE\Pictures"
+            "My Pictures" = "$env:USERPROFILE\Pictures"
+            "Videos"      = "$env:USERPROFILE\Videos"
+            "My Video"    = "$env:USERPROFILE\Videos"
+        }
+
+        foreach ($key in $shellFolders.Keys) {
+            $defaultPath = $shellFolders[$key]
+            # Ensure the target path exists before setting registry
             if (!(Test-Path $defaultPath)) { New-Item -Path $defaultPath -ItemType Directory -Force | Out-Null }
-            Set-ItemProperty -Path $registryPath -Name $folder -Value $defaultPath -Force
+            
+            Set-ItemProperty -Path $regPath -Name $key -Value $defaultPath -Force -ErrorAction SilentlyContinue
         }
 
-        Write-Host "ONEDRIVE HAS BEEN COMPLETELY REMOVED!" -ForegroundColor Green
-        Start-Sleep -Seconds 2
+        # 6. Uninstall and Cleanup
+        Write-Host "Uninstalling OneDrive application..." -ForegroundColor Cyan
+        
+        $uninstallStrings = @(
+            "$env:SystemRoot\System32\OneDriveSetup.exe",
+            "$env:SystemRoot\SysWOW64\OneDriveSetup.exe"
+        )
+        foreach ($exe in $uninstallStrings) {
+            if (Test-Path $exe) {
+                Start-Process -FilePath $exe -ArgumentList "/uninstall" -NoNewWindow -Wait -WindowStyle Hidden -ErrorAction SilentlyContinue
+            }
+        }
+        
+        # Winget / Appx cleanup
+        try { winget uninstall --id Microsoft.OneDrive --silent --accept-package-agreements --accept-source-agreements > $null 2>&1 } catch {}
+        Remove-AppxPackageAllUsers "Microsoft.OneDrive"
+
+        # Registry Cleanup
+        reg delete "HKEY_CLASSES_ROOT\CLSID\{018D5C66-4533-4307-9B53-224DE2ED1FE6}" /f 2>$null
+        reg delete "HKCU\Software\Microsoft\OneDrive" /f 2>$null
+        
+        # Disable via Policy
+        if (!(Test-Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\OneDrive")) { New-Item -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\OneDrive" -Force | Out-Null }
+        Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\OneDrive" -Name "DisableFileSyncNGSC" -Value 1 -Force
+
+        # 7. Final Folder Cleanup (Destruction)
+        # Only delete if migration was marked success
+        if (Test-Path $oneDriveUserPath) {
+            Write-Host "Removing old OneDrive folder..." -ForegroundColor Gray
+            Remove-Item -Path $oneDriveUserPath -Recurse -Force -ErrorAction SilentlyContinue
+        }
+
+        # Restart Explorer to apply registry changes
+        Start-Process "explorer.exe"
+        Write-Color "ONEDRIVE REMOVED AND DATA MIGRATED SUCCESSFULLY." "Green"
+        Write-Log "OneDrive removal complete." "INFO"
+        Start-Sleep -Seconds 3
+
     } else {
-        Write-Host "Keeping Microsoft OneDrive." -ForegroundColor Cyan
+        # --- INSTALLATION MODE ---
+        Write-Color "OneDrive is NOT installed." "Yellow"
+        $choice = Read-Host "Do you want to INSTALL OneDrive and set it as default? (y/n)"
+        if ($choice -ne "y") { return }
+
+        Write-Color "DOWNLOADING AND INSTALLING ONEDRIVE..." "Magenta"
+        Write-Log "Starting OneDrive Installation." "INFO"
+
+        $setupPath = "$downloadsFolder\OneDriveSetup.exe"
+        try {
+            Invoke-WebRequest -Uri "https://go.microsoft.com/fwlink/?linkid=823054" -OutFile $setupPath
+            Start-Process -FilePath $setupPath -ArgumentList "/silent" -Wait -NoNewWindow
+        } catch {
+            Write-Color "Download or Install failed." "Red"
+            Write-Log "Install failed: $_" "ERROR"
+            return
+        }
+
+        # Remove the Disable Policy
+        Remove-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\OneDrive" -Name "DisableFileSyncNGSC" -ErrorAction SilentlyContinue
+
+        # Update Registry to point to OneDrive
+        Write-Host "Updating User Shell Folders to OneDrive..." -ForegroundColor Cyan
+        $regPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders"
+        $odMap = @{
+            "Desktop"   = "$env:UserProfile\OneDrive\Desktop"
+            "Documents" = "$env:UserProfile\OneDrive\Documents"
+            "Pictures"  = "$env:UserProfile\OneDrive\Pictures"
+            "Personal"  = "$env:UserProfile\OneDrive\Documents" # Personal is Docs
+        }
+
+        foreach ($key in $odMap.Keys) {
+            # Create folder if it doesn't exist yet (OneDrive might take a moment to sync)
+            if (!(Test-Path $odMap[$key])) { New-Item -Path $odMap[$key] -ItemType Directory -Force | Out-Null }
+            Set-ItemProperty -Path $regPath -Name $key -Value $odMap[$key] -Force -ErrorAction SilentlyContinue
+        }
+
+        Write-Color "ONEDRIVE INSTALLED SUCCESSFULLY." "Green"
+        Write-Log "OneDrive install complete." "INFO"
+        
+        # Restart explorer to refresh icons
+        Stop-Process -Name "explorer" -Force -ErrorAction SilentlyContinue
+        Start-Sleep -Seconds 1
+        Start-Process "explorer.exe"
     }
 }
 
@@ -729,45 +1022,67 @@ function Invoke-AIRemoval {
     $removeCopilot = Read-Host "Do you want to completely remove Microsoft Copilot? [Recommended] (y/n)"
     if ($removeCopilot -eq "y") {
         Write-Host "FORCEFULLY REMOVING MICROSOFT COPILOT..." -ForegroundColor Magenta
+        Write-Log -Message "Starting Microsoft Copilot removal."
         
-        Set-RegistryValue -Path "HKCU:\Software\Policies\Microsoft\Windows\WindowsCopilot" -Name "TurnOffWindowsCopilot" -Value 1
-        Set-RegistryValue -Path "HKLM:\Software\Policies\Microsoft\Windows\WindowsCopilot" -Name "TurnOffWindowsCopilot" -Value 1
-        Set-RegistryValue -Path "HKLM:\Software\Policies\Microsoft\Windows\Dsh" -Name "AllowNewsAndInterests" -Value 0
-        Set-RegistryValue -Path "HKLM:\Software\Policies\Microsoft\Windows\Dsh" -Name "AllowCopilotInWindows" -Value 0
-        Set-RegistryValue -Path "HKLM:\Software\Policies\Microsoft\Windows\Dsh" -Name "EnableCopilotButton" -Value 0
-        Set-RegistryValue -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "ShowCopilotButton" -Value 0
+        try {
+            Set-RegistryValue -Path "HKCU:\Software\Policies\Microsoft\Windows\WindowsCopilot" -Name "TurnOffWindowsCopilot" -Value 1
+            Set-RegistryValue -Path "HKLM:\Software\Policies\Microsoft\Windows\WindowsCopilot" -Name "TurnOffWindowsCopilot" -Value 1
+            Set-RegistryValue -Path "HKLM:\Software\Policies\Microsoft\Windows\Dsh" -Name "AllowNewsAndInterests" -Value 0
+            Set-RegistryValue -Path "HKLM:\Software\Policies\Microsoft\Windows\Dsh" -Name "AllowCopilotInWindows" -Value 0
+            Set-RegistryValue -Path "HKLM:\Software\Policies\Microsoft\Windows\Dsh" -Name "EnableCopilotButton" -Value 0
+            Set-RegistryValue -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "ShowCopilotButton" -Value 0
+            Set-RegistryValue -Path "HKLM:\Software\Policies\Microsoft\Windows\Copilot" -Name "DisableCopilot" -Value 1
+        } catch {
+            Write-Log -Message "Error setting Copilot registry policies: $($_.Exception.Message)" -Type "ERROR"
+        }
 
         $copilotProcesses = @("Copilot", "Copilot.exe", "AI.exe", "CopilotRuntime", "CopilotBackground", "Microsoft365Copilot", "Microsoft365Copilot.exe")
-        foreach ($proc in $copilotProcesses) { Get-Process -Name $proc -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue }
+        foreach ($proc in $copilotProcesses) { Stop-Process -Name $proc -Force -ErrorAction SilentlyContinue }
         
-        try { winget uninstall --id "Microsoft.Copilot" --silent --accept-source-agreements > $null 2>&1; winget uninstall --id "Microsoft.365.Copilot" --silent --accept-source-agreements > $null 2>&1 } catch {}
+        try { 
+            winget uninstall --id "Microsoft.Copilot" --silent --accept-source-agreements *>$null 
+            winget uninstall --id "Microsoft.365.Copilot" --silent --accept-source-agreements *>$null 
+        } catch {
+            Write-Log -Message "Winget uninstall encountered an issue or app not found." -Type "INFO"
+        }
         
         $copilotPackages = @("Microsoft.Windows.AI.Copilot", "Microsoft.Copilot", "Microsoft.365.Copilot")
-        foreach ($package in $copilotPackages) { Remove-AppxPackageAllUsers $package }
+        foreach ($package in $copilotPackages) { try { Remove-AppxPackageAllUsers $package } catch { Write-Log -Message "Failed to remove Appx: $package" -Type "INFO" } }
 
         $officeUninstallPath = "C:\Program Files\Common Files\Microsoft Shared\ClickToRun\OfficeC2RClient.exe"
-        if (Test-Path $officeUninstallPath) { try { Start-Process -FilePath $officeUninstallPath -ArgumentList "/uninstall Copilot /quiet /norestart" -NoNewWindow -Wait -ErrorAction SilentlyContinue } catch {} }
+        if (Test-Path $officeUninstallPath) { 
+            try { 
+                Start-Process -FilePath $officeUninstallPath -ArgumentList "/uninstall Copilot /quiet /norestart" -NoNewWindow -Wait -ErrorAction Stop 
+            } catch {
+                Write-Log -Message "Office C2R uninstall command failed: $($_.Exception.Message)" -Type "ERROR"
+            } 
+        }
 
-        # MSI Removal
-        $msiCopilot = Get-WmiObject -Query "SELECT * FROM Win32_Product WHERE Name LIKE '%Copilot%'" -ErrorAction SilentlyContinue
-        if ($msiCopilot) { foreach ($app in $msiCopilot) { try { $app.Uninstall() } catch {} } }
+        try {
+            $msiCopilot = Get-WmiObject -Query "SELECT * FROM Win32_Product WHERE Name LIKE '%Copilot%'" -ErrorAction SilentlyContinue
+            if ($msiCopilot) { foreach ($app in $msiCopilot) { $app.Uninstall() } }
+        } catch {
+            Write-Log -Message "MSI uninstall failed: $($_.Exception.Message)" -Type "ERROR"
+        }
 
         $copilotFolders = @("$env:LOCALAPPDATA\Packages\Microsoft.Windows.AI.Copilot", "$env:ProgramData\Microsoft\Windows\AI\Copilot", "$env:APPDATA\Microsoft\Copilot", "$env:ProgramFiles\Microsoft\Copilot", "$env:ProgramFiles (x86)\Microsoft\Copilot", "C:\ProgramData\Microsoft\Copilot")
-        foreach ($folder in $copilotFolders) { if (Test-Path $folder) { Remove-Item -Path $folder -Recurse -Force -ErrorAction SilentlyContinue } }
+        foreach ($folder in $copilotFolders) { if (Test-Path $folder) { try { Remove-Item -Path $folder -Recurse -Force -ErrorAction SilentlyContinue } catch {} } }
 
-        reg delete "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v "Copilot" /f 2>$null
-        reg delete "HKLM\Software\Microsoft\Windows\CurrentVersion\Run" /v "Copilot" /f 2>$null
-        
-        $copilotRegistryKeys = @("HKCU\Software\Microsoft\Windows\CurrentVersion\Copilot", "HKLM\Software\Microsoft\Windows\CurrentVersion\Copilot", "HKLM\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Copilot", "HKCU\Software\Microsoft\Office\Copilot", "HKLM\Software\Microsoft\Office\Copilot")
-        foreach ($key in $copilotRegistryKeys) { reg delete $key /f 2>$null }
-
-        Set-RegistryValue -Path "HKLM:\Software\Policies\Microsoft\Windows\Copilot" -Name "DisableCopilot" -Value 1
+        try {
+            reg delete "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v "Copilot" /f 2>$null
+            reg delete "HKLM\Software\Microsoft\Windows\CurrentVersion\Run" /v "Copilot" /f 2>$null
+            $copilotRegistryKeys = @("HKCU\Software\Microsoft\Windows\CurrentVersion\Copilot", "HKLM\Software\Microsoft\Windows\CurrentVersion\Copilot", "HKLM\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Copilot", "HKCU\Software\Microsoft\Office\Copilot", "HKLM\Software\Microsoft\Office\Copilot")
+            foreach ($key in $copilotRegistryKeys) { reg delete $key /f 2>$null }
+        } catch {
+            Write-Log -Message "Registry cleanup error: $($_.Exception.Message)" -Type "ERROR"
+        }
         
         Stop-Process -Name "StartMenuExperienceHost" -Force -ErrorAction SilentlyContinue
         Start-Sleep -Seconds 2
         Start-Process -FilePath "explorer.exe" -ArgumentList "/n" -WindowStyle Hidden
 
         Write-Host "MICROSOFT COPILOT HAS BEEN COMPLETELY REMOVED!" -ForegroundColor Green
+        Write-Log -Message "Microsoft Copilot removed successfully."
     } else {
         Write-Host "Keeping Microsoft Copilot." -ForegroundColor Cyan
     }
@@ -775,15 +1090,30 @@ function Invoke-AIRemoval {
     $removeRecall = Read-Host "Do you want to remove Microsoft Recall? [Recommended] (y/n)"
     if ($removeRecall.ToLower() -match "^y") {
         Write-Host "Disabling Microsoft Recall..." -ForegroundColor Magenta
-        Set-RegistryValue -Path "HKLM:\Software\Policies\Microsoft\Windows\Windows AI" -Name "DisableWindowsAI" -Value 1
-        Set-RegistryValue -Path "HKLM:\Software\Policies\Microsoft\Windows\Windows AI" -Name "DisableLogging" -Value 1
-        Set-RegistryValue -Path "HKLM:\Software\Policies\Microsoft\Windows\Windows AI" -Name "DisableMemorySnapshots" -Value 1
-        Set-RegistryValue -Path "HKLM:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "DisableSearchIndexing" -Value 1
-        Start-Process -FilePath "reg.exe" -ArgumentList "add", "HKEY_LOCAL_MACHINE\Software\Microsoft\Windows\CurrentVersion\Run", "/v", "Recall", "/t", "REG_SZ", "/d", "", "/f" -NoNewWindow -Wait
-        schtasks /Change /TN "Microsoft\Windows\AI\Recall" /Disable
-        schtasks /Change /TN "Microsoft\Windows\AI\RecallIndexing" /Disable
-        gpupdate /force
-        Write-Host "Microsoft Recall fully disabled." -ForegroundColor Green
+        Write-Log -Message "Starting Microsoft Recall disablement."
+        
+        try {
+            Set-RegistryValue -Path "HKLM:\Software\Policies\Microsoft\Windows\Windows AI" -Name "DisableWindowsAI" -Value 1
+            Set-RegistryValue -Path "HKLM:\Software\Policies\Microsoft\Windows\Windows AI" -Name "DisableLogging" -Value 1
+            Set-RegistryValue -Path "HKLM:\Software\Policies\Microsoft\Windows\Windows AI" -Name "DisableMemorySnapshots" -Value 1
+            Set-RegistryValue -Path "HKLM:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "DisableSearchIndexing" -Value 1
+            
+            # Fixed Null Argument error by using Set-ItemProperty instead of Start-Process reg.exe
+            if (Test-Path "HKLM:\Software\Microsoft\Windows\CurrentVersion\Run") {
+                Set-ItemProperty -Path "HKLM:\Software\Microsoft\Windows\CurrentVersion\Run" -Name "Recall" -Value "" -ErrorAction SilentlyContinue
+            }
+
+            $tasks = @("Microsoft\Windows\AI\Recall", "Microsoft\Windows\AI\RecallIndexing")
+            foreach ($task in $tasks) {
+                try { schtasks /Change /TN $task /Disable *>$null } catch { Write-Log -Message "Task $task not found or could not be disabled." -Type "INFO" }
+            }
+            
+            Start-Process -FilePath "gpupdate" -ArgumentList "/force" -NoNewWindow -Wait
+            Write-Host "Microsoft Recall fully disabled." -ForegroundColor Green
+            Write-Log -Message "Microsoft Recall disabled successfully."
+        } catch {
+            Write-Log -Message "Error during Recall disablement: $($_.Exception.Message)" -Type "ERROR"
+        }
     } else {
         Write-Host "Keeping Microsoft Recall." -ForegroundColor Cyan
     }
@@ -792,113 +1122,199 @@ function Invoke-AIRemoval {
 function Invoke-UIAndTaskbarSetup {
     $win10look = Read-Host "Do you want Windows 11 to look and feel like Windows 10? [Recommended] (y/n)"
     if ($win10look -eq "y") {
-        Write-Host "Applying UI tweaks..." -ForegroundColor Magenta
-        Set-RegistryValue -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "Start_ShowClassicMode" -Value 1
-        Set-RegistryValue -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "TaskbarAl" -Value 0
-        Start-Process -FilePath "reg.exe" -ArgumentList "add", "HKCU\Software\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}", "/f" -NoNewWindow -Wait
-        Start-Process -FilePath "reg.exe" -ArgumentList "add", "HKCU\Software\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}\InprocServer32", "/ve", "/t", "REG_SZ", "/d", "", "/f" -NoNewWindow -Wait
-        Write-Host "Windows UI tweaks applied successfully." -ForegroundColor Green
+        Write-Host "Applying Windows 10 UI tweaks..." -ForegroundColor Magenta
+        Write-Log -Message "Starting Windows 10 UI conversion."
+        
+        try {
+            # Align Taskbar to Left
+            Set-RegistryValue -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "TaskbarAl" -Value 0
+            
+            # Restore Classic Context Menu (Win 10 Style)
+            $clsidPath = "HKCU:\Software\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}"
+            if (-not (Test-Path $clsidPath)) { New-Item -Path $clsidPath -Force | Out-Null }
+            if (-not (Test-Path "$clsidPath\InprocServer32")) { New-Item -Path "$clsidPath\InprocServer32" -Force | Out-Null }
+            Set-ItemProperty -Path "$clsidPath\InprocServer32" -Name "(Default)" -Value "" -Force
+            
+            # Open Explorer to 'This PC' instead of 'Home'
+            Set-RegistryValue -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "LaunchTo" -Value 1
+            
+            # Disable Snap Assist Flyout (Optional but helps Win10 feel)
+            Set-RegistryValue -Path "HKCU:\Control Panel\Desktop" -Name "EnableSnapAssistFlyout" -Value 0
+            
+            Write-Host "Windows 10 UI tweaks applied successfully." -ForegroundColor Green
+            Write-Log -Message "Windows 10 UI tweaks applied (Taskbar Left, Classic Context Menu)."
+        } catch {
+            Write-Log -Message "Error applying Windows 10 UI tweaks: $($_.Exception.Message)" -Type "ERROR"
+        }
     } else {
         Write-Host "Skipping Windows 10 UI tweaks." -ForegroundColor Cyan
     }
 
-    $debloatTaskbar = Read-Host "Do you want to debloat the taskbar and remove unnecessary icons, including News, Weather, Widgets, and Microsoft Store? [Recommended] (y/n)"
+    $debloatTaskbar = Read-Host "Do you want to debloat the taskbar (Remove Search, Widgets, Store)? [Recommended] (y/n)"
     if ($debloatTaskbar -eq "y") {
         Write-Host "Removing unnecessary taskbar icons..." -ForegroundColor Magenta
-        Set-RegistryValue -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "ShowTaskViewButton" -Value 0
-        Set-RegistryValue -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Search" -Name "SearchboxTaskbarMode" -Value 0
-        Set-RegistryValue -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced\People" -Name "PeopleBand" -Value 0
-        Set-RegistryValue -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\PenWorkspace" -Name "PenWorkspaceButtonDesiredVisibility" -Value 0
-        # Tray icons 2 rows (binary) - preserving logic
-        Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\StuckRects3" -Name "Settings" -Value ([byte[]](0x30,0x00,0x00,0x00,0xFE,0xFF,0xFF,0xFF,0x02,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x03,0x00,0x00,0x00,0x00,0x00,0x00,0x00)) -Force
-        Set-RegistryValue -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer" -Name "HideSCAMeetNow" -Value 1
+        Write-Log -Message "Starting Taskbar debloat."
 
-        # Disable Widgets
-        Set-RegistryValue -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "TaskbarDa" -Value 0
-        Get-Service -Name "Widgets" -ErrorAction SilentlyContinue | ForEach-Object { Stop-Service -Name $_.Name -Force; Set-Service -Name $_.Name -StartupType Disabled }
-        Remove-AppxPackageAllUsers "MicrosoftWindows.Client.WebExperience"
+        try {
+            # Remove Task View, Search, and People
+            Set-RegistryValue -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "ShowTaskViewButton" -Value 0
+            Set-RegistryValue -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Search" -Name "SearchboxTaskbarMode" -Value 0
+            Set-RegistryValue -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced\People" -Name "PeopleBand" -Value 0
+            Set-RegistryValue -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\PenWorkspace" -Name "PenWorkspaceButtonDesiredVisibility" -Value 0
+            
+            # Disable Widgets (TaskbarDa) and Feeds
+            Set-RegistryValue -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "TaskbarDa" -Value 0
+            Set-RegistryValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Feeds" -Name "EnableFeeds" -Value 0
+            Set-RegistryValue -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Feeds" -Name "ShellFeedsTaskbarViewMode" -Value 2
 
-        # Remove News and Interests
-        Remove-AppxPackageAllUsers "Microsoft.BingNews"
-        Set-RegistryValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Feeds" -Name "EnableFeeds" -Value 0
+            # Teams/Chat Detection and Removal
+            $teamsCheck = Get-AppxPackage -Name "*Teams*" -ErrorAction SilentlyContinue
+            if ($teamsCheck) {
+                Write-Log -Message "Teams/Chat detected. Hiding icon."
+                Set-RegistryValue -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "TaskbarMn" -Value 0
+                Set-RegistryValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Chat" -Name "ChatIcon" -Value 3
+            }
 
-        # Unpin Store
-        $taskbarLayout = "$env:APPDATA\Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar\Microsoft Store.lnk"
-        if (Test-Path $taskbarLayout) { Remove-Item $taskbarLayout -Force -ErrorAction SilentlyContinue }
-        Set-RegistryValue -Path "HKCU:\Software\Policies\Microsoft\Windows\Explorer" -Name "NoPinningStoreToTaskbar" -Value 1
-        
-        Remove-AppxPackageAllUsers "Microsoft.BingWeather"
-        Set-RegistryValue -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Feeds" -Name "ShellFeedsTaskbarViewMode" -Value 2
+            # Unpin Store from Taskbar
+            $taskbarStore = "$env:APPDATA\Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar\Microsoft Store.lnk"
+            if (Test-Path $taskbarStore) { Remove-Item $taskbarStore -Force -ErrorAction SilentlyContinue }
+            Set-RegistryValue -Path "HKCU:\Software\Policies\Microsoft\Windows\Explorer" -Name "NoPinningStoreToTaskbar" -Value 1
 
+            # Remove Widget/News Apps
+            $bloatApps = @("MicrosoftWindows.Client.WebExperience", "Microsoft.BingNews", "Microsoft.BingWeather")
+            foreach ($app in $bloatApps) { try { Remove-AppxPackageAllUsers $app } catch { Write-Log -Message "Could not remove $app (may not exist)" -Type "INFO" } }
+
+            Write-Host "Taskbar cleaned successfully." -ForegroundColor Green
+            Write-Log -Message "Taskbar debloat completed."
+        } catch {
+            Write-Log -Message "Error during Taskbar debloat: $($_.Exception.Message)" -Type "ERROR"
+        }
     } else {
         Write-Host "Skipping taskbar debloating." -ForegroundColor Cyan
     }
 
-    $enableDarkMode = Read-Host "Do you want to enable Dark Mode for Windows and supported applications? [Recommended] (y/n)"
+    $enableDarkMode = Read-Host "Do you want to enable Dark Mode? [Recommended] (y/n)"
     if ($enableDarkMode -eq "y") {
         Write-Host "Enabling Dark Mode..." -ForegroundColor Magenta
-        $personalizePath = "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize"
-        Set-ItemProperty -Path $personalizePath -Name "AppsUseLightTheme" -Value 0 -ErrorAction SilentlyContinue
-        Set-ItemProperty -Path $personalizePath -Name "SystemUsesLightTheme" -Value 0 -ErrorAction SilentlyContinue
-        
-        if (Test-Path "HKCU:\Software\Microsoft\Office\16.0\Common") {
-            Set-ItemProperty -Path "HKCU:\Software\Microsoft\Office\16.0\Common" -Name "UI Theme" -Value 4 -Type DWord -ErrorAction SilentlyContinue
+        try {
+            $personalizePath = "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize"
+            Set-ItemProperty -Path $personalizePath -Name "AppsUseLightTheme" -Value 0 -ErrorAction SilentlyContinue
+            Set-ItemProperty -Path $personalizePath -Name "SystemUsesLightTheme" -Value 0 -ErrorAction SilentlyContinue
+            
+            if (Test-Path "HKCU:\Software\Microsoft\Office\16.0\Common") {
+                Set-ItemProperty -Path "HKCU:\Software\Microsoft\Office\16.0\Common" -Name "UI Theme" -Value 4 -Type DWord -ErrorAction SilentlyContinue
+            }
+            Write-Log -Message "Dark mode enabled."
+        } catch {
+            Write-Log -Message "Error enabling Dark Mode: $($_.Exception.Message)" -Type "ERROR"
         }
     } else {
         Write-Host "Dark Mode not enabled." -ForegroundColor Cyan
     }
+    
+    # Restart Explorer to apply UI changes immediately
+    Stop-Process -Name "explorer" -Force -ErrorAction SilentlyContinue
+    Start-Sleep -Seconds 1
 }
 
 function Invoke-SystemOptimizations {
-    $debloatEdge = Read-Host "Do you want to remove Edges forced features? [Recommended] (y/n)"
+    $debloatEdge = Read-Host "Do you want to remove Edge's forced features? [Recommended] (y/n)"
     if ($debloatEdge -eq "y") {
         Write-Host "Disabling Edge forced features..." -ForegroundColor Magenta
-        Set-RegistryValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\Edge" -Name "RestorePdfAssociationsEnabled" -Value 0
-        Set-RegistryValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\Edge" -Name "BackgroundModeEnabled" -Value 0
-        Write-Host "Edge features disabled!" -ForegroundColor Green
+        try {
+            Set-RegistryValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\Edge" -Name "RestorePdfAssociationsEnabled" -Value 0
+            Set-RegistryValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\Edge" -Name "BackgroundModeEnabled" -Value 0
+            Write-Host "Edge features disabled!" -ForegroundColor Green
+            Write-Log -Message "Edge forced features disabled."
+        } catch {
+            Write-Log -Message "Error disabling Edge features: $($_.Exception.Message)" -Type "ERROR"
+        }
     }
 
-    $gameOptimizations = Read-Host "Do you want to enable gaming features like Game Mode, VRR, HAGS (GPU Scheduling)? [Recommended for Gamers] (y/n)"
+    $gameOptimizations = Read-Host "Do you want to enable gaming features like Game Mode, VRR, HAGS? [Recommended for Gamers] (y/n)"
     if ($gameOptimizations -match "^[Yy]$") {
         Write-Host "Applying gaming optimizations..." -ForegroundColor Magenta
-        Set-RegistryValue -Path "HKCU:\Software\Microsoft\GameBar" -Name "AllowAutoGameMode" -Value 1
-        Set-RegistryValue -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\GraphicsSettings" -Name "HwSchMode" -Value 2
-        
-        $vrrSupported = Get-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers" -Name "VRRFeatureEnabled" -ErrorAction SilentlyContinue
-        if ($null -ne $vrrSupported) {
-             Set-RegistryValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers" -Name "VRRFeatureEnabled" -Value 1
+        try {
+            Set-RegistryValue -Path "HKCU:\Software\Microsoft\GameBar" -Name "AllowAutoGameMode" -Value 1
+            Set-RegistryValue -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\GraphicsSettings" -Name "HwSchMode" -Value 2
+            
+            $vrrSupported = Get-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers" -Name "VRRFeatureEnabled" -ErrorAction SilentlyContinue
+            if ($null -ne $vrrSupported) {
+                 Set-RegistryValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers" -Name "VRRFeatureEnabled" -Value 1
+            }
+            Write-Host "Gaming features enabled!" -ForegroundColor Cyan
+            Write-Log -Message "Gaming optimizations (GameMode, HAGS, VRR) applied."
+        } catch {
+            Write-Log -Message "Error applying gaming optimizations: $($_.Exception.Message)" -Type "ERROR"
         }
-        Write-Host "All selected gaming features have been enabled!" -ForegroundColor Cyan
     } else {
         Write-Host "Skipping gaming optimizations." -ForegroundColor Cyan
     }
 
-    $usbsuspend = Read-Host "Do you intend to use controllers or joysticks with your games? [Recommended] (y/n)"
+    $usbsuspend = Read-Host "Do you intend to use controllers or joysticks? [Recommended] (y/n)"
     if ($usbsuspend -match "^[Yy]$") {
-        Write-Host "Disabling Selective USB Suspend.."
-        powercfg /SETACVALUEINDEX SCHEME_CURRENT 2a737441-1930-4402-8d77-b2bebba308a3 48e6b7a6-50f5-4782-a5d4-53bb8f07e226 0
+        Write-Host "Disabling Selective USB Suspend..."
+        try {
+            powercfg /SETACVALUEINDEX SCHEME_CURRENT 2a737441-1930-4402-8d77-b2bebba308a3 48e6b7a6-50f5-4782-a5d4-53bb8f07e226 0
+            Write-Log -Message "USB Selective Suspend disabled."
+        } catch {
+            Write-Log -Message "Error disabling USB Suspend: $($_.Exception.Message)" -Type "ERROR"
+        }
     }
 
-    $disableMemoryIsolation = Read-Host "Do you want to disable Memory Core Isolation for better gaming performance? (Recommended) (y/n)"
+    $gameCompat = Read-Host "Enable Game Compatibility Mode (Long Paths + 3GB RAM support)? [Recommended - Helps older games] (y/n)"
+    if ($gameCompat -match "^[Yy]$") {
+        Write-Host "Enabling Game Compatibility features..." -ForegroundColor Magenta
+        try {
+            # Enable Long Paths
+            Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" -Name "LongPathsEnabled" -Type DWord -Value 1 -Force
+            # Enable >3GB RAM for Win32 Apps
+            Start-Process -FilePath "bcdedit.exe" -ArgumentList "/set IncreaseUserVA 3072" -NoNewWindow -Wait
+            
+            Write-Host "Game Compatibility features enabled." -ForegroundColor Green
+            Write-Log -Message "Game Compatibility (LongPaths, IncreaseUserVA) enabled."
+        } catch {
+            Write-Log -Message "Error enabling Game Compatibility: $($_.Exception.Message)" -Type "ERROR"
+        }
+    }
+
+    $disableMemoryIsolation = Read-Host "Do you want to disable Memory Core Isolation for better gaming performance? [Recommended] (y/n)"
     if ($disableMemoryIsolation -match "^[Yy]$") {
-        Write-Host "Disabling Memory Core Isolation and Related Features..." -ForegroundColor Magenta
-        Set-RegistryValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\HypervisorEnforcedCodeIntegrity" -Name "Enabled" -Value 0
-        Set-RegistryValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\DeviceGuard" -Name "EnableVirtualizationBasedSecurity" -Value 0
-        Set-RegistryValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\DeviceGuard" -Name "RequirePlatformSecurityFeatures" -Value 0
-        Set-RegistryValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Lsa" -Name "LsaCfgFlags" -Value 0
-        bcdedit /set hypervisorlaunchtype off
-        Write-Host "Memory Core Isolation disabled. Restart required." -ForegroundColor Yellow
+        Write-Host "Disabling Memory Core Isolation..." -ForegroundColor Magenta
+        try {
+            Set-RegistryValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\HypervisorEnforcedCodeIntegrity" -Name "Enabled" -Value 0
+            Set-RegistryValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\DeviceGuard" -Name "EnableVirtualizationBasedSecurity" -Value 0
+            Set-RegistryValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\DeviceGuard" -Name "RequirePlatformSecurityFeatures" -Value 0
+            Set-RegistryValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Lsa" -Name "LsaCfgFlags" -Value 0
+            
+            # Disable Boot Hypervisor
+            Start-Process -FilePath "bcdedit.exe" -ArgumentList "/set hypervisorlaunchtype off" -NoNewWindow -Wait
+            
+            # Suppress "Device Security" Nags
+            Set-RegistryValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender Security Center\Notifications" -Name "DisableEnhancedNotifications" -Value 1
+            Set-RegistryValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender Security Center\Device Security" -Name "DisableDeviceSecurityUI" -Value 1
+            
+            Write-Host "Memory Core Isolation disabled (Restart required)." -ForegroundColor Yellow
+            Write-Log -Message "Memory Core Isolation disabled and notifications suppressed."
+        } catch {
+            Write-Log -Message "Error disabling Memory Core Isolation: $($_.Exception.Message)" -Type "ERROR"
+        }
     } else {
         Write-Host "Keeping Memory Core Isolation enabled." -ForegroundColor Cyan
     }
 
     Write-Host "Restarting Windows Explorer to apply changes..." -ForegroundColor Cyan
-    Stop-Process -Name explorer -Force
+    Stop-Process -Name explorer -Force -ErrorAction SilentlyContinue
     Start-Process -FilePath "explorer.exe" -ArgumentList "/n" -WindowStyle Hidden
     Write-Host "Windows Explorer Restarted." -ForegroundColor Green
     
     # Desktop Shortcut
-    New-Shortcut -TargetPath $script:ogcwinbat -ShortcutPath $script:desktopPath -Description "Launch OGC Windows Utility" -IconPath "C:\Windows\System32\imageres.dll,97"
+    try {
+        New-Shortcut -TargetPath $script:ogcwinbat -ShortcutPath $script:desktopPath -Description "Launch OGC Windows Utility" -IconPath "C:\Windows\System32\shell32.dll,272"
+        Write-Log -Message "Desktop shortcut created/updated."
+    } catch {
+        Write-Log -Message "Error creating desktop shortcut: $($_.Exception.Message)" -Type "ERROR"
+    }
     Clear-Host
 }
 
@@ -917,105 +1333,536 @@ function Invoke-SoftwareInstallation {
     Write-Host "=======================================" -ForegroundColor DarkBlue
     Write-Host "" 
 
-    $installGamingApps = Read-Host "Do you want to install gaming apps like Steam, Epic, GOG, Discord, and Medal? (y/n)"
-    if ($installGamingApps -eq "y") {
-        $apps = @{
-            "Steam" = "Valve.Steam"; "Epic Games Launcher" = "EpicGames.EpicGamesLauncher"; "GOG Galaxy" = "GOG.Galaxy"
-            "Discord" = "Discord.Discord"; "Medal" = "Medal.TV"
+    Write-Log "Starting Software Installation Wizard..." "INFO"
+
+    # Internal helper to keep code clean and handle logging uniformly
+    function Install-App {
+        param([string]$Name, [string]$Id)
+        Write-Host "Installing $Name..." -ForegroundColor Magenta
+        Write-Log "Attempting to install $Name ($Id)" "INFO"
+        try {
+            # Renamed $args to $wingetArgs to avoid conflict with reserved automatic variables
+            $wingetArgs = "install --id $Id --silent --accept-package-agreements --accept-source-agreements --disable-interactivity"
+            $process = Start-Process -FilePath "winget" -ArgumentList $wingetArgs -Wait -NoNewWindow -PassThru
+            
+            if ($process.ExitCode -eq 0) {
+                Write-Host "$Name successfully installed." -ForegroundColor Green
+                Write-Log "Successfully installed $Name" "INFO"
+            } else {
+                throw "Winget returned exit code $($process.ExitCode)"
+            }
         }
-        foreach ($key in $apps.Keys) {
-             if ((Read-Host "Do you want to install $key? (y/n)") -eq "y") {
-                 Write-Host "Installing $key..." -ForegroundColor Magenta
-                 winget install $apps[$key] --silent --accept-package-agreements --accept-source-agreements
+        catch {
+            Write-Host "Failed to install $Name. Check logs." -ForegroundColor Red
+            Write-Log "Failed to install $Name. Error: $_" "ERROR"
+        }
+    }
+
+    # ==========================================
+    #             GAMING SECTION
+    # ==========================================
+    $installGamingApps = Read-Host "Do you want to install gaming apps? (y/n)"
+    if ($installGamingApps -eq "y") {
+        
+        # Value Add: Visual C++ Check
+        $installVCRedist = Read-Host "Do you want to update Visual C++ Redists (Required for most games)? (y/n)"
+        if ($installVCRedist -eq "y") {
+            Install-App -Name "Visual C++ 2015-2022 Redistributable" -Id "Microsoft.VCRedist.2015+.x64"
+        }
+
+        $apps = @{
+            "Steam" = "Valve.Steam"; 
+            "Epic Games Launcher" = "EpicGames.EpicGamesLauncher"; 
+            "GOG Galaxy" = "GOG.Galaxy";
+            "Discord" = "Discord.Discord"; 
+            "Medal" = "Medal.TV"
+        }
+        
+        # Use GetEnumerator to properly access Key (Name) and Value (ID)
+        foreach ($app in $apps.GetEnumerator()) {
+             $appName = $app.Key
+             $appId = $app.Value
+             if ((Read-Host "Do you want to install $appName? (y/n)") -eq "y") {
+                 Install-App -Name $appName -Id $appId
              }
         }
         Write-Host "Gaming app installation process completed." -ForegroundColor Green
     }
 
+    # ==========================================
+    #         GAMING UTILITIES SECTION
+    # ==========================================
     $installGamingUtilities = Read-Host "Do you want to install gaming and monitoring utilities? (y/n)"
     if ($installGamingUtilities -eq "y") {
         $utils = @{
-            "HWiNFO" = "REALiX.HWiNFO"; "MSI Afterburner" = "MSI.Afterburner"; "RivaTuner Statistics Server (RTSS)" = "Guru3D.RTSS"
-            "CPU-Z" = "CPUID.CPU-Z"; "GPU-Z" = "TechPowerUp.GPU-Z"
+            "HWiNFO" = "REALiX.HWiNFO"; 
+            "MSI Afterburner" = "MSI.Afterburner"; 
+            "RivaTuner Statistics Server (RTSS)" = "Guru3D.RTSS";
+            "CPU-Z" = "CPUID.CPU-Z"; 
+            "GPU-Z" = "TechPowerUp.GPU-Z"
         }
-        foreach ($key in $utils.Keys) {
-            if ((Read-Host "Do you want to install $key? (y/n)") -eq "y") {
-                Write-Host "Installing $key..." -ForegroundColor Magenta
-                winget install $utils[$key] --silent --accept-package-agreements --accept-source-agreements
+        foreach ($util in $utils.GetEnumerator()) {
+            $utilName = $util.Key
+            $utilId = $util.Value
+            if ((Read-Host "Do you want to install $utilName? (y/n)") -eq "y") {
+                Install-App -Name $utilName -Id $utilId
             }
         }
         Write-Host "Gaming and monitoring utilities installation completed." -ForegroundColor Green
     }
 
+    # ==========================================
+    #             BROWSER SECTION
+    # ==========================================
     $installBrowser = Read-Host "Do you want to install a web browser? (y/n)"
     if ($installBrowser -eq "y") {
-        Write-Host "Select a browser to install..." -ForegroundColor Cyan
-        Write-Host "1. Firefox"; Write-Host "2. Brave"; Write-Host "3. Opera GX"; Write-Host "4. Chrome"; Write-Host "5. Edge (Already Installed)"; Write-Host "6. Skip Browser Installation"
         
-        $browser = Read-Host "Enter the number corresponding to your browser choice"
-        switch ($browser) {
-            "1" { winget install Mozilla.Firefox; Remove-Item "$env:APPDATA\Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar\Microsoft Edge.lnk" -ErrorAction SilentlyContinue }
-            "2" { winget install Brave.Brave; Remove-Item "$env:APPDATA\Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar\Microsoft Edge.lnk" -ErrorAction SilentlyContinue }
-            "3" { winget install Opera.OperaGX; Remove-Item "$env:APPDATA\Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar\Microsoft Edge.lnk" -ErrorAction SilentlyContinue }
-            "4" { winget install Google.Chrome; Remove-Item "$env:APPDATA\Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar\Microsoft Edge.lnk" -ErrorAction SilentlyContinue }
-            "5" { Set-RegistryValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\Edge" -Name "BackgroundModeEnabled" -Value 1 }
-            "6" { Write-Host "Skipping browser installation." -ForegroundColor Cyan }
-            default { Write-Host "Invalid selection." -ForegroundColor Red }
+        # Define available browsers
+        $browserList = @{
+            "1" = @{ Name="Firefox"; Id="Mozilla.Firefox" };
+            "2" = @{ Name="Brave"; Id="Brave.Brave" };
+            "3" = @{ Name="Opera GX"; Id="Opera.OperaGX" };
+            "4" = @{ Name="Chrome"; Id="Google.Chrome" };
+            "5" = @{ Name="Edge"; Id="Microsoft.Edge" }
         }
-    }
-    
-    # Office Section
-    Write-Host "Choose an office suite to install or remove Office Hub and other office software:" -ForegroundColor Cyan
-    Write-Host "1. Microsoft Office"; Write-Host "2. LibreOffice"; Write-Host "3. OpenOffice"; Write-Host "4. No Office Suite (Remove all office software)"; Write-Host "5. Skip this section"
-    $officeChoice = Read-Host "Enter your choice (1/2/3/4/5)"
 
-    if ($officeChoice -eq "1") { winget install --id Microsoft.Office --silent --accept-package-agreements --accept-source-agreements; Remove-AppxPackageAllUsers "Microsoft.MicrosoftOfficeHub" }
-    elseif ($officeChoice -eq "2") { winget install --id TheDocumentFoundation.LibreOffice --silent --accept-package-agreements --accept-source-agreements; Remove-AppxPackageAllUsers "Microsoft.MicrosoftOfficeHub" }
-    elseif ($officeChoice -eq "3") { winget install --id Apache.OpenOffice --silent --accept-package-agreements --accept-source-agreements; Remove-AppxPackageAllUsers "Microsoft.MicrosoftOfficeHub" }
-    elseif ($officeChoice -eq "4") {
-        Write-Host "Removing all Office-related software..." -ForegroundColor Magenta
-        $officeApps = @("Microsoft.Office.Desktop", "Microsoft.Office.OneNote", "Microsoft.OfficeHub", "Microsoft.MicrosoftOfficeHub", "Microsoft.Office", "TheDocumentFoundation.LibreOffice", "Apache.OpenOffice", "Microsoft.OutlookForWindows", "Microsoft.OutlookWebApp", "Microsoft.Office.OneDriveSync")
-        foreach ($app in $officeApps) { Remove-AppxPackageAllUsers $app }
-        $officeFolders = @("$env:ProgramFiles\Microsoft Office", "$env:ProgramFiles (x86)\Microsoft Office", "$env:LOCALAPPDATA\Microsoft\OneDrive", "$env:LOCALAPPDATA\Microsoft\Office", "$env:APPDATA\Microsoft\Office", "$env:ProgramFiles\LibreOffice", "$env:ProgramFiles (x86)\LibreOffice", "$env:ProgramFiles\OpenOffice", "$env:ProgramFiles (x86)\OpenOffice")
-        foreach ($folder in $officeFolders) { if (Test-Path $folder) { Remove-Item -Path $folder -Recurse -Force -ErrorAction SilentlyContinue } }
-        $officeRegKeys = @("HKCU:\Software\Microsoft\Office", "HKCU:\Software\Microsoft\Outlook", "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\Microsoft Office", "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Microsoft Office")
-        foreach ($regKey in $officeRegKeys) { if (Test-Path $regKey) { Remove-Item -Path $regKey -Recurse -Force -ErrorAction SilentlyContinue } }
-        Write-Host "All Office-related software has been removed." -ForegroundColor Green
-    }
-}
+        # Function to handle selection logic
+        function Select-Browser {
+            param ($promptText)
+            Write-Host $promptText -ForegroundColor Cyan
+            Write-Host "1. Firefox"
+            Write-Host "2. Brave"
+            Write-Host "3. Opera GX"
+            Write-Host "4. Chrome"
+            Write-Host "5. Edge"
+            Write-Host "N. Skip"
+            return Read-Host "Enter choice"
+        }
 
-function Invoke-DriverInstallation {
-    $installGPUDrivers = Read-Host "Do you want to install graphics drivers? (y/n)"
-    if ($installGPUDrivers -eq "y") {
-        Write-Host "Select your GPU brand to install drivers:" -ForegroundColor Cyan
-        Write-Host "1. NVIDIA"; Write-Host "2. AMD"; Write-Host "3. Intel"; Write-Host "4. Skip"
-        $gpuChoice = Read-Host "Enter the number of your choice (1/2/3/4)"
+        # --- Primary Browser ---
+        $choice = Select-Browser "Select your PRIMARY browser to install:"
+        $primaryBrowserName = $null
 
-        switch ($gpuChoice) {
-            "1" { Install-Driver -DriverURL $Urls["DriverNvidia"] -DriverPath "$env:TEMP\NVIDIA-Driver.exe" -InstallArgs "-s" }
-            "2" { Install-Driver -DriverURL $Urls["DriverAmd"] -DriverPath "$env:TEMP\AMD-Driver.exe" -InstallArgs "/INSTALL /SILENT" }
-            "3" {
-                 $intelChoice = Read-Host "1. Intel HD (Integrated) or 2. Intel Arc (Dedicated)? (1/2)"
-                 if ($intelChoice -eq "1") { Install-Driver -DriverURL $Urls["DriverIntelHd"] -DriverPath "$env:TEMP\Intel-HD-Driver.exe" -InstallArgs "-s" }
-                 elseif ($intelChoice -eq "2") { Install-Driver -DriverURL $Urls["DriverIntelArc"] -DriverPath "$env:TEMP\Intel-Arc-Driver.exe" -InstallArgs "-s" }
+        if ($browserList.ContainsKey($choice)) {
+            $selection = $browserList[$choice]
+            Install-App -Name $selection.Name -Id $selection.Id
+            $primaryBrowserName = $selection.Name
+            
+            # --- Set Default Browser Logic ---
+            if ($primaryBrowserName -ne "Edge") {
+                $setDefault = Read-Host "Do you want to set $primaryBrowserName as your default browser? (y/n)"
+                if ($setDefault -eq "y") {
+                    Write-Host "Instructions:" -ForegroundColor Yellow
+                    Write-Host "1. Windows Settings will open to 'Default Apps'."
+                    Write-Host "2. Find '$primaryBrowserName' in the list."
+                    Write-Host "3. Click 'Set Default'."
+                    Write-Host "Press Enter to open Settings..." -NoNewline
+                    Read-Host
+                    Start-Process "ms-settings:defaultapps"
+                    Write-Log "User prompted to set $primaryBrowserName as default." "INFO"
+                }
+            }
+        } elseif ($choice -ne "N") {
+            Write-Host "Invalid selection." -ForegroundColor Red
+        }
+
+        # --- Edge Removal Logic ---
+        # Only offer if they didn't pick Edge as primary
+        if ($choice -ne "5" -and $choice -ne "N") {
+            $removeEdge = Read-Host "Do you want to remove/disable Microsoft Edge? (y/n)"
+            if ($removeEdge -eq "y") {
+                Write-Host "WARNING: Removing Edge is mostly safe, but may break Windows Widgets, Copilot, and Web Search in Start Menu." -ForegroundColor Yellow
+                $confirmEdge = Read-Host "Are you sure? (y/n)"
+                if ($confirmEdge -eq "y") {
+                    Write-Log "Attempting to remove Microsoft Edge." "INFO"
+                    Write-Host "Locating Edge Installer..." -ForegroundColor Magenta
+                    try {
+                        # Method 1: Locate Setup.exe (Redundancy for Winget failure)
+                        $edgeInstaller = Get-ChildItem -Path "C:\Program Files (x86)\Microsoft\Edge\Application" -Filter "setup.exe" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+                        
+                        if ($edgeInstaller) {
+                            Write-Host "Running Edge Uninstaller..." -ForegroundColor Magenta
+                            Start-Process -FilePath $edgeInstaller.FullName -ArgumentList "--uninstall --system-level --verbose-logging --force-uninstall" -Wait -NoNewWindow
+                            Write-Log "Executed Edge setup.exe uninstall command." "INFO"
+                        } else {
+                            Write-Log "Edge setup.exe not found." "WARNING"
+                        }
+
+                        # Method 2: Winget (Backup)
+                        Install-App -Name "Edge Uninstall (Winget)" -Id "Microsoft.Edge" 
+
+                        # Method 3: Clean up Shortcuts & Prevent Background Run
+                        Remove-Item "$env:APPDATA\Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar\Microsoft Edge.lnk" -ErrorAction SilentlyContinue
+                        Remove-Item "$env:Public\Desktop\Microsoft Edge.lnk" -ErrorAction SilentlyContinue
+                        
+                        # Disable Edge Background processes via Registry
+                        $edgeReg = "HKLM:\SOFTWARE\Policies\Microsoft\Edge"
+                        if (!(Test-Path $edgeReg)) { New-Item -Path $edgeReg -Force | Out-Null }
+                        Set-ItemProperty -Path $edgeReg -Name "BackgroundModeEnabled" -Value 0
+                        Set-ItemProperty -Path $edgeReg -Name "StartupBoostEnabled" -Value 0
+                        
+                        Write-Host "Edge removal/disable tasks completed." -ForegroundColor Green
+                    } catch {
+                        Write-Log "Error during Edge removal: $_" "ERROR"
+                    }
+                }
+            }
+        }
+
+        # --- Secondary Browser ---
+        $installSecond = Read-Host "Do you want to install an ADDITIONAL browser? (y/n)"
+        if ($installSecond -eq "y") {
+            $choice2 = Select-Browser "Select your SECONDARY browser:"
+            if ($browserList.ContainsKey($choice2)) {
+                $selection2 = $browserList[$choice2]
+                if ($selection2.Name -eq $primaryBrowserName) {
+                    Write-Host "You already installed this browser." -ForegroundColor Yellow
+                } else {
+                    Install-App -Name $selection2.Name -Id $selection2.Id
+                }
             }
         }
     }
     
-    # GPU Telemetry Removal
-    Write-Host "Checking installed GPU drivers for telemetry removal..." -ForegroundColor Magenta
-    $installedDrivers = Get-CimInstance Win32_VideoController | Select-Object -ExpandProperty Name
-    if ($installedDrivers -match "NVIDIA") {
-        Write-Host "Disabling NVIDIA telemetry..." -ForegroundColor Cyan
-        foreach ($s in @("NvTelemetryContainer", "NvContainerLocalSystem", "NvContainerNetworkService")) { Disable-Service $s }
-        foreach ($t in @("\NvTmMon", "\NvTmRep", "\NvTmRepOnLogon")) { Disable-ScheduledTask -taskName $t }
-        Set-RegistryValue -path "HKLM:\Software\NVIDIA Corporation\Global\NvTelemetry" -name "EnableTelemetry" -value 0
-        if (Test-Path "C:\Program Files\NVIDIA Corporation\GeForce Experience") { Set-RegistryValue -path "HKLM:\Software\NVIDIA Corporation\Global\GeForce Experience" -name "EnableCEIP" -value 0 }
+    # ==========================================
+    #             OFFICE SECTION
+    # ==========================================
+    Write-Host "Choose an office suite to install:" -ForegroundColor Cyan
+    Write-Host "1. Microsoft Office (Microsoft 365/2021)"
+    Write-Host "2. LibreOffice"
+    Write-Host "3. OpenOffice"
+    Write-Host "4. No Office Suite (Remove all)"
+    Write-Host "N. Skip this section"
+    $officeChoice = Read-Host "Enter your choice (1/2/3/4/N)"
+    
+    $selectedOffice = ""
+
+    switch ($officeChoice) {
+        "1" { 
+            Install-App -Name "Microsoft Office" -Id "Microsoft.Office.Desktop" # Using Desktop ID usually better for 365
+            Remove-AppxPackageAllUsers "Microsoft.MicrosoftOfficeHub"
+            $selectedOffice = "Microsoft"
+        }
+        "2" { 
+            Install-App -Name "LibreOffice" -Id "TheDocumentFoundation.LibreOffice"
+            Remove-AppxPackageAllUsers "Microsoft.MicrosoftOfficeHub"
+            $selectedOffice = "Libre"
+        }
+        "3" { 
+            Install-App -Name "OpenOffice" -Id "Apache.OpenOffice"
+            Remove-AppxPackageAllUsers "Microsoft.MicrosoftOfficeHub"
+            $selectedOffice = "Open"
+        }
+        "4" { $selectedOffice = "None" }
+        "N" { $selectedOffice = "Skip" }
     }
-    if ($installedDrivers -match "AMD") {
-        Write-Host "Disabling AMD telemetry..." -ForegroundColor Cyan
-        Set-RegistryValue -path "HKLM:\Software\AMD\CN" -name "UserExperienceProgram" -value 0
-        Disable-Service "AMD External Events Utility"
+
+    # --- Office Cleanup Logic ---
+    if ($selectedOffice -ne "Skip") {
+        # Define potential clutter
+        $officeApps = @("Microsoft.Office.Desktop", "Microsoft.Office.OneNote", "Microsoft.OfficeHub", "Microsoft.MicrosoftOfficeHub", "Microsoft.OutlookForWindows")
+        
+        # If they chose a specific suite, ask to clean others?
+        if ($selectedOffice -ne "None") {
+            $doCleanup = Read-Host "Do you want to remove other Office suites/hubs to prevent conflicts? (y/n)"
+            if ($doCleanup -eq "y") {
+                Write-Host "Cleaning up conflicting Office apps..." -ForegroundColor Magenta
+                foreach ($app in $officeApps) {
+                    try {
+                        Get-AppxPackage -AllUsers -Name $app | Remove-AppxPackage -AllUsers -ErrorAction SilentlyContinue
+                        Write-Log "Removed AppxPackage: $app" "INFO"
+                    } catch {}
+                }
+            }
+        } elseif ($selectedOffice -eq "None") {
+            # Full Nuke
+            Write-Host "Removing all Office-related software..." -ForegroundColor Magenta
+            foreach ($app in $officeApps) { Get-AppxPackage -AllUsers -Name $app | Remove-AppxPackage -AllUsers -ErrorAction SilentlyContinue }
+            
+            # Remove folders
+            $officeFolders = @(
+                "$env:ProgramFiles\Microsoft Office", 
+                "$env:ProgramFiles (x86)\Microsoft Office", 
+                "$env:LOCALAPPDATA\Microsoft\Office", 
+                "$env:APPDATA\Microsoft\Office"
+            )
+            foreach ($folder in $officeFolders) { 
+                if (Test-Path $folder) { 
+                    Remove-Item -Path $folder -Recurse -Force -ErrorAction SilentlyContinue 
+                    Write-Log "Removed folder: $folder" "INFO"
+                } 
+            }
+            Write-Host "Office cleanup complete." -ForegroundColor Green
+        }
+    }
+
+    # --- Telemetry & Nags (Runs if MS Office is installed or detected) ---
+    $msOfficeDetected = (Test-Path "HKLM:\SOFTWARE\Microsoft\Office") -or ($selectedOffice -eq "Microsoft")
+    
+    if ($msOfficeDetected) {
+        $disableTelemetry = Read-Host "Do you want to disable MS Office Telemetry, Data Collection, and Advertising Nags? (y/n)"
+        if ($disableTelemetry -eq "y") {
+            Write-Host "Applying Office Privacy tweaks..." -ForegroundColor Magenta
+            try {
+                $telemetryKeys = @(
+                    "HKCU:\Software\Microsoft\Office\Common\ClientTelemetry",
+                    "HKCU:\Software\Microsoft\Office\16.0\Common\Feedback",
+                    "HKCU:\Software\Policies\Microsoft\Office\16.0\Common\Privacy"
+                )
+
+                # 1. Disable Telemetry via Registry
+                foreach ($key in $telemetryKeys) {
+                    if (!(Test-Path $key)) { New-Item -Path $key -Force | Out-Null }
+                }
+                
+                # SendTelemetry = 1 (Disable), DisableTelemetry = 1
+                Set-ItemProperty -Path "HKCU:\Software\Microsoft\Office\Common\ClientTelemetry" -Name "DisableTelemetry" -Value 1 -ErrorAction SilentlyContinue
+                Set-ItemProperty -Path "HKCU:\Software\Microsoft\Office\16.0\Common\Feedback" -Name "Enabled" -Value 0 -ErrorAction SilentlyContinue
+                Set-ItemProperty -Path "HKCU:\Software\Policies\Microsoft\Office\16.0\Common\Privacy" -Name "DisconnectedState" -Value 2 -ErrorAction SilentlyContinue
+                
+                # 2. Disable "Whats New" and Upsell Nags
+                $commonKey = "HKCU:\Software\Microsoft\Office\16.0\Common\General"
+                if (!(Test-Path $commonKey)) { New-Item -Path $commonKey -Force | Out-Null }
+                Set-ItemProperty -Path $commonKey -Name "ShownFirstRunOptin" -Value 1 -ErrorAction SilentlyContinue
+                Set-ItemProperty -Path $commonKey -Name "Skype4B" -Value 0 -ErrorAction SilentlyContinue
+
+                Write-Host "Office Telemetry and Nags disabled." -ForegroundColor Green
+                Write-Log "Applied MS Office Telemetry and Nag registry blocks." "INFO"
+            } catch {
+                Write-Log "Failed to apply Office telemetry tweaks: $_" "ERROR"
+            }
+        }
+    }
+}
+
+function Invoke-DriverInstallation {
+    Write-Log "Starting Driver Installation module..." "INFO"
+
+    # ==========================================
+    #          GRAPHICS DRIVER SECTION
+    # ==========================================
+    $installGPUDrivers = Read-Host "Do you want to install graphics drivers? (y/n)"
+    if ($installGPUDrivers -eq "y") {
+        try {
+            # Hardware Detection
+            Write-Host "`n--- Detecting Hardware ---" -ForegroundColor Cyan
+            $cpuInfo = Get-CimInstance Win32_Processor | Select-Object -ExpandProperty Name
+            $gpuInfo = Get-CimInstance Win32_VideoController | Select-Object -ExpandProperty Name
+            
+            Write-Host "Detected CPU: $cpuInfo" -ForegroundColor Yellow
+            Write-Host "Detected GPU(s): $($gpuInfo -join ', ')" -ForegroundColor Yellow
+            Write-Host "--------------------------`n" -ForegroundColor Cyan
+
+            Write-Host "Select your GPU brand to install drivers:" -ForegroundColor Cyan
+            Write-Host "1. NVIDIA"
+            Write-Host "2. AMD"
+            Write-Host "3. Intel"
+            Write-Host "N. Skip"
+            $gpuChoice = Read-Host "Enter the number of your choice (1/2/3/N)"
+
+            switch ($gpuChoice) {
+                "1" { 
+                    # NVIDIA Logic
+                    Write-Log "User selected NVIDIA drivers." "INFO"
+                    Write-Host "`n[WARNING] NVIDIA GeForce Experience (GFE)" -ForegroundColor Red
+                    Write-Host "GFE contains comprehensive data collection/telemetry that tracks usage." -ForegroundColor Gray
+                    Write-Host "It can also impact gaming performance." -ForegroundColor Gray
+                    Write-Host "If you use GFE for game recording (ShadowPlay), consider using 'Medal.tv' or 'Steam Game Recording'." -ForegroundColor Green
+                    Write-Host "OGC Utility can auto-update drivers without GFE." -ForegroundColor Green
+                    
+                    $installGFE = Read-Host "Do you want to install GeForce Experience? (y/n)"
+                    
+                    $nvidiaUrl = Get-Url "DriverNvidia"
+                    $nvidiaPath = "$tempFolder\NVIDIA-Driver.exe"
+                    
+                    Write-Host "Downloading NVIDIA Drivers..." -ForegroundColor Cyan
+                    Invoke-WebRequest -Uri $nvidiaUrl -OutFile $nvidiaPath
+                    
+                    Write-Host "Installing NVIDIA Drivers..." -ForegroundColor Cyan
+                    # Standard silent install (-s) often forces GFE. 
+                    $process = Start-Process -FilePath $nvidiaPath -ArgumentList "-s" -Wait -PassThru
+                    
+                    if ($process.ExitCode -eq 0) {
+                        Write-Log "NVIDIA driver installed successfully." "INFO"
+                    } else {
+                        Write-Log "NVIDIA driver install returned exit code: $($process.ExitCode)" "WARNING"
+                    }
+
+                    if ($installGFE -ne "y") {
+                        Write-Host "Removing GeForce Experience references..." -ForegroundColor Yellow
+                        # Attempt to stop GFE services immediately so they don't run
+                        $gfeServices = @("NvContainerLocalSystem", "NvContainerNetworkService", "NvTelemetryContainer")
+                        foreach ($svc in $gfeServices) {
+                            Get-Service $svc -ErrorAction SilentlyContinue | Stop-Service -Force -ErrorAction SilentlyContinue
+                            Set-Service $svc -StartupType Disabled -ErrorAction SilentlyContinue
+                        }
+                    }
+                }
+                "2" { 
+                    # AMD Logic
+                    Write-Log "User selected AMD drivers." "INFO"
+                    $amdUrl = Get-Url "DriverAmd"
+                    $amdPath = "$tempFolder\AMD-Driver.exe"
+                    
+                    Write-Host "Downloading AMD Drivers..." -ForegroundColor Cyan
+                    Invoke-WebRequest -Uri $amdUrl -OutFile $amdPath
+                    
+                    Write-Host "Installing AMD Drivers..." -ForegroundColor Cyan
+                    $process = Start-Process -FilePath $amdPath -ArgumentList "/INSTALL /SILENT" -Wait -PassThru
+                     if ($process.ExitCode -eq 0) {
+                        Write-Log "AMD driver installed successfully." "INFO"
+                    } else {
+                        Write-Log "AMD driver install returned exit code: $($process.ExitCode)" "WARNING"
+                    }
+                }
+                "3" {
+                    # Intel Logic
+                    Write-Log "User selected Intel drivers." "INFO"
+                    Write-Host "Select Intel Graphics Type:" -ForegroundColor Cyan
+                    Write-Host "1. Intel Arc (Dedicated Graphics)"
+                    Write-Host "2. Integrated Graphics (iGPU)"
+                    $intelType = Read-Host "Choice (1/2)"
+
+                    if ($intelType -eq "1") {
+                        # Arc (Dedicated)
+                        $arcUrl = Get-Url "DriverIntelArc"
+                        $arcPath = "$tempFolder\Intel-Arc-Driver.exe"
+                        Write-Host "Downloading Intel Arc Drivers..." -ForegroundColor Cyan
+                        Invoke-WebRequest -Uri $arcUrl -OutFile $arcPath
+                        Write-Host "Installing Intel Arc Drivers..." -ForegroundColor Cyan
+                        Start-Process -FilePath $arcPath -ArgumentList "-s" -Wait
+                    }
+                    elseif ($intelType -eq "2") {
+                        # Integrated Logic
+                        Write-Host "Select your CPU Generation:" -ForegroundColor Cyan
+                        Write-Host "1. Intel Core Ultra (Use Arc Driver)"
+                        Write-Host "2. 11th Gen to 14th Gen"
+                        Write-Host "3. 7th Gen to 10th Gen"
+                        $genChoice = Read-Host "Choice (1/2/3)"
+
+                        if ($genChoice -eq "1") {
+                            # Core Ultra uses Arc Driver
+                            $arcUrl = Get-Url "DriverIntelArc"
+                            $arcPath = "$tempFolder\Intel-Arc-Driver.exe"
+                            Write-Host "Downloading Intel Core Ultra Drivers..." -ForegroundColor Cyan
+                            Invoke-WebRequest -Uri $arcUrl -OutFile $arcPath
+                            Write-Host "Installing Intel Core Ultra Drivers..." -ForegroundColor Cyan
+                            Start-Process -FilePath $arcPath -ArgumentList "-s" -Wait
+                        }
+                        elseif ($genChoice -eq "2") {
+                            # 11th-14th Gen
+                            $hdUrl = Get-Url "DriverIntelHd"
+                            $hdPath = "$tempFolder\Intel-HD-Driver.exe"
+                            Write-Host "Downloading Intel UHD/Iris Drivers (11th-14th Gen)..." -ForegroundColor Cyan
+                            Invoke-WebRequest -Uri $hdUrl -OutFile $hdPath
+                            Write-Host "Installing Intel Drivers..." -ForegroundColor Cyan
+                            Start-Process -FilePath $hdPath -ArgumentList "-s" -Wait
+                        }
+                        elseif ($genChoice -eq "3") {
+                            # 7th-10th Gen
+                            $oldUrl = Get-Url "DriverIntelOld"
+                            $oldPath = "$tempFolder\Intel-Old-Driver.exe"
+                            Write-Host "Downloading Legacy Intel Drivers (7th-10th Gen)..." -ForegroundColor Cyan
+                            Invoke-WebRequest -Uri $oldUrl -OutFile $oldPath
+                            Write-Host "Installing Legacy Intel Drivers..." -ForegroundColor Cyan
+                            Start-Process -FilePath $oldPath -ArgumentList "-s" -Wait
+                        }
+                    }
+                }
+            }
+        
+            # Telemetry Cleanup Prompt
+            if ($gpuChoice -in "1","2","3") {
+                Write-Host "`nTelemetry/Data Collection" -ForegroundColor Magenta
+                Write-Host "It is highly recommended to disable telemetry to improve privacy and performance." -ForegroundColor Gray
+                $disableTele = Read-Host "Do you want to disable telemetry for the installed drivers? (y/n)"
+                
+                if ($disableTele -eq "y") {
+                    Write-Log "Starting Telemetry cleanup." "INFO"
+                    Write-Host "Scanning for telemetry services..." -ForegroundColor Magenta
+                    
+                    # NVIDIA Telemetry
+                    if (Get-Service "NvTelemetryContainer" -ErrorAction SilentlyContinue) {
+                        Write-Host "Disabling NVIDIA telemetry..." -ForegroundColor Cyan
+                        foreach ($s in @("NvTelemetryContainer", "NvContainerLocalSystem", "NvContainerNetworkService")) { 
+                            Stop-Service $s -Force -ErrorAction SilentlyContinue
+                            Set-Service $s -StartupType Disabled -ErrorAction SilentlyContinue
+                        }
+                        foreach ($t in @("\NvTmMon", "\NvTmRep", "\NvTmRepOnLogon")) { 
+                            Unregister-ScheduledTask -TaskName $t -Confirm:$false -ErrorAction SilentlyContinue 
+                        }
+                        if (Test-Path "HKLM:\Software\NVIDIA Corporation\Global\NvTelemetry") {
+                            Set-ItemProperty -Path "HKLM:\Software\NVIDIA Corporation\Global\NvTelemetry" -Name "EnableTelemetry" -Value 0 -ErrorAction SilentlyContinue
+                        }
+                        Write-Log "NVIDIA telemetry disabled." "INFO"
+                    }
+
+                    # AMD Telemetry
+                    if (Get-Service "AMD External Events Utility" -ErrorAction SilentlyContinue) {
+                        Write-Host "Disabling AMD telemetry..." -ForegroundColor Cyan
+                        Stop-Service "AMD External Events Utility" -Force -ErrorAction SilentlyContinue
+                        Set-Service "AMD External Events Utility" -StartupType Disabled -ErrorAction SilentlyContinue
+                        if (Test-Path "HKLM:\Software\AMD\CN") {
+                            Set-ItemProperty -Path "HKLM:\Software\AMD\CN" -Name "UserExperienceProgram" -Value 0 -ErrorAction SilentlyContinue
+                        }
+                        Write-Log "AMD telemetry disabled." "INFO"
+                    }
+
+                    # Intel Telemetry
+                    if (Get-Service "Intel(R) Surrey City Program" -ErrorAction SilentlyContinue) {
+                         Write-Host "Disabling Intel telemetry..." -ForegroundColor Cyan
+                         Stop-Service "Intel(R) Surrey City Program" -Force -ErrorAction SilentlyContinue
+                         Set-Service "Intel(R) Surrey City Program" -StartupType Disabled -ErrorAction SilentlyContinue
+                         Write-Log "Intel telemetry disabled." "INFO"
+                    }
+                }
+            }
+
+        } catch {
+            Write-Log "Critical error in Graphics Driver section: $_" "ERROR"
+            Write-Host "An error occurred installing graphics drivers. Check log for details." -ForegroundColor Red
+        }
+    }
+
+    # ==========================================
+    #           CHIPSET DRIVER SECTION
+    # ==========================================
+    $installChipset = Read-Host "`nDo you want to install Motherboard Chipset drivers? (y/n)"
+    if ($installChipset -eq "y") {
+        try {
+            Write-Host "Select Chipset Manufacturer:" -ForegroundColor Cyan
+            Write-Host "1. Intel (INF Update Utility)"
+            Write-Host "2. AMD (Chipset Software)"
+            $chipChoice = Read-Host "Choice (1/2)"
+
+            if ($chipChoice -eq "1") {
+                Write-Log "User selected Intel Chipset." "INFO"
+                $chipUrl = Get-Url "DriverChipsetIntel"
+                $chipPath = "$tempFolder\Intel-Chipset.exe"
+                
+                Write-Host "Downloading Intel Chipset Drivers..." -ForegroundColor Cyan
+                Invoke-WebRequest -Uri $chipUrl -OutFile $chipPath
+                
+                Write-Host "Installing Intel Chipset INF..." -ForegroundColor Cyan
+                Start-Process -FilePath $chipPath -ArgumentList "-install -restart" -Wait
+                Write-Log "Intel Chipset installed." "INFO"
+            }
+            elseif ($chipChoice -eq "2") {
+                Write-Log "User selected AMD Chipset." "INFO"
+                $chipUrl = Get-Url "DriverChipsetAmd"
+                $chipPath = "$tempFolder\AMD-Chipset.exe"
+                
+                Write-Host "Downloading AMD Chipset Drivers..." -ForegroundColor Cyan
+                Invoke-WebRequest -Uri $chipUrl -OutFile $chipPath
+                
+                Write-Host "Installing AMD Chipset..." -ForegroundColor Cyan
+                Start-Process -FilePath $chipPath -ArgumentList "/INSTALL /SILENT" -Wait
+                Write-Log "AMD Chipset installed." "INFO"
+            }
+        } catch {
+            Write-Log "Error in Chipset Driver section: $_" "ERROR"
+            Write-Host "An error occurred installing chipset drivers." -ForegroundColor Red
+        }
     }
 }
 
@@ -1101,27 +1948,32 @@ if ($continueScript -ne "y") {
 }
 
 Write-Host "NOTE: During the process, Windows Explorer may restart, causing this window to lose focus." -ForegroundColor DarkYellow
-Write-Host "If the script appears to pause, please CLICK on this window to ensure it has focus." -ForegroundColor DarkYellow
+Write-Host "If the wizard appears to pause, please CLICK on this window to ensure it has focus." -ForegroundColor DarkYellow
 Write-Host "" 
 Start-Sleep -Seconds 3
 # --- CREATE RESTORE POINT ---
 New-RestorePoint
 
 # --- RUN MODULES ---
-Invoke-TelemetrySetup
-Invoke-JunkRemoval
-Invoke-DNSBlocking
-Invoke-SecurityEnhancement
-Invoke-BloatwareRemoval
-Invoke-YourPhoneSetup
-Invoke-XboxSetup
-Invoke-OneDriveRemoval
-Invoke-TeamsRemoval
-Invoke-AIRemoval
-Invoke-UIAndTaskbarSetup
-Invoke-SystemOptimizations
-Invoke-SoftwareInstallation
-Invoke-DriverInstallation
+try { Invoke-TelemetrySetup } catch { Write-Log "Telemetry Module Error: $_" "ERROR" }
+try { Invoke-JunkRemoval } catch { Write-Log "Junk Removal Error: $_" "ERROR" }
+try { Invoke-DNSBlocking } catch { Write-Log "DNS Block Error: $_" "ERROR" }
+try { Invoke-SecurityEnhancement } catch { Write-Log "Security Module Error: $_" "ERROR" }
+try { Invoke-BloatwareRemoval } catch { Write-Log "Bloatware Module Error: $_" "ERROR" }
+try { Invoke-YourPhoneSetup } catch { Write-Log "Phone Module Error: $_" "ERROR" }
+# try { Invoke-XboxSetup } catch { Write-Log "Xbox Module Error: $_" "ERROR" }
+try { Invoke-OneDriveRemoval } catch { Write-Log "OneDrive Module Error: $_" "ERROR" }
+try { Invoke-TeamsRemoval } catch { Write-Log "Teams Module Error: $_" "ERROR" }
+try { Invoke-AIRemoval } catch { Write-Log "AI Module Error: $_" "ERROR" }
+try { Invoke-UIAndTaskbarSetup } catch { Write-Log "UI Module Error: $_" "ERROR" }
+try { Invoke-SystemOptimizations } catch { Write-Log "Optimization Module Error: $_" "ERROR" }
+try { Invoke-SoftwareInstallation } catch { Write-Log "Software Module Error: $_" "ERROR" }
+
+try {
+    if ($Urls.ContainsKey("DriverNvidia")) {
+        Invoke-DriverInstallation 
+    }
+} catch { Write-Log "Driver Module Error: $_" "ERROR" }
 
 # Final Restart Logic
 Stop-Process -Name explorer -Force
