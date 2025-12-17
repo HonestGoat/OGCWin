@@ -76,8 +76,6 @@ $xamlPath = "$downloadsFolder\Microsoft.UI.Xaml.2.8_8.2501.31001.0_x64.appx"
 $desktopPath = [System.IO.Path]::Combine([System.Environment]::GetFolderPath("Desktop"), "OGC Windows Utility.lnk")
 $ogcIcon = "C:\Windows\System32\shell32.dll,272"
 
-# Folder structure
-$folders = @($parentFolder, $backupFolder, $registryBackup, $downloadsFolder, $configsFolder, $tempFolder, $scriptsFolder, $utilitiesFolder, $logFolder, $binDir, $desktopProfiles, $powerProfiles, $driverBackups)
 
 # ==========================================
 #             FUNCTIONS
@@ -354,6 +352,8 @@ Write-Host "Starting OGCWin Utility Launcher Setup."
 # Check Windows Version
 Get-WindowsVersion | Out-Null
 
+# Folder structure
+$folders = @($parentFolder, $downloadsFolder, $configsFolder, $tempFolder, $scriptsFolder, $utilitiesFolder, $backupFolder, $registryBackup, $logFolder, $binDir, $desktopProfiles, $powerProfiles, $driverBackups)
 # Ensure all necessary folders exist
 foreach ($folder in $folders) {
     try {
