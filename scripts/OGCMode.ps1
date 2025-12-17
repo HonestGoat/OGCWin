@@ -214,15 +214,15 @@ Write-Host ""
 
 while ($true) {
     Write-Host "Select Mode:" -ForegroundColor Cyan
-    Write-Host "1. Utility Mode - Access the main utility menu" -ForegroundColor Yellow
+    Write-Host "1. Menu Mode - Access the main utility menu" -ForegroundColor Yellow
     
     if ($winVer -match "Windows 11") {
         Write-Host "2. Wizard Mode - Step-by-step new PC setup wizard" -ForegroundColor Yellow
     } else {
-        Write-Host "2. Wizard Mode - [WARNING: Windows 11 Only] Setup wizard" -ForegroundColor Red
+        Write-Host "2. Wizard Mode - [WARNING: Not meant for Windows 10]" -ForegroundColor Red
     }
     
-    Write-Host "3. System Information - View hardware/OS details" -ForegroundColor Yellow
+    Write-Host "3. View System Information" -ForegroundColor Yellow
     Write-Host "Q. Quit" -ForegroundColor DarkGray
     Write-Host ""
     
@@ -273,7 +273,7 @@ while ($true) {
         }
         "q" { 
             Write-Log "User selected Quit."
-            exit 
+            Exit 
         }
         default { 
             Write-Host "Invalid selection." -ForegroundColor Red
