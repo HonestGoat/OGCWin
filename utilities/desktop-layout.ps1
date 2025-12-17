@@ -1,7 +1,7 @@
 # ==========================================
 #        OGC Desktop Layout Manager
 #              By Honest Goat
-#               Version: 0.1
+#               Version: 0.2
 # ==========================================
 
 # Start with administrator privileges, bypass execution policy and force black background
@@ -17,79 +17,127 @@ function Test-Admin {
 }
 Test-Admin
 
+Set-ExecutionPolicy Bypass -Scope Process -Force
+$host.UI.RawUI.WindowTitle = "OGC Desktop Layout Manager"
+$Host.UI.RawUI.BackgroundColor = "Black"
+$Host.UI.RawUI.ForegroundColor = "White"
+Clear-Host
+
+# Define colour functions and progress bars
+function Write-Color {
+    param (
+        [string]$Text,
+        [string]$ForegroundColor = "White",
+        [string]$BackgroundColor = "Black"
+    )
+    Write-Host $Text -ForegroundColor $ForegroundColor -BackgroundColor $BackgroundColor
+}
+
 # ==========================================
-# Variable Definitions
+#             DEFINITIONS
 # ==========================================
 
-# Folder definitions
+# OGCWin folder definitions
 $parentFolder = "C:\ProgramData\OGC Windows Utility"
 $tempFolder = "$parentFolder\temp"
 $scriptsFolder = "$parentFolder\scripts"
 $utilitiesFolder = "$parentFolder\utilities"
+$logFolder = "$parentFolder\logs"
 $desktopProfiles = "$parentFolder\backups\desktop profiles"
 
-# Filenane definitions
+# Filename definitions
 $ogcwin = "$scriptsFolder\OGCWin.ps1"
 $desktopLayout = "$utilitiesFolder\desktop-layout.ps1"
+$desktopLogFile = "$logFolder\desktop-layout_log.txt"
 $ShortcutPath = "$env:USERPROFILE\Desktop\Desktop Layout Manager.lnk"
-$savePath = "$desktopProfiles\$profileName.reg"
 $tempReg = "$tempFolder\modern_layout.reg"
+
+# Registry Keys
+$regKeyLegacy = "HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Bags\1\Desktop"
+$regKeyModern = "HKEY_CURRENT_USER\Software\Classes\Local Settings\Software\Microsoft\Windows\Shell\Bags\1\Desktop"
 
 # Function Variables
 $currentScriptPath = $MyInvocation.MyCommand.Definition
 $WshShell = New-Object -comObject WScript.Shell
-$winVer = Get-OSVersion
-$profiles = Get-ChildItem -Path $desktopProfiles -Filter "*.reg"
-
-# Registry Keys (Targets both known registry locations for desktop layouts in Windows 10 & 11)
-$regKeyLegacy = "HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Bags\1\Desktop"
-$regKeyModern = "HKEY_CURRENT_USER\Software\Classes\Local Settings\Software\Microsoft\Windows\Shell\Bags\1\Desktop"
-
 
 # ==========================================
-# FUNCTIONS
+#             FUNCTIONS
 # ==========================================
+
+# --- Logging Function ---
+function Write-Log {
+    param (
+        [Parameter(Mandatory=$true)] [string]$Message,
+        [Parameter(Mandatory=$true)] [ValidateSet("SUCCESS","FAILURE","INFO","WARNING")] [string]$Status,
+        [string]$Module = "DesktopManager"
+    )
+    # Check dir exists
+    if (-not (Test-Path $logFolder)) { New-Item -Path $logFolder -ItemType Directory -Force | Out-Null }
+    
+    # Build string
+    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+    $logEntry = "[$Status] [$timestamp] [$Module] $Message"
+    
+    # Save to file
+    try { Add-Content -Path $desktopLogFile -Value $logEntry -Force -ErrorAction Stop }
+    catch { Write-Host "CRITICAL: Can't write to $desktopLogFile" -ForegroundColor Red }
+    
+    # Alert console on issues
+    if ($Status -eq "FAILURE") { Write-Host "Error ($Module): $Message" -ForegroundColor Red }
+    elseif ($Status -eq "WARNING") { Write-Host "Warning ($Module): $Message" -ForegroundColor Yellow }
+}
 
 Function Install-Utility {
     Write-Host "Checking installation status..." -ForegroundColor Cyan
-    # Check if directories exist
-    if (-not (Test-Path $utilitiesFolder)) { New-Item -Path $utilitiesFolder -ItemType Directory -Force | Out-Null }
-    if (-not (Test-Path $desktopProfiles)) { New-Item -Path $desktopProfiles -ItemType Directory -Force | Out-Null }
-    # Check if script is running from the correct location
+    try {
+        # Check if directories exist
+        if (-not (Test-Path $utilitiesFolder)) { New-Item -Path $utilitiesFolder -ItemType Directory -Force | Out-Null }
+        if (-not (Test-Path $desktopProfiles)) { New-Item -Path $desktopProfiles -ItemType Directory -Force | Out-Null }
         
-    if ($currentScriptPath -ne $desktopLayout) {
-        Write-Host "Installing utility to: $utilitiesFolder" -ForegroundColor Yellow
-        Copy-Item -Path $currentScriptPath -Destination $desktopLayout -Force
-        # Create Desktop Shortcut
-        $Shortcut = $WshShell.CreateShortcut($ShortcutPath)
-        $Shortcut.TargetPath = "powershell.exe"
-        $Shortcut.Arguments = "-NoProfile -ExecutionPolicy Bypass -File `"$desktopLayout`""
-        $Shortcut.IconLocation = "shell32.dll,276"
-        $Shortcut.WindowStyle = 1
-        $Shortcut.Description = "OGC Desktop Layout Manager"
-        $Shortcut.Save()
-        Write-Host "Installation complete. Restarting for changes to take effect..." -ForegroundColor Green
-        Start-Sleep -Seconds 2
-        Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$desktopLayout`""
-        Exit
+        # Check if script is running from the correct location
+        if ($currentScriptPath -ne $desktopLayout) {
+            Write-Log -Message "Installing utility to: $utilitiesFolder" -Status INFO
+            Write-Host "Installing utility to: $utilitiesFolder" -ForegroundColor Yellow
+            Copy-Item -Path $currentScriptPath -Destination $desktopLayout -Force
+            
+            # Create Desktop Shortcut
+            $Shortcut = $WshShell.CreateShortcut($ShortcutPath)
+            $Shortcut.TargetPath = "powershell.exe"
+            $Shortcut.Arguments = "-NoProfile -ExecutionPolicy Bypass -File `"$desktopLayout`""
+            $Shortcut.IconLocation = "shell32.dll,276"
+            $Shortcut.WindowStyle = 1
+            $Shortcut.Description = "OGC Desktop Layout Manager"
+            $Shortcut.Save()
+            
+            Write-Log -Message "Installation complete." -Status SUCCESS
+            Write-Host "Installation complete. Restarting for changes to take effect..." -ForegroundColor Green
+            Start-Sleep -Seconds 2
+            Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$desktopLayout`""
+            Exit
+        }
     }
-}
-
-Function Get-OSVersion {
-    $os = Get-CimInstance Win32_OperatingSystem
-    return $os.Caption # Returns Windows 10 or 11
+    catch {
+        Write-Log -Message "Installation failed: $_" -Status FAILURE
+        Write-Host "Installation failed. Check logs." -ForegroundColor Red
+        Start-Sleep -Seconds 3
+    }
 }
 
 Function Restart-Explorer {
     Write-Host "Restarting Windows Explorer to apply profile..." -ForegroundColor Yellow
-    Stop-Process -ProcessName explorer -Force -ErrorAction SilentlyContinue
-    Start-Sleep -Seconds 1
-    # Check if explorer restarted automatically, if not, start it
-    if (-not (Get-Process explorer -ErrorAction SilentlyContinue)) {
-        Start-Process explorer.exe
+    try {
+        Stop-Process -ProcessName explorer -Force -ErrorAction SilentlyContinue
+        Start-Sleep -Seconds 1
+        # Check if explorer restarted automatically, if not, start it
+        if (-not (Get-Process explorer -ErrorAction SilentlyContinue)) {
+            Start-Process explorer.exe
+        }
+        Write-Log -Message "Explorer restarted successfully." -Status SUCCESS
+    }
+    catch {
+        Write-Log -Message "Failed to restart Explorer: $_" -Status FAILURE
     }
 }
-
 
 # ==========================================
 #        INSTALLATION & SETUP
@@ -99,33 +147,35 @@ Write-Host "Checking installation status..." -ForegroundColor Cyan
 Start-Sleep -Seconds 1
 Install-Utility
 
-
 # ==========================================
 #            MENU LOOP
 # ==========================================
 
 while ($true) {
+    # Refresh profiles list on every loop
+    $profiles = Get-ChildItem -Path $desktopProfiles -Filter "*.reg"
+
     Clear-Host
-    Write-Color "OGC Banner" -ForegroundColor Yellow
-    Write-Color "=======================================" -ForegroundColor DarkBlue
-    Write-Color "       OOOOOO    GGGGGG    CCCCCC      " -ForegroundColor Cyan
-    Write-Color "      OO    OO  GG        CC           " -ForegroundColor Cyan
-    Write-Color "      OO    OO  GG   GGG  CC           " -ForegroundColor Cyan
-    Write-Color "      OO    OO  GG    GG  CC           " -ForegroundColor Cyan
-    Write-Color "       OOOOOO    GGGGGG    CCCCCC      " -ForegroundColor Cyan
-    Write-Color "                                       " -ForegroundColor Cyan
-    Write-Color "      OGC Desktop Layout Manager       " -ForegroundColor Yellow
-    Write-Color "        https://discord.gg/ogc         " -ForegroundColor Magenta
-    Write-Color "        Created by Honest Goat         " -ForegroundColor Green
-    Write-Host "----------------------------------------" -ForegroundColor Blue
-    Write-Host " OS Detected: $winVer                " -ForegroundColor Gray
-    Write-Host " Location: $desktopLayout               " -ForegroundColor Gray
-    Write-Color "=======================================" -ForegroundColor DarkBlue
-    Write-Host "1. Save Desktop Layout (Create Profile)"
-    Write-Host "2. Restore Desktop Layout (Load saved Profile)"
-    Write-Host "3. Exit to OGC Windows Utility"
-    Write-Host "Q. Quit to Desktop"
-    Write-Host "====================================="
+    Write-Host ""
+    Write-Host "=======================================" -ForegroundColor DarkBlue
+    Write-Host "       OOOOOO    GGGGGG    CCCCCC      " -ForegroundColor Cyan
+    Write-Host "      OO    OO  GG        CC           " -ForegroundColor Cyan
+    Write-Host "      OO    OO  GG   GGG  CC           " -ForegroundColor Cyan
+    Write-Host "      OO    OO  GG    GG  CC           " -ForegroundColor Cyan
+    Write-Host "       OOOOOO    GGGGGG    CCCCCC      " -ForegroundColor Cyan
+    Write-Host "                                       " -ForegroundColor Cyan
+    Write-Host "      OGC Desktop Layout Manager       " -ForegroundColor Yellow
+    Write-Host "        https://discord.gg/ogc         " -ForegroundColor Magenta
+    Write-Host "        Created by Honest Goat         " -ForegroundColor Green
+    Write-Host "---------------------------------------" -ForegroundColor Cyan
+    Write-Host " Profiles: $desktopProfiles            " -ForegroundColor Gray
+    Write-Host "=======================================" -ForegroundColor DarkBlue
+    Write-Host "1. Save Desktop Layout (Create Profile)" -ForegroundColor Green
+    Write-Host "2. Restore Desktop Layout (Load saved Profile)" -ForegroundColor Blue
+    Write-Host "3. Open Profiles Folder                " -ForegroundColor Yellow
+    Write-Host "R. Return to OGC Windows Utility       " -ForegroundColor Gray
+    Write-Host "Q. Quit to Desktop                     " -ForegroundColor DarkGray
+    Write-Host "=======================================" -ForegroundColor DarkBlue
     
     $choice = Read-Host "Choose and option (1-3)"
     switch ($choice) {
@@ -141,32 +191,39 @@ while ($true) {
                 Start-Sleep -Seconds 1
                 continue
             }
-            Write-Host "Exporting Desktop Layout..."
-            reg export "$regKeyLegacy" "$savePath" /y | Out-Null # Export Legacy Key (User Confirmed)
             
-            # Gathers both registry keys and exports them to temp then combines them into a single reg file.
-            if (-not (Test-Path $tempFolder)) { New-Item -Path $tempFolder -ItemType Directory | Out-Null }
-            reg export "$regKeyModern" "$tempReg" /y 2>$null | Out-Null # Exports both keys to a single reg file
-            if (Test-Path $tempReg) {
-                Get-Content "$tempReg" | Select-Object -Skip 1 | Add-Content "$savePath"
-                Remove-Item "$tempReg" -Force
-            }
+            Write-Host "Exporting Desktop Layout..."
+            $userSavePath = "$desktopProfiles\$profileName.reg"
+            try {
+                if (-not (Test-Path $tempFolder)) { New-Item -Path $tempFolder -ItemType Directory | Out-Null }
+                reg export "$regKeyLegacy" "$userSavePath" /y 2>$null | Out-Null 
+                reg export "$regKeyModern" "$tempReg" /y 2>$null | Out-Null 
 
-            if (Test-Path $savePath) {
-                Write-Host "Profile '$profileName' saved successfully!" -ForegroundColor Green
-            } else {
-                Write-Host "Error saving profile." -ForegroundColor Red
+                # Combine keys if modern exists
+                if (Test-Path $tempReg) {
+                    Get-Content "$tempReg" | Select-Object -Skip 1 | Add-Content "$userSavePath"
+                    Remove-Item "$tempReg" -Force
+                }
+
+                if (Test-Path $userSavePath) {
+                    Write-Log -Message "Profile '$profileName' saved successfully." -Status SUCCESS
+                    Write-Host "Profile '$profileName' saved successfully!" -ForegroundColor Green
+                } else {
+                    throw "Failed saving profile '$profileName'"
+                }
             }
-            Start-Sleep -Seconds 2
+            catch {
+                Write-Log -Message "Error saving profile '$profileName': $_" -Status FAILURE
+            }
+            Start-Sleep -Seconds 1
         }
 
         "2" {
             # --- Restore Profile ---
             Write-Host "`n[RESTORE PROFILE]" -ForegroundColor Green
-            
             if ($profiles.Count -eq 0) {
                 Write-Host "No profiles found in $desktopProfiles" -ForegroundColor Red
-                Pause
+                Start-Sleep -Seconds 2
                 continue
             }
             # --- List Profiles ---
@@ -178,14 +235,19 @@ while ($true) {
             Write-Host "C. Cancel"
 
             $selection = Read-Host "Select a profile number to restore"
-            
             if ($selection -match "^\d+$" -and $selection -le $profiles.Count -and $selection -gt 0) {
                 $selectedProfile = $profiles[$selection - 1]
                 Write-Host "Restoring profile: $($selectedProfile.BaseName)..." -ForegroundColor Cyan
-                reg import "$($selectedProfile.FullName)"
-                Restart-Explorer
                 
-                Write-Host "Desktop layout restored successfully." -ForegroundColor Green
+                try {
+                    reg import "$($selectedProfile.FullName)" 2>$null | Out-Null
+                    Write-Log -Message "Profile restored: $($selectedProfile.BaseName)" -Status SUCCESS
+                    Restart-Explorer
+                    Write-Host "Desktop layout restored successfully." -ForegroundColor Green
+                }
+                catch {
+                    Write-Log -Message "Failed to restore profile $($selectedProfile.BaseName): $_" -Status FAILURE
+                }
                 Start-Sleep -Seconds 2
             } elseif ($selection -eq "C" -or $selection -eq "c") {
                 continue
@@ -195,14 +257,17 @@ while ($true) {
             }
         }
 
-        "3" {
+        "3" {Start-Process explorer.exe $desktopProfiles
+        }
+
+        "R" {
             # Return to OGCWin
             Write-Host "Returning to OGC Windows Utility..." -ForegroundColor Yellow
             Start-Sleep -Seconds 1
             if (Test-Path $ogcwin) {
                 & $ogcwin
             } else {
-                Write-Host "Warning: $ogcwin not found." -ForegroundColor Red
+                Write-Host "Warning: OGCWin not found." -ForegroundColor Red
                 Start-Sleep -Seconds 1
                 Write-Host "Repairing OGC Windows Utility..." -ForegroundColor Cyan
                 Start-Process powershell.exe -Verb RunAs -ArgumentList "-ExecutionPolicy Bypass -NoProfile -NoExit -Command `" `
