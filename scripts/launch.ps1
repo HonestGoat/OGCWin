@@ -96,7 +96,7 @@ function Show-Progress {
 function Write-Log {
     param (
         [Parameter(Mandatory=$true)] [string]$Message,
-        [Parameter(Mandatory=$true)] [ValidateSet("SUCCESS","FAILURE","INFO","WARNING","ERROR")] [string]$Status,
+        [Parameter(Mandatory=$true)] [ValidateSet("SUCCESS","FAILURE","INFO","WARNING")] [string]$Status,
         [string]$Module = "General"
     )
     $logFolder = Join-Path $parentFolder "logs"
