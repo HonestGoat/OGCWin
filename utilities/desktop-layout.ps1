@@ -42,13 +42,11 @@ $parentFolder = "C:\ProgramData\OGC Windows Utility"
 $tempFolder = "$parentFolder\temp"
 $scriptsFolder = "$parentFolder\scripts"
 $utilitiesFolder = "$parentFolder\utilities"
-$logFolder = "$parentFolder\logs"
 $desktopProfiles = "$parentFolder\backups\desktop profiles"
 
 # Filename definitions
 $ogcwin = "$scriptsFolder\OGCWin.ps1"
 $desktopLayout = "$utilitiesFolder\desktop-layout.ps1"
-$desktopLogFile = "$logFolder\desktop-layout_log.txt"
 $ShortcutPath = "$env:USERPROFILE\Desktop\Desktop Layout Manager.lnk"
 $tempReg = "$tempFolder\modern_layout.reg"
 
@@ -68,21 +66,17 @@ $WshShell = New-Object -comObject WScript.Shell
 function Write-Log {
     param (
         [Parameter(Mandatory=$true)] [string]$Message,
-        [Parameter(Mandatory=$true)] [ValidateSet("SUCCESS","FAILURE","INFO","WARNING")] [string]$Status,
-        [string]$Module = "DesktopManager"
+        [Parameter(Mandatory=$true)] [ValidateSet("SUCCESS","FAILURE","INFO","WARNING","ERROR")] [string]$Status,
+        [string]$Module = "General"
     )
-    # Check dir exists
+    $logFolder = Join-Path $parentFolder "logs"
+    $scriptName = [System.IO.Path]::GetFileNameWithoutExtension($PSCommandPath)
+    $logFile = Join-Path $logFolder "${scriptName}_log.txt"
     if (-not (Test-Path $logFolder)) { New-Item -Path $logFolder -ItemType Directory -Force | Out-Null }
-    
-    # Build string
     $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
     $logEntry = "[$Status] [$timestamp] [$Module] $Message"
-    
-    # Save to file
-    try { Add-Content -Path $desktopLogFile -Value $logEntry -Force -ErrorAction Stop }
-    catch { Write-Host "CRITICAL: Can't write to $desktopLogFile" -ForegroundColor Red }
-    
-    # Alert console on issues
+    try { Add-Content -Path $logFile -Value $logEntry -Force -ErrorAction Stop }
+    catch { Write-Host "CRITICAL: Can't write to $logFile" -ForegroundColor Red }
     if ($Status -eq "FAILURE") { Write-Host "Error ($Module): $Message" -ForegroundColor Red }
     elseif ($Status -eq "WARNING") { Write-Host "Warning ($Module): $Message" -ForegroundColor Yellow }
 }

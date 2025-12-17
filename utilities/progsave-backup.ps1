@@ -40,10 +40,10 @@ function Write-Color {
 # Paths
 $parentFolder = "C:\ProgramData\OGC Windows Utility"
 $backupFolder = "$parentFolder\backups\ProgSaveBackup"
-$logFile = "$backupFolder\ProgSave_BackupRestore_Log.txt"
 $tempFolder = "$backupFolder\TempStaging"
 
 # User Data Paths
+# DO I NEED TO ADD APPDATA\ROAMING
 $userProfile = $env:USERPROFILE
 $documents = [Environment]::GetFolderPath("MyDocuments")
 $appData = $env:APPDATA

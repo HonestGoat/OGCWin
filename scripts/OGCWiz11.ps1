@@ -33,6 +33,7 @@ function Write-Color {
     Write-Host $Text -ForegroundColor $ForegroundColor -BackgroundColor $BackgroundColor
 }
 
+
 # ==========================================
 #             DEFINITIONS
 # ==========================================
@@ -41,7 +42,6 @@ function Write-Color {
 $parentFolder = "C:\ProgramData\OGC Windows Utility"
 $configsFolder = Join-Path $parentFolder "configs"
 $scriptsFolder = Join-Path $parentFolder "scripts"
-$logFolder = Join-Path $parentFolder "logs"
 $oneDriveUserPath = "$env:UserProfile\OneDrive"
 
 
@@ -52,8 +52,7 @@ $Urls = @{}
 # Files and Shortcuts
 $ogcwinbat = Join-Path $parentFolder "OGCWin.bat"
 $desktopPath = [System.IO.Path]::Combine([System.Environment]::GetFolderPath("Desktop"), "OGC Windows Utility.lnk")
-$logFile = Join-Path $logFolder "OGCWiz11_log.txt"
-$onedriveLog = "$logFolder\OneDrive_log.txt"
+
 
 # ==========================================
 #             FUNCTIONS
@@ -74,18 +73,17 @@ function Show-Progress {
 function Write-Log {
     param (
         [Parameter(Mandatory=$true)] [string]$Message,
-        [Parameter(Mandatory=$true)] [ValidateSet("SUCCESS","FAILURE","INFO","WARNING")] [string]$Status,
+        [Parameter(Mandatory=$true)] [ValidateSet("SUCCESS","FAILURE","INFO","WARNING","ERROR")] [string]$Status,
         [string]$Module = "General"
     )
-    # Check dir exists
+    $logFolder = Join-Path $parentFolder "logs"
+    $scriptName = [System.IO.Path]::GetFileNameWithoutExtension($PSCommandPath)
+    $logFile = Join-Path $logFolder "${scriptName}_log.txt"
     if (-not (Test-Path $logFolder)) { New-Item -Path $logFolder -ItemType Directory -Force | Out-Null }
-    # Build string
     $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
     $logEntry = "[$Status] [$timestamp] [$Module] $Message"
-    # Save to file
     try { Add-Content -Path $logFile -Value $logEntry -Force -ErrorAction Stop }
     catch { Write-Host "CRITICAL: Can't write to $logFile" -ForegroundColor Red }
-    # Alert console on issues
     if ($Status -eq "FAILURE") { Write-Host "Error ($Module): $Message" -ForegroundColor Red }
     elseif ($Status -eq "WARNING") { Write-Host "Warning ($Module): $Message" -ForegroundColor Yellow }
 }
@@ -854,7 +852,7 @@ function Invoke-OneDriveRemoval {
             Write-Log "Migration failed. Restarting Explorer. No uninstalls performed." "CRITICAL"
             Start-Process "explorer.exe"
             Write-Host "Explorer restarted. OneDrive was NOT removed to ensure data safety." -ForegroundColor Yellow
-            Write-Host "Check logs at: $onedriveLog" -ForegroundColor Yellow
+            Write-Host "Check logs at: $logFile" -ForegroundColor Yellow
             return
         }
 

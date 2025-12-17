@@ -47,7 +47,6 @@ $utilitiesFolder = "$parentFolder\utilities"
 $backupFolder = "$parentFolder\backups"
 $registryBackup = "$backupFolder\registry"
 $binDir = "$parentFolder\bin"
-$logFolder = "$parentFolder\logs"
 $desktopProfiles = "$parentFolder\backups\desktop profiles"
 $powerProfiles = "$parentFolder\backups\power profiles"
 $driverBackups = "$parentFolder\backups\drivers"
@@ -62,7 +61,6 @@ $sysinfo = "$scriptsFolder\sysinfo.ps1"
 $progsavebackup = "$utilitiesFolder\progsave-backup.ps1"
 $emailBackup = "$utilitiesFolder\email-backup.ps1"
 $desktopLayout = "$utilitiesFolder\desktop-layout.ps1"
-$logFile = "$logFolder\OGCWiz11_log.txt"
 
 # Config URLs & Paths
 $urlsConfigPath = "$configsFolder\urls.cfg"
@@ -97,22 +95,20 @@ function Show-Progress {
 
 function Write-Log {
     param (
-        [string]$Message,
-        [string]$Type = "INFO"
+        [Parameter(Mandatory=$true)] [string]$Message,
+        [Parameter(Mandatory=$true)] [ValidateSet("SUCCESS","FAILURE","INFO","WARNING","ERROR")] [string]$Status,
+        [string]$Module = "General"
     )
-    # Create log folder if it doesn't exist
+    $logFolder = Join-Path $parentFolder "logs"
+    $scriptName = [System.IO.Path]::GetFileNameWithoutExtension($PSCommandPath)
+    $logFile = Join-Path $logFolder "${scriptName}_log.txt"
     if (-not (Test-Path $logFolder)) { New-Item -Path $logFolder -ItemType Directory -Force | Out-Null }
-    
     $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-    $logEntry = "[$timestamp] [$Type] $Message"
-    
-    # Write to text file
-    Add-Content -Path $logFile -Value $logEntry -Force
-
-    # If it's an error, show a brief warning in console so you know something happened without spamming text
-    if ($Type -eq "ERROR") {
-        Write-Host "Error logged: $Message" -ForegroundColor Red
-    }
+    $logEntry = "[$Status] [$timestamp] [$Module] $Message"
+    try { Add-Content -Path $logFile -Value $logEntry -Force -ErrorAction Stop }
+    catch { Write-Host "CRITICAL: Can't write to $logFile" -ForegroundColor Red }
+    if ($Status -eq "FAILURE") { Write-Host "Error ($Module): $Message" -ForegroundColor Red }
+    elseif ($Status -eq "WARNING") { Write-Host "Warning ($Module): $Message" -ForegroundColor Yellow }
 }
 
 function Get-WindowsVersion {

@@ -42,14 +42,12 @@ $parentFolder = "C:\ProgramData\OGC Windows Utility"
 $configsFolder = Join-Path $parentFolder "configs"
 $scriptsFolder = Join-Path $parentFolder "scripts"
 $binDir = Join-Path $parentFolder "bin"
-$tempFolder = Join-Path $parentFolder "temp"
-$logFolder = "$parentFolder\logs"
 
 # Files
 $ffJsonPath = Join-Path $tempFolder "fastfetch.json"
 $keyPath = Join-Path $configsFolder "windows_key.txt"
 $ogcMode = Join-Path $scriptsFolder "OGCMode.ps1"
-$logFile = "$logFolder\OGCWiz11_log.txt"
+
 
 # ==========================================
 #             FUNCTIONS
@@ -57,26 +55,20 @@ $logFile = "$logFolder\OGCWiz11_log.txt"
 
 function Write-Log {
     param (
-        [string]$Message,
-        [string]$Type = "INFO"
+        [Parameter(Mandatory=$true)] [string]$Message,
+        [Parameter(Mandatory=$true)] [ValidateSet("SUCCESS","FAILURE","INFO","WARNING","ERROR")] [string]$Status,
+        [string]$Module = "General"
     )
-    # Create log folder if it doesn't exist
+    $logFolder = Join-Path $parentFolder "logs"
+    $scriptName = [System.IO.Path]::GetFileNameWithoutExtension($PSCommandPath)
+    $logFile = Join-Path $logFolder "${scriptName}_log.txt"
     if (-not (Test-Path $logFolder)) { New-Item -Path $logFolder -ItemType Directory -Force | Out-Null }
-    
     $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-    $logEntry = "[$timestamp] [$Type] $Message"
-    
-    # Write to text file
-    try {
-        Add-Content -Path $logFile -Value $logEntry -Force -ErrorAction Stop
-    } catch {
-        Write-Host "Failed to write to log file: $_" -ForegroundColor Red
-    }
-
-    # If it's an error, show a brief warning in console so you know something happened without spamming text
-    if ($Type -eq "ERROR") {
-        Write-Host "Error logged: $Message" -ForegroundColor Red
-    }
+    $logEntry = "[$Status] [$timestamp] [$Module] $Message"
+    try { Add-Content -Path $logFile -Value $logEntry -Force -ErrorAction Stop }
+    catch { Write-Host "CRITICAL: Can't write to $logFile" -ForegroundColor Red }
+    if ($Status -eq "FAILURE") { Write-Host "Error ($Module): $Message" -ForegroundColor Red }
+    elseif ($Status -eq "WARNING") { Write-Host "Warning ($Module): $Message" -ForegroundColor Yellow }
 }
 
 function Format-AuDate {

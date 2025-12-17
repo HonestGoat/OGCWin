@@ -67,6 +67,24 @@ function Wait-UserAction {
     $null = $host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
 }
 
+function Write-Log {
+    param (
+        [Parameter(Mandatory=$true)] [string]$Message,
+        [Parameter(Mandatory=$true)] [ValidateSet("SUCCESS","FAILURE","INFO","WARNING","ERROR")] [string]$Status,
+        [string]$Module = "General"
+    )
+    $logFolder = Join-Path $parentFolder "logs"
+    $scriptName = [System.IO.Path]::GetFileNameWithoutExtension($PSCommandPath)
+    $logFile = Join-Path $logFolder "${scriptName}_log.txt"
+    if (-not (Test-Path $logFolder)) { New-Item -Path $logFolder -ItemType Directory -Force | Out-Null }
+    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+    $logEntry = "[$Status] [$timestamp] [$Module] $Message"
+    try { Add-Content -Path $logFile -Value $logEntry -Force -ErrorAction Stop }
+    catch { Write-Host "CRITICAL: Can't write to $logFile" -ForegroundColor Red }
+    if ($Status -eq "FAILURE") { Write-Host "Error ($Module): $Message" -ForegroundColor Red }
+    elseif ($Status -eq "WARNING") { Write-Host "Warning ($Module): $Message" -ForegroundColor Yellow }
+}
+
 function Set-RegistryValue {
     param ([string]$Path, [string]$Name, [string]$Value, [string]$Type = "DWord")
     if ($Path -match "^HK(LM|CU|CR|U|CC)\") { $Path = $Path -replace "^HK(LM|CU|CR|U|CC)\", "HK`$1:\" }
