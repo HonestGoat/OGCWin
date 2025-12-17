@@ -23,7 +23,6 @@ $Host.UI.RawUI.BackgroundColor = "Black"
 $Host.UI.RawUI.ForegroundColor = "White"
 Clear-Host
 
-# Define colour functions and progress bars
 function Write-Color {
     param (
         [string]$Text,
@@ -40,17 +39,17 @@ function Write-Color {
 
 # Define Local Paths
 $parentFolder = "C:\ProgramData\OGC Windows Utility"
-$configsFolder = Join-Path $parentFolder "configs"
-$scriptsFolder = Join-Path $parentFolder "scripts"
+$configsFolder = "$parentFolder\configs"
+$scriptsFolder = "$parentFolder\scripts"
 $oneDriveUserPath = "$env:UserProfile\OneDrive"
 
 
 # Configuration
-$ConfigPath = Join-Path $configsFolder "urls.cfg"
+$ConfigPath = "$configsFolder\urls.cfg"
 $Urls = @{}
 
 # Files and Shortcuts
-$ogcwinbat = Join-Path $parentFolder "OGCWin.bat"
+$ogcwinbat = "$parentFolder\OGCWin.bat"
 $desktopPath = [System.IO.Path]::Combine([System.Environment]::GetFolderPath("Desktop"), "OGC Windows Utility.lnk")
 
 

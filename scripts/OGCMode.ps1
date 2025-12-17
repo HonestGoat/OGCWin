@@ -40,16 +40,16 @@ function Write-Color {
 
 # OGCWin folder definitions
 $parentFolder = "C:\ProgramData\OGC Windows Utility"
-$configsFolder = Join-Path $parentFolder "configs"
-$scriptsFolder = Join-Path $parentFolder "scripts"
-$binDir = Join-Path $parentFolder "bin"
-$tempFolder = Join-Path $parentFolder "temp"
+$configsFolder = "$parentFolder\configs"
+$scriptsFolder = "$parentFolder\scripts"
+$binDir = "$parentFolder\bin"
+$tempFolder = "$parentFolder\temp"
 
 # Filename definitions
-$ogcWin = Join-Path $scriptsFolder "OGCWin.ps1"
-$ogcWiz11 = Join-Path $scriptsFolder "OGCWiz11.ps1"
-$sysInfo = Join-Path $scriptsFolder "sysinfo.ps1"
-$launchScript = Join-Path $scriptsFolder "launch.ps1"
+$ogcWin = "$scriptsFolder\OGCWin.ps1"
+$ogcWiz11 = "$scriptsFolder\OGCWiz11.ps1"
+$sysInfo = "$scriptsFolder\sysinfo.ps1"
+$launchScript = "$scriptsFolder\launch.ps1"
 $winVer = (Get-CimInstance Win32_OperatingSystem).Caption
 $versionLocal = "$configsFolder\version.cfg"
 $versionOnline = "https://raw.githubusercontent.com/HonestGoat/OGCWin/main/configs/version.cfg"
