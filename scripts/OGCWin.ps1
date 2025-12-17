@@ -76,9 +76,10 @@ function Write-Log {
     $logFolder = Join-Path $parentFolder "logs"
     $scriptName = [System.IO.Path]::GetFileNameWithoutExtension($PSCommandPath)
     $logFile = Join-Path $logFolder "${scriptName}_log.txt"
-    if (-not (Test-Path $logFolder)) { New-Item -Path $logFolder -ItemType Directory -Force | Out-Null }
     $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-    $logEntry = "[$Status] [$timestamp] [$Module] $Message"
+    $lineNumber = $MyInvocation.ScriptLineNumber
+    $logEntry = "[$Status] [$timestamp] [Line:$lineNumber] [$Module] $Message"
+    if (-not (Test-Path $logFolder)) { New-Item -Path $logFolder -ItemType Directory -Force | Out-Null }
     try { Add-Content -Path $logFile -Value $logEntry -Force -ErrorAction Stop }
     catch { Write-Host "CRITICAL: Can't write to $logFile" -ForegroundColor Red }
     if ($Status -eq "FAILURE") { Write-Host "Error ($Module): $Message" -ForegroundColor Red }
