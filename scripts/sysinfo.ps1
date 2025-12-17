@@ -56,7 +56,7 @@ $ogcMode = Join-Path $scriptsFolder "OGCMode.ps1"
 function Write-Log {
     param (
         [Parameter(Mandatory=$true)] [string]$Message,
-        [Parameter(Mandatory=$true)] [ValidateSet("SUCCESS","FAILURE","INFO","WARNING","ERROR")] [string]$Status,
+        [Parameter(Mandatory=$false)] [ValidateSet("SUCCESS","FAILURE","INFO","WARNING","ERROR")] [string]$Status = "INFO",
         [string]$Module = "General"
     )
     $logFolder = Join-Path $parentFolder "logs"

@@ -68,22 +68,20 @@ $folders = @($parentFolder, $backupFolder)
 
 function Write-Log {
     param (
-        [string]$Message,
-        [string]$Type = "INFO" 
+        [Parameter(Mandatory=$true)] [string]$Message,
+        [Parameter(Mandatory=$false)] [ValidateSet("SUCCESS","FAILURE","INFO","WARNING","ERROR")] [string]$Status = "INFO",
+        [string]$Module = "General"
     )
+    $logFolder = Join-Path $parentFolder "logs"
+    $scriptName = [System.IO.Path]::GetFileNameWithoutExtension($PSCommandPath)
+    $logFile = Join-Path $logFolder "${scriptName}_log.txt"
+    if (-not (Test-Path $logFolder)) { New-Item -Path $logFolder -ItemType Directory -Force | Out-Null }
     $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-    $logEntry = "[$timestamp] [$Type] $Message"
-    
-    # Write to file
-    Add-Content -Path $logFile -Value $logEntry -Force
-
-    # Write to Console with colour
-    switch ($Type) {
-        "INFO"    { Write-Color $Message -ForegroundColor White }
-        "SUCCESS" { Write-Color $Message -ForegroundColor Green }
-        "WARNING" { Write-Color $Message -ForegroundColor Yellow }
-        "ERROR"   { Write-Color $Message -ForegroundColor Red }
-    }
+    $logEntry = "[$Status] [$timestamp] [$Module] $Message"
+    try { Add-Content -Path $logFile -Value $logEntry -Force -ErrorAction Stop }
+    catch { Write-Host "CRITICAL: Can't write to $logFile" -ForegroundColor Red }
+    if ($Status -eq "FAILURE") { Write-Host "Error ($Module): $Message" -ForegroundColor Red }
+    elseif ($Status -eq "WARNING") { Write-Host "Warning ($Module): $Message" -ForegroundColor Yellow }
 }
 
 function Show-Progress {
