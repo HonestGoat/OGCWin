@@ -40,13 +40,13 @@ function Write-Color {
 # Define Paths
 $parentFolder = "C:\ProgramData\OGC Windows Utility"
 $configsFolder = Join-Path $parentFolder "configs"
-$scriptsFolder = Join-Path $parentFolder "scripts"
+#$scriptsFolder = Join-Path $parentFolder "scripts"
 $binDir = Join-Path $parentFolder "bin"
 
 # Files
 $ffJsonPath = Join-Path $tempFolder "fastfetch.json"
 $keyPath = Join-Path $configsFolder "windows_key.txt"
-$ogcMode = Join-Path $scriptsFolder "OGCMode.ps1"
+#$ogcMode = Join-Path $scriptsFolder "OGCMode.ps1"
 
 
 # ==========================================
@@ -55,8 +55,8 @@ $ogcMode = Join-Path $scriptsFolder "OGCMode.ps1"
 
 function Write-Log {
     param (
-        [Parameter(Mandatory=$true)] [string]$Message,
-        [Parameter(Mandatory=$false)] [ValidateSet("SUCCESS","FAILURE","INFO","WARNING","ERROR")] [string]$Status = "INFO",
+        [Parameter(Mandatory = $true)] [string]$Message,
+        [Parameter(Mandatory = $false)] [ValidateSet("SUCCESS", "FAILURE", "INFO", "WARNING", "ERROR")] [string]$Status = "INFO",
         [string]$Module = "General"
     )
     $logFolder = Join-Path $parentFolder "logs"
@@ -102,14 +102,16 @@ function Get-WindowsProductKey {
             }
             return $decoded
         }
-    } catch {
+    }
+    catch {
         Write-Log "Failed to retrieve DigitalProductId from Registry: $_" "ERROR"
     }
     
     try {
         $oemKey = (Get-CimInstance -ClassName SoftwareLicensingService -ErrorAction Stop).OA3xOriginalProductKey
         if ($oemKey) { return "$oemKey (OEM)" }
-    } catch {
+    }
+    catch {
         Write-Log "Failed to retrieve OEM Key via CIM: $_" "ERROR"
     }
     return "Not Found"
@@ -126,20 +128,22 @@ function Get-OsDetail {
         try {
             $history = $searcher.QueryHistory(0, 1)
             $lastUpdate = if ($history) { Format-AuDate $history[0].Date } else { "Never" }
-        } catch { 
+        }
+        catch { 
             Write-Log "Failed to query Windows Update history: $_" "ERROR"
             $lastUpdate = "Unknown" 
         }
 
         return [PSCustomObject]@{
-            Name = $os.Caption
-            Version = "$($ver.DisplayVersion) ($($ver.EditionID))"
-            Build = $os.BuildNumber
-            Installed = Format-AuDate $os.InstallDate
+            Name       = $os.Caption
+            Version    = "$($ver.DisplayVersion) ($($ver.EditionID))"
+            Build      = $os.BuildNumber
+            Installed  = Format-AuDate $os.InstallDate
             LastUpdate = $lastUpdate
             ProductKey = $keyInfo
         }
-    } catch {
+    }
+    catch {
         Write-Log "Critical error in Get-OsDetail: $_" "ERROR"
         return [PSCustomObject]@{ Name = "Unknown"; Version = "Unknown"; Build = "Unknown"; Installed = "Unknown"; LastUpdate = "Unknown"; ProductKey = "Unknown" }
     }
@@ -156,7 +160,7 @@ function Get-MoboDetail {
         $ver = $bios.SMBIOSBIOSVersion
         # If generic, try BIOSVersion array (sometimes holds full string)
         if (-not $ver -or $ver -match "ALASKA") { 
-             $ver = $bios.BIOSVersion | Select-Object -First 1 
+            $ver = $bios.BIOSVersion | Select-Object -First 1 
         }
         
         if ($script:FFData) {
@@ -170,13 +174,14 @@ function Get-MoboDetail {
 
         return [PSCustomObject]@{
             Manufacturer = $vendor
-            Model = $model
-            Version = $mb.Version
-            BiosVersion = $ver
-            BiosDate = Format-AuDate $bios.ReleaseDate
+            Model        = $model
+            Version      = $mb.Version
+            BiosVersion  = $ver
+            BiosDate     = Format-AuDate $bios.ReleaseDate
             SerialNumber = $mb.SerialNumber
         }
-    } catch {
+    }
+    catch {
         Write-Log "Error in Get-MoboDetail: $_" "ERROR"
         return [PSCustomObject]@{ Manufacturer = "Unknown"; Model = "Unknown"; Version = "Unknown"; BiosVersion = "Unknown"; BiosDate = "Unknown"; SerialNumber = "Unknown" }
     }
@@ -206,15 +211,16 @@ function Get-CpuDetail {
         }
 
         return [PSCustomObject]@{
-            Name = $cpuName
-            Specs = "$($cpu.NumberOfCores) Cores / $($cpu.NumberOfLogicalProcessors) Threads"
+            Name      = $cpuName
+            Specs     = "$($cpu.NumberOfCores) Cores / $($cpu.NumberOfLogicalProcessors) Threads"
             BaseClock = "$($cpu.MaxClockSpeed) MHz"
-            L1 = if ($l1) { "$l1 KB" } else { "Unknown" }
-            L2 = if ($l2) { "$($l2 / 1024) MB" } else { "Unknown" }
-            L3 = if ($l3) { "$($l3 / 1024) MB" } else { "Unknown" }
+            L1        = if ($l1) { "$l1 KB" } else { "Unknown" }
+            L2        = if ($l2) { "$($l2 / 1024) MB" } else { "Unknown" }
+            L3        = if ($l3) { "$($l3 / 1024) MB" } else { "Unknown" }
             Microcode = $microcodeStr
         }
-    } catch {
+    }
+    catch {
         Write-Log "Error in Get-CpuDetail: $_" "ERROR"
         return [PSCustomObject]@{ Name = "Unknown"; Specs = "Unknown"; BaseClock = "Unknown"; L1 = "Unknown"; L2 = "Unknown"; L3 = "Unknown"; Microcode = "Unknown" }
     }
@@ -249,12 +255,13 @@ function Get-RamDetail {
         }
 
         return [PSCustomObject]@{
-            Total = "$([math]::Round($total, 2)) GB"
-            Type = $type
+            Total   = "$([math]::Round($total, 2)) GB"
+            Type    = $type
             Profile = $profileStatus
             Modules = $modules
         }
-    } catch {
+    }
+    catch {
         Write-Log "Error in Get-RamDetail: $_" "ERROR"
         return [PSCustomObject]@{ Total = "Unknown"; Type = "Unknown"; Profile = "Unknown"; Modules = "Unknown" }
     }
@@ -282,7 +289,7 @@ function Get-GpuDetail {
                 try {
                     # Query specific fields: name, total memory, driver version
                     # csv format, no header, nounits (returns raw numbers)
-                    $smiOut = nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv,noheader,nounits | Where-Object { $_ -match $name -or $name -match ($_ -split ",")[0].Trim() } | Select-Object -First 1
+                    $smiOut = nvidia-smi --query-gpu=name, memory.total, driver_version --format=csv, noheader, nounits | Where-Object { $_ -match $name -or $name -match ($_ -split ",")[0].Trim() } | Select-Object -First 1
                     
                     if ($smiOut) {
                         $parts = $smiOut -split ","
@@ -296,8 +303,9 @@ function Get-GpuDetail {
                             $smiFound = $true
                         }
                     }
-                } catch {
-                     Write-Log "Failed querying nvidia-smi: $_" "ERROR"
+                }
+                catch {
+                    Write-Log "Failed querying nvidia-smi: $_" "ERROR"
                 }
             }
 
@@ -311,7 +319,8 @@ function Get-GpuDetail {
                         if ($ffGpuObj.memory.dedicated.total) {
                             $bytes = $ffGpuObj.memory.dedicated.total
                             $vramStr = "$([math]::Round($bytes / 1GB, 2)) GB"
-                        } elseif ($ffGpuObj.memory.total) {
+                        }
+                        elseif ($ffGpuObj.memory.total) {
                             $bytes = $ffGpuObj.memory.total
                             $vramStr = "$([math]::Round($bytes / 1GB, 2)) GB"
                         }
@@ -327,13 +336,14 @@ function Get-GpuDetail {
             }
 
             $list += [PSCustomObject]@{
-                Name = $name
-                VRAM = $vramStr
+                Name   = $name
+                VRAM   = $vramStr
                 Driver = $driver
             }
         }
         return $list
-    } catch {
+    }
+    catch {
         Write-Log "Error in Get-GpuDetail: $_" "ERROR"
         return @([PSCustomObject]@{ Name = "Unknown"; VRAM = "Unknown"; Driver = "Unknown" })
     }
@@ -356,24 +366,27 @@ function Get-StorageDetail {
                     $used = $totalVol - $free
                     $percent = if ($totalVol -gt 0) { [math]::Round(($used / $totalVol) * 100, 1) } else { 0 }
                     $usageStr = "$used GB Used ($percent%) / $free GB Free"
-                } else { $usageStr = "N/A" }
+                }
+                else { $usageStr = "N/A" }
 
                 $list += [PSCustomObject]@{
-                    Model = $d.Model
-                    Type = $d.MediaType
-                    Bus = $d.BusType
+                    Model    = $d.Model
+                    Type     = $d.MediaType
+                    Bus      = $d.BusType
                     Capacity = "$([math]::Round($d.Size / 1GB, 2)) GB"
-                    Letter = if ($letters) { "($letters)" } else { "" }
-                    Label = if ($labels) { "[$labels]" } else { "" }
-                    Usage = $usageStr
-                    Health = $d.HealthStatus
+                    Letter   = if ($letters) { "($letters)" } else { "" }
+                    Label    = if ($labels) { "[$labels]" } else { "" }
+                    Usage    = $usageStr
+                    Health   = $d.HealthStatus
                 }
-            } catch {
+            }
+            catch {
                 Write-Log "Error processing disk $($d.DeviceId): $_" "ERROR"
             }
         }
         return $list
-    } catch {
+    }
+    catch {
         Write-Log "Error in Get-StorageDetail: $_" "ERROR"
         return @()
     }
@@ -390,26 +403,28 @@ function Get-NetworkDetail {
                 $dhcp = if ($wmiNic.DHCPEnabled) { "Enabled" } else { "Static" }
                 $lease = "N/A"
                 if ($wmiNic.DHCPLeaseExpires) {
-                     try { $d = [System.Management.ManagementDateTimeConverter]::ToDateTime($wmiNic.DHCPLeaseExpires); $lease = Format-AuDate $d } catch {}
+                    try { $d = [System.Management.ManagementDateTimeConverter]::ToDateTime($wmiNic.DHCPLeaseExpires); $lease = Format-AuDate $d } catch {}
                 }
                 $list += [PSCustomObject]@{
-                    Name = $n.Name
+                    Name      = $n.Name
                     Interface = $n.InterfaceDescription
-                    MAC = $n.MacAddress
-                    Speed = $n.LinkSpeed
-                    IPv4 = $ipConfig.IPv4Address.IPAddress
-                    IPv6 = $ipConfig.IPv6Address.IPAddress
-                    Gateway = $ipConfig.IPv4DefaultGateway.NextHop
-                    DNS = $ipConfig.DNSServer.ServerAddresses -join ", "
-                    DHCP = $dhcp
-                    LeaseEnd = $lease
+                    MAC       = $n.MacAddress
+                    Speed     = $n.LinkSpeed
+                    IPv4      = $ipConfig.IPv4Address.IPAddress
+                    IPv6      = $ipConfig.IPv6Address.IPAddress
+                    Gateway   = $ipConfig.IPv4DefaultGateway.NextHop
+                    DNS       = $ipConfig.DNSServer.ServerAddresses -join ", "
+                    DHCP      = $dhcp
+                    LeaseEnd  = $lease
                 }
-            } catch {
+            }
+            catch {
                 Write-Log "Error processing network adapter $($n.Name): $_" "ERROR"
             }
         }
         return $list
-    } catch {
+    }
+    catch {
         Write-Log "Error in Get-NetworkDetail: $_" "ERROR"
         return @()
     }
@@ -433,7 +448,8 @@ function Get-GamingFeatures {
         try {
             $ciReg = Get-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\HypervisorEnforcedCodeIntegrity" -Name "Enabled" -ErrorAction SilentlyContinue
             if ($ciReg.Enabled -eq 1) { $hvci = "Enabled" }
-        } catch {}
+        }
+        catch {}
 
         # VRR (Variable Refresh Rate)
         $vrr = "Disabled"
@@ -441,7 +457,8 @@ function Get-GamingFeatures {
         $vrrUser = Get-ItemProperty -Path "HKCU:\Software\Microsoft\DirectX\UserGpuPreferences" -Name "DirectXUserGlobalSettings" -ErrorAction SilentlyContinue
         if ($vrrUser.DirectXUserGlobalSettings -match "VRROptimizeEnable=1") {
             $vrr = "Enabled"
-        } else {
+        }
+        else {
             # Check System Global
             $vrrReg = Get-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers" -Name "VRRFeatureEnabled" -ErrorAction SilentlyContinue
             if ($vrrReg.VRRFeatureEnabled -eq 1) { $vrr = "Enabled" }
@@ -452,9 +469,9 @@ function Get-GamingFeatures {
         $reBarReg = Get-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}\0000" -Name "KMD_EnableReBarForLegacyConfig" -ErrorAction SilentlyContinue
         if ($reBarReg) { $reBar = "Enabled" }
         if ($reBar -eq "Disabled") {
-           if (Get-CimInstance -ClassName Win32_DeviceMemoryAddress -Filter "StartingAddress > 4294967296" -ErrorAction SilentlyContinue) {
-               $reBar = "Enabled (Above 4G Decoding)"
-           }
+            if (Get-CimInstance -ClassName Win32_DeviceMemoryAddress -Filter "StartingAddress > 4294967296" -ErrorAction SilentlyContinue) {
+                $reBar = "Enabled (Above 4G Decoding)"
+            }
         }
 
         # HDR
@@ -462,22 +479,23 @@ function Get-GamingFeatures {
         if ($script:FFData) {
             $displays = $script:FFData | Where-Object { $_.type -eq "Display" }
             if ($displays) {
-                 foreach ($d in $displays.result) {
-                     if ($d.hdr -eq $true -or $d.hdr -eq "true") { $hdr = "Enabled" }
-                 }
+                foreach ($d in $displays.result) {
+                    if ($d.hdr -eq $true -or $d.hdr -eq "true") { $hdr = "Enabled" }
+                }
             }
         }
 
         return [PSCustomObject]@{
             SecureBoot = $sb
-            ReBar = $reBar
-            HAGS = $hags
-            HVCI = $hvci
-            VRR = $vrr
-            HDR = $hdr
-            GameMode = if ((Get-ItemProperty HKCU:\Software\Microsoft\GameBar).AllowAutoGameMode -eq 1) { "Enabled" } else { "Disabled" }
+            ReBar      = $reBar
+            HAGS       = $hags
+            HVCI       = $hvci
+            VRR        = $vrr
+            HDR        = $hdr
+            GameMode   = if ((Get-ItemProperty HKCU:\Software\Microsoft\GameBar).AllowAutoGameMode -eq 1) { "Enabled" } else { "Disabled" }
         }
-    } catch {
+    }
+    catch {
         Write-Log "Error in Get-GamingFeatures: $_" "ERROR"
         return [PSCustomObject]@{ SecureBoot = "Unknown"; ReBar = "Unknown"; HAGS = "Unknown"; HVCI = "Unknown"; VRR = "Unknown"; HDR = "Unknown"; GameMode = "Unknown" }
     }
@@ -488,12 +506,13 @@ function Get-AdvancedInfo {
         $proc = Get-CimInstance Win32_Processor -ErrorAction Stop
         $tpm = Get-CimInstance -Namespace "root\cimv2\security\microsofttpm" -ClassName Win32_Tpm -ErrorAction SilentlyContinue
         return [PSCustomObject]@{
-            VTX = if ($proc.VirtualizationFirmwareEnabled) { "Enabled" } else { "Disabled" }
-            TPM = if ($tpm) { "v$($tpm.SpecVersion)" } else { "Not Present" }
+            VTX    = if ($proc.VirtualizationFirmwareEnabled) { "Enabled" } else { "Disabled" }
+            TPM    = if ($tpm) { "v$($tpm.SpecVersion)" } else { "Not Present" }
             HyperV = if ((Get-CimInstance Win32_ComputerSystem).HypervisorPresent) { "Running" } else { "Stopped" }
-            IOMMU = if ((Get-CimInstance -Namespace "root\Microsoft\Windows\DeviceGuard" -ClassName Win32_DeviceGuard).AvailableSecurityProperties -contains 2) { "Available" } else { "Not Detected" }
+            IOMMU  = if ((Get-CimInstance -Namespace "root\Microsoft\Windows\DeviceGuard" -ClassName Win32_DeviceGuard).AvailableSecurityProperties -contains 2) { "Available" } else { "Not Detected" }
         }
-    } catch {
+    }
+    catch {
         Write-Log "Error in Get-AdvancedInfo: $_" "ERROR"
         return [PSCustomObject]@{ VTX = "Unknown"; TPM = "Unknown"; HyperV = "Unknown"; IOMMU = "Unknown" }
     }
@@ -508,7 +527,8 @@ try {
         if (-not (Test-Path $folder)) { New-Item -Path $folder -ItemType Directory -Force | Out-Null }
     }
     Write-Log "Folders checked/created successfully."
-} catch {
+}
+catch {
     Write-Log "Failed creating directories: $_" "ERROR"
 }
 
@@ -524,8 +544,10 @@ if (-not (Get-Command "fastfetch" -ErrorAction SilentlyContinue)) {
     
     try {
         # Repair via Web Install (Bypasses local files to ensure full fix)
-        Invoke-Expression (Invoke-RestMethod "http://ogc.win")
-    } catch {
+        # Repair via Web Install (Bypasses local files to ensure full fix)
+        Invoke-Expression (Invoke-RestMethod "https://ogc.win")
+    }
+    catch {
         Write-Log "Failed to invoke repair script: $_" "ERROR"
     }
     exit
@@ -538,10 +560,12 @@ try {
     if (Test-Path $ffJsonPath) {
         $script:FFData = Get-Content $ffJsonPath | ConvertFrom-Json
         Write-Log "Fastfetch data retrieved successfully."
-    } else {
+    }
+    else {
         throw "Fastfetch JSON file not found."
     }
-} catch {
+}
+catch {
     Write-Log "Failed gathering Fastfetch data: $_" "ERROR"
     $script:FFData = $null
 }
@@ -653,13 +677,15 @@ Generated by OGC Windows Utility
                 $PublicReport | Out-File -FilePath $outFile -Encoding UTF8 -ErrorAction Stop
                 Write-Host "Public report saved to $outFile" -ForegroundColor Green
                 Write-Log "Public report exported to Desktop."
-            } else {
+            }
+            else {
                 $outFile = Join-Path ([System.Environment]::GetFolderPath("Desktop")) "SystemInfo_Full.txt"
                 $ReportText | Out-File -FilePath $outFile -Encoding UTF8 -ErrorAction Stop
                 Write-Host "Full report saved to $outFile" -ForegroundColor Green
                 Write-Log "Full report exported to Desktop."
             }
-        } catch {
+        }
+        catch {
             Write-Log "Failed to save report to file: $_" "ERROR"
             Write-Host "Failed to save report. Check logs." -ForegroundColor Red
         }
@@ -669,12 +695,14 @@ Generated by OGC Windows Utility
     if ($os.ProductKey -ne "Not Found") {
         try {
             Set-Content -Path $keyPath -Value $os.ProductKey -Force -ErrorAction Stop
-        } catch {
+        }
+        catch {
             Write-Log "Failed to save Windows Key to config: $_" "ERROR"
         }
     }
 
-} catch {
+}
+catch {
     Write-Log "Critical error in Main Program block: $_" "ERROR"
 }
 
@@ -682,10 +710,14 @@ Generated by OGC Windows Utility
 try {
     if (Test-Path $tempFolder) { Remove-Item "$tempFolder\*" -Recurse -Force -ErrorAction SilentlyContinue }
     Write-Log "Cleanup completed."
-} catch {
+}
+catch {
     Write-Log "Error during cleanup: $_" "ERROR"
 }
 
 Write-Host "`nReturning to Main Menu..." -ForegroundColor DarkGray
 Start-Sleep -Seconds 1
-& $ogcMode
+Write-Host "`nReturning to Main Menu..." -ForegroundColor DarkGray
+Start-Sleep -Seconds 1
+# Removed recursive call to prevent stack overflow
+return

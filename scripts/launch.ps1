@@ -202,8 +202,12 @@ function Get-Scripts {
 
             if ($scriptUrl) {
                 # Always redownload and overwrite the scripts silently
-                Start-Process -FilePath "curl.exe" -ArgumentList "-s -L -o `"$scriptPath`" `"$scriptUrl`"" -WindowStyle Hidden -Wait -ErrorAction Stop
-                Write-Log "Downloaded/Updated script: $script"
+                $proc = Start-Process -FilePath "curl.exe" -ArgumentList "-s -L -o `"$scriptPath`" `"$scriptUrl`"" -WindowStyle Hidden -Wait -PassThru -ErrorAction Stop
+                if ($proc.ExitCode -ne 0) {
+                     Write-Log "Failed to download script '$script'. Curl Exit Code: $($proc.ExitCode)" "ERROR"
+                } else {
+                     Write-Log "Downloaded/Updated script: $script"
+                }
             }
         } catch {
             Write-Log "Failed to download script '$script': $_" "ERROR"
@@ -380,8 +384,12 @@ if (-Not (Test-ExclusionSet $parentFolder)) {
 try {
     if (Test-Path $urlsConfigPath) {
         Write-Host "Updating OGCWin..." -ForegroundColor Yellow
-        Start-Process -FilePath "curl.exe" -ArgumentList "-s -L -o `"$urlsConfigPath`" `"$urlsConfigUrl`"" -NoNewWindow -Wait -ErrorAction Stop
-        Start-Process -FilePath "curl.exe" -ArgumentList "-s -L -o `"$versionLocal`" `"$versionOnline`"" -NoNewWindow -Wait -ErrorAction Stop
+        $proc1 = Start-Process -FilePath "curl.exe" -ArgumentList "-s -L -o `"$urlsConfigPath`" `"$urlsConfigUrl`"" -NoNewWindow -Wait -PassThru -ErrorAction Stop
+        if ($proc1.ExitCode -ne 0) { throw "Failed to update urls.cfg (Exit Code: $($proc1.ExitCode))" }
+        
+        $proc2 = Start-Process -FilePath "curl.exe" -ArgumentList "-s -L -o `"$versionLocal`" `"$versionOnline`"" -NoNewWindow -Wait -PassThru -ErrorAction Stop
+        if ($proc2.ExitCode -ne 0) { throw "Failed to update version.cfg (Exit Code: $($proc2.ExitCode))" }
+        
         Write-Log "Updated config files."
     } else {
         Write-Host "Downloading OGCWin..." -ForegroundColor Yellow
@@ -415,7 +423,7 @@ if (-not (Test-WinGet)) {
 
     if (-not (Test-WinGet)) {
         Write-Host "WinGet installation failed." -ForegroundColor Red
-        Write-Host "Please manually install WinGet from the Microsoft Store and retart the Utility." -ForegroundColor Red
+        Write-Host "Please manually install WinGet from the Microsoft Store and restart the Utility." -ForegroundColor Red
         Write-Host "https://apps.microsoft.com/store/detail/9NBLGGH4NNS1" -ForegroundColor Magenta
         Write-Host "Exiting Utility..." -ForegroundColor Red
         Write-Log "WinGet installation failed. Exiting." "ERROR"

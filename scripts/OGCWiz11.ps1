@@ -71,8 +71,8 @@ function Show-Progress {
 # --- Logging Function ---
 function Write-Log {
     param (
-        [Parameter(Mandatory=$true)] [string]$Message,
-        [Parameter(Mandatory=$false)] [ValidateSet("SUCCESS","FAILURE","INFO","WARNING","ERROR")] [string]$Status = "INFO",
+        [Parameter(Mandatory = $true)] [string]$Message,
+        [Parameter(Mandatory = $false)] [ValidateSet("SUCCESS", "FAILURE", "INFO", "WARNING", "ERROR")] [string]$Status = "INFO",
         [string]$Module = "General"
     )
     $logFolder = Join-Path $parentFolder "logs"
@@ -108,12 +108,13 @@ function Set-RegistryValue {
         
         switch ($Type) {
             "REG_DWORD" { $Type = "DWord" }
-            "REG_SZ"    { $Type = "String" }
-            "REG_BINARY"{ $Type = "Binary" }
+            "REG_SZ" { $Type = "String" }
+            "REG_BINARY" { $Type = "Binary" }
         }
 
         Set-ItemProperty -Path $Path -Name $Name -Value $Value -Type $Type -Force -ErrorAction Stop
-    } catch {
+    }
+    catch {
         # Fallback to reg.exe if PowerShell fails
         # FIX: Escaped trailing backslash in regex and escaped $1 in replacement string
         $regPath = $Path -replace "^HK(LM|CU|CR|U|CC):\\", "HK`$1\"
@@ -123,7 +124,8 @@ function Set-RegistryValue {
         
         try {
             Start-Process -FilePath "reg.exe" -ArgumentList "add `"$regPath`" /v `"$Name`" /t $regType /d `"$Value`" /f" -NoNewWindow -Wait -ErrorAction Stop
-        } catch {
+        }
+        catch {
             Write-Host "Failed to set $Name at $Path. Error: $_" -ForegroundColor Red
         }
     }
@@ -136,10 +138,12 @@ function Disable-Service {
             Stop-Service -Name $serviceName -Force -ErrorAction SilentlyContinue
             Set-Service -Name $serviceName -StartupType Disabled
             Write-Host "Service '$serviceName' disabled." -ForegroundColor Green
-        } catch {
+        }
+        catch {
             Write-Host "Failed to disable service '$serviceName'." -ForegroundColor Red
         }
-    } else {
+    }
+    else {
         Write-Host "Service '$serviceName' not found." -ForegroundColor Yellow
     }
 }
@@ -153,23 +157,27 @@ function Disable-ScheduledTask {
             schtasks /Change /TN "$taskName" /Disable | Out-Null
             Write-Host "Scheduled Task '$taskName' disabled." -ForegroundColor Green
             return
-        } catch {}
+        }
+        catch {}
     }
 
     if ($taskPath) {
         if (Get-ScheduledTask -TaskName $taskName -TaskPath $taskPath -ErrorAction SilentlyContinue) {
             Disable-ScheduledTask -TaskName $taskName -TaskPath $taskPath | Out-Null
             Write-Host "Scheduled Task '$taskName' disabled." -ForegroundColor Green
-        } else {
-             Write-Host "Scheduled Task '$taskName' not found." -ForegroundColor Yellow
         }
-    } else {
-         try {
+        else {
+            Write-Host "Scheduled Task '$taskName' not found." -ForegroundColor Yellow
+        }
+    }
+    else {
+        try {
             Disable-ScheduledTask -TaskName $taskName -ErrorAction Stop | Out-Null
             Write-Host "Scheduled Task '$taskName' disabled." -ForegroundColor Green
-         } catch {
+        }
+        catch {
             Write-Host "Scheduled Task '$taskName' not found or failed." -ForegroundColor Yellow
-         }
+        }
     }
 }
 
@@ -241,7 +249,8 @@ function New-RestorePoint {
         Write-Host "Success: Restore point 'OGC Wizard Pre-Cleanup' created." -ForegroundColor Green
         Add-Content -Path $logFile -Value "$(Get-Date) - INFO: System Restore Point created successfully." -ErrorAction SilentlyContinue
 
-    } catch {
+    }
+    catch {
         $errorMessage = $_.Exception.Message
         Write-Host "WARNING: Could not create a System Restore Point." -ForegroundColor Red
         Write-Host "Error Details: $errorMessage" -ForegroundColor Yellow
@@ -260,11 +269,13 @@ function New-RestorePoint {
             if (Test-Path $ogcmode) {
                 & $ogcmode
                 exit # Ensure the script stops here
-            } else {
+            }
+            else {
                 Write-Host "Error: Could not find OGCMode.ps1 at $ogcmode" -ForegroundColor Red
                 return
             }
-        } else {
+        }
+        else {
             Write-Host "User opted to continue without a Restore Point..." -ForegroundColor Gray
             Add-Content -Path $logFile -Value "$(Get-Date) - WARNING: User opted to continue without Restore Point." -ErrorAction SilentlyContinue
         }
@@ -281,7 +292,8 @@ function Install-Driver {
         Start-Process -FilePath $DriverPath -ArgumentList $InstallArgs -NoNewWindow -Wait
         Remove-Item -Path $DriverPath -Force
         Write-Host "Driver installed successfully." -ForegroundColor Green
-    } else { Write-Host "Failed to download the driver." -ForegroundColor Red }
+    }
+    else { Write-Host "Failed to download the driver." -ForegroundColor Red }
 }
 
 # --- Module Functions ---
@@ -320,7 +332,8 @@ function Invoke-TelemetrySetup {
         if (Get-ScheduledTask -TaskName $task -TaskPath $schedulePath -ErrorAction SilentlyContinue) {
             Disable-ScheduledTask -TaskName $task -TaskPath $schedulePath | Out-Null
             Write-Host "Scheduled Task '$task' disabled." -ForegroundColor Green
-        } else {
+        }
+        else {
             Write-Host "Scheduled Task '$task' not found." -ForegroundColor Yellow
         }
     }
@@ -460,7 +473,8 @@ function Invoke-DNSBlocking {
             if ($hostsContent -notcontains $entry) {
                 Write-Host "Adding $domain to hosts file..." -ForegroundColor Green
                 Add-Content -Path $tempFolder -Value $entry
-            } else {
+            }
+            else {
                 Write-Host "$domain is already present." -ForegroundColor Yellow
             }
         }
@@ -472,7 +486,8 @@ function Invoke-DNSBlocking {
         Set-MpPreference -DisableRealtimeMonitoring $false -ErrorAction SilentlyContinue
 
         Write-Host "Telemetry domains have been blocked via the hosts file." -ForegroundColor Green
-    } else {
+    }
+    else {
         Write-Host "Skipping the blocking of telemetry domains." -ForegroundColor Cyan
     }
 }
@@ -501,20 +516,24 @@ function Invoke-SecurityEnhancement {
         $sbStatus = Confirm-SecureBootUEFI -ErrorAction Stop
         if ($sbStatus) {
             Write-Host "Secure Boot is enabled." -ForegroundColor Green
-        } else {
+        }
+        else {
             Write-Host "!! Secure Boot is DISABLED. Please enable it in BIOS !!" -ForegroundColor Red
             Start-Sleep -Seconds 3
         }
-    } catch {
+    }
+    catch {
         # Fallback to registry check
         $secureBootState = Get-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\SecureBoot\State" -Name "SecureBootEnabled" -ErrorAction SilentlyContinue
         if ($secureBootState -and $secureBootState.SecureBootEnabled -eq 1) {
-             Write-Host "Secure Boot is enabled (Registry Check)." -ForegroundColor Green
-        } elseif ($secureBootState -and $secureBootState.SecureBootEnabled -eq 0) {
-             Write-Host "!! Secure Boot is DISABLED (Registry Check). Please enable it in BIOS !!" -ForegroundColor Red
-             Start-Sleep -Seconds 3
-        } else {
-             Write-Host "Could not determine Secure Boot status." -ForegroundColor Yellow
+            Write-Host "Secure Boot is enabled (Registry Check)." -ForegroundColor Green
+        }
+        elseif ($secureBootState -and $secureBootState.SecureBootEnabled -eq 0) {
+            Write-Host "!! Secure Boot is DISABLED (Registry Check). Please enable it in BIOS !!" -ForegroundColor Red
+            Start-Sleep -Seconds 3
+        }
+        else {
+            Write-Host "Could not determine Secure Boot status." -ForegroundColor Yellow
         }
     }
 
@@ -526,7 +545,8 @@ function Invoke-SecurityEnhancement {
     if ((Get-LocalUser -Name "Administrator").Enabled) {
         Disable-LocalUser -Name "Administrator"
         Write-Host "Built-in Administrator account has been disabled." -ForegroundColor Green
-    } else {
+    }
+    else {
         Write-Host "Built-in Administrator account is already disabled." -ForegroundColor Yellow
     }
 
@@ -556,7 +576,8 @@ function Invoke-BloatwareRemoval {
             if (Test-AppInstallation $app) {
                 Remove-AppxPackageAllUsers $app
                 $removed = $true
-            } else {
+            }
+            else {
                 # Fallback checks (DISM/Provisioned) handled in Remove-AppxPackageAllUsers mostly, but checking logic
                 $dismOutput = dism /Online /Remove-ProvisionedAppxPackage /PackageName:$app /Quiet 2>&1
                 if ($dismOutput -match "successfully removed") { $removed = $true }
@@ -564,7 +585,8 @@ function Invoke-BloatwareRemoval {
             if ($removed) { Write-Host "$app successfully removed." -ForegroundColor Green }
         }
         Write-Host "Preinstalled advertising apps and bloatware removed." -ForegroundColor Green
-    } else {
+    }
+    else {
         Write-Host "Skipping bloatware removal." -ForegroundColor Cyan
     }
 
@@ -573,7 +595,8 @@ function Invoke-BloatwareRemoval {
         Write-Host "Disabling Bing Search in the Start Menu..." -ForegroundColor Yellow
         Set-RegistryValue -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Search" -Name "BingSearchEnabled" -Value 0
         Write-Host "Bing Search integration disabled." -ForegroundColor Green
-    } else {
+    }
+    else {
         Write-Host "Keeping Bing Search enabled." -ForegroundColor Cyan
     }
 }
@@ -585,21 +608,25 @@ function Invoke-YourPhoneSetup {
     if ($useYourPhone -eq "y") {
         if ($yourPhoneInstalled) {
             Write-Host "'Your Phone' app is already installed." -ForegroundColor Green
-        } else {
+        }
+        else {
             Write-Host "Installing 'Your Phone' app..." -ForegroundColor Yellow
             try {
                 winget install --id Microsoft.YourPhone -e --silent --accept-package-agreements --accept-source-agreements
                 Write-Host "'Your Phone' app installed successfully." -ForegroundColor Green
-            } catch {
+            }
+            catch {
                 Write-Host "Failed to install 'Your Phone' app. Error: $_" -ForegroundColor Red
             }
         }
-    } elseif ($useYourPhone -eq "n") {
+    }
+    elseif ($useYourPhone -eq "n") {
         if ($yourPhoneInstalled) {
             Write-Host "Removing 'Your Phone' app..." -ForegroundColor Magenta
             Remove-AppxPackageAllUsers "Microsoft.YourPhone"
             Write-Host "'Your Phone' app removed." -ForegroundColor Green
-        } else {
+        }
+        else {
             Write-Host "'Your Phone' app is not installed." -ForegroundColor Cyan
         }
     }
@@ -646,7 +673,8 @@ function Invoke-XboxSetup {
                 Write-Log -Message "Restored $Name from local files." -Status "SUCCESS" -Module $mod
                 return
             }
-        } catch { Write-Log -Message "Couldn't restore $Name locally. Trying download..." -Status "WARNING" -Module $mod }
+        }
+        catch { Write-Log -Message "Couldn't restore $Name locally. Trying download..." -Status "WARNING" -Module $mod }
 
         # Method 2: Winget Download (Silent)
         try {
@@ -657,12 +685,15 @@ function Invoke-XboxSetup {
                 if (Test-XboxAppInstalled $Name) {
                     Write-Host "  -> Install success." -ForegroundColor Green
                     Write-Log -Message "Freshly installed $Name from server." -Status "SUCCESS" -Module $mod
-                } else { throw "Download finished but app is missing." }
-            } else {
+                }
+                else { throw "Download finished but app is missing." }
+            }
+            else {
                 Write-Host "  -> No download ID available." -ForegroundColor Red
                 Write-Log -Message "Skipped download for $Name (No ID)." -Status "FAILURE" -Module $mod
             }
-        } catch {
+        }
+        catch {
             Write-Host "  -> Failed to install." -ForegroundColor Red
             Write-Log -Message "Could not install $Name. $_" -Status "FAILURE" -Module $mod
         }
@@ -676,7 +707,8 @@ function Invoke-XboxSetup {
                 Write-Host "  -> Trashed: $Name" -ForegroundColor Magenta
                 Write-Log -Message "Removed $Name." -Status "SUCCESS" -Module $mod
             }
-        } catch { Write-Log -Message "Had trouble removing $Name." -Status "FAILURE" -Module $mod }
+        }
+        catch { Write-Log -Message "Had trouble removing $Name." -Status "FAILURE" -Module $mod }
     }
 
     # -- Phase 1: Core Services --
@@ -693,12 +725,14 @@ function Invoke-XboxSetup {
             Get-Service -Name $svcs -ErrorAction SilentlyContinue | Set-Service -StartupType Automatic
             Get-Service -Name $svcs -ErrorAction SilentlyContinue | Start-Service
             Write-Log -Message "Core services running." -Status "SUCCESS" -Module $mod
-        } catch { Write-Log -Message "Hiccup starting core services." -Status "WARNING" -Module $mod }
+        }
+        catch { Write-Log -Message "Hiccup starting core services." -Status "WARNING" -Module $mod }
 
         # Install Apps
         foreach ($k in $coreApps.Keys) { Install-XboxApp -Name $k -ID $coreApps[$k] }
 
-    } else {
+    }
+    else {
         Write-Log -Message "User chose to kill Core Services." -Status "INFO" -Module $mod
         Write-Host "Nuking Core Features..." -ForegroundColor Magenta
 
@@ -730,11 +764,13 @@ function Invoke-XboxSetup {
             New-ItemProperty "HKCU\Software\Microsoft\Windows\CurrentVersion\GameDVR" -Name "AppCaptureEnabled" -Value 1 -PropertyType DWORD -Force -EA 0 | Out-Null
             New-ItemProperty "HKCU\System\GameConfigStore" -Name "GameDVR_Enabled" -Value 1 -PropertyType DWORD -Force -EA 0 | Out-Null
             Write-Log -Message "GameDVR turned on in registry." -Status "SUCCESS" -Module $mod
-        } catch { Write-Log -Message "Couldn't flip GameDVR registry switch." -Status "FAILURE" -Module $mod }
+        }
+        catch { Write-Log -Message "Couldn't flip GameDVR registry switch." -Status "FAILURE" -Module $mod }
 
         foreach ($k in $barApps.Keys) { Install-XboxApp -Name $k -ID $barApps[$k] }
 
-    } else {
+    }
+    else {
         Write-Log -Message "User chose to kill Game Bar." -Status "INFO" -Module $mod
         Write-Host "Removing Game Bar..." -ForegroundColor Magenta
 
@@ -742,7 +778,8 @@ function Invoke-XboxSetup {
         try {
             New-ItemProperty "HKCU\Software\Microsoft\Windows\CurrentVersion\GameDVR" -Name "AppCaptureEnabled" -Value 0 -PropertyType DWORD -Force -EA 0 | Out-Null
             New-ItemProperty "HKCU\System\GameConfigStore" -Name "GameDVR_Enabled" -Value 0 -PropertyType DWORD -Force -EA 0 | Out-Null
-        } catch {}
+        }
+        catch {}
 
         foreach ($k in $barApps.Keys) { Remove-XboxApp -Name $k }
 
@@ -779,7 +816,8 @@ function Invoke-OneDriveRemoval {
             taskkill /F /IM OneDrive.exe > $null 2>&1
             Stop-Process -Name "explorer" -Force -ErrorAction SilentlyContinue
             Start-Sleep -Seconds 3
-        } catch {
+        }
+        catch {
             Write-Log "Error stopping processes: $_" "ERROR"
         }
 
@@ -836,7 +874,9 @@ function Invoke-OneDriveRemoval {
             $excludedNames = $physicalFolderMap.Keys
             
             # Robocopy Root -> Backup, excluding the standard folders we already moved
-            $argsList = "`"$oneDriveUserPath`" `"$leftoverBackup`" /E /COPY:DAT /XD $($excludedNames -join ' ') /R:3 /W:3 /NP /NFL /NDL"
+            # Quote the excluded names to handle spaces
+            $quotedExcludes = $excludedNames | ForEach-Object { "`"$_`"" }
+            $argsList = "`"$oneDriveUserPath`" `"$leftoverBackup`" /E /COPY:DAT /XD $($quotedExcludes -join ' ') /R:3 /W:3 /NP /NFL /NDL"
             $proc = Start-Process -FilePath "robocopy.exe" -ArgumentList $argsList -NoNewWindow -PassThru -Wait
             
             if ($proc.ExitCode -ge 8) {
@@ -899,7 +939,8 @@ function Invoke-OneDriveRemoval {
         }
         
         # Winget / Appx cleanup
-        try { winget uninstall --id Microsoft.OneDrive --silent --accept-package-agreements --accept-source-agreements > $null 2>&1 } catch {}
+        # Winget / Appx cleanup
+        try { winget uninstall --id Microsoft.OneDrive --silent --accept-package-agreements --accept-source-agreements >> $logFile 2>&1 } catch {}
         Remove-AppxPackageAllUsers "Microsoft.OneDrive"
 
         # Registry Cleanup
@@ -923,7 +964,8 @@ function Invoke-OneDriveRemoval {
         Write-Log "OneDrive removal complete." "INFO"
         Start-Sleep -Seconds 3
 
-    } else {
+    }
+    else {
         # --- INSTALLATION MODE ---
         Write-Color "OneDrive is NOT installed." "Yellow"
         $choice = Read-Host "Do you want to INSTALL OneDrive and set it as default? (y/n)"
@@ -936,7 +978,8 @@ function Invoke-OneDriveRemoval {
         try {
             Invoke-WebRequest -Uri "https://go.microsoft.com/fwlink/?linkid=823054" -OutFile $setupPath
             Start-Process -FilePath $setupPath -ArgumentList "/silent" -Wait -NoNewWindow
-        } catch {
+        }
+        catch {
             Write-Color "Download or Install failed." "Red"
             Write-Log "Install failed: $_" "ERROR"
             return
@@ -1011,7 +1054,8 @@ function Invoke-TeamsRemoval {
         
         Write-Host "MICROSOFT TEAMS HAS BEEN COMPLETELY REMOVED!" -ForegroundColor Green
         Start-Sleep -Seconds 2
-    } else {
+    }
+    else {
         Write-Host "Keeping Microsoft Teams." -ForegroundColor Cyan
     }
 }
@@ -1030,7 +1074,8 @@ function Invoke-AIRemoval {
             Set-RegistryValue -Path "HKLM:\Software\Policies\Microsoft\Windows\Dsh" -Name "EnableCopilotButton" -Value 0
             Set-RegistryValue -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "ShowCopilotButton" -Value 0
             Set-RegistryValue -Path "HKLM:\Software\Policies\Microsoft\Windows\Copilot" -Name "DisableCopilot" -Value 1
-        } catch {
+        }
+        catch {
             Write-Log -Message "Error setting Copilot registry policies: $($_.Exception.Message)" -Type "ERROR"
         }
 
@@ -1040,7 +1085,8 @@ function Invoke-AIRemoval {
         try { 
             winget uninstall --id "Microsoft.Copilot" --silent --accept-source-agreements *>$null 
             winget uninstall --id "Microsoft.365.Copilot" --silent --accept-source-agreements *>$null 
-        } catch {
+        }
+        catch {
             Write-Log -Message "Winget uninstall encountered an issue or app not found." -Type "INFO"
         }
         
@@ -1051,7 +1097,8 @@ function Invoke-AIRemoval {
         if (Test-Path $officeUninstallPath) { 
             try { 
                 Start-Process -FilePath $officeUninstallPath -ArgumentList "/uninstall Copilot /quiet /norestart" -NoNewWindow -Wait -ErrorAction Stop 
-            } catch {
+            }
+            catch {
                 Write-Log -Message "Office C2R uninstall command failed: $($_.Exception.Message)" -Type "ERROR"
             } 
         }
@@ -1059,7 +1106,8 @@ function Invoke-AIRemoval {
         try {
             $msiCopilot = Get-WmiObject -Query "SELECT * FROM Win32_Product WHERE Name LIKE '%Copilot%'" -ErrorAction SilentlyContinue
             if ($msiCopilot) { foreach ($app in $msiCopilot) { $app.Uninstall() } }
-        } catch {
+        }
+        catch {
             Write-Log -Message "MSI uninstall failed: $($_.Exception.Message)" -Type "ERROR"
         }
 
@@ -1071,7 +1119,8 @@ function Invoke-AIRemoval {
             reg delete "HKLM\Software\Microsoft\Windows\CurrentVersion\Run" /v "Copilot" /f 2>$null
             $copilotRegistryKeys = @("HKCU\Software\Microsoft\Windows\CurrentVersion\Copilot", "HKLM\Software\Microsoft\Windows\CurrentVersion\Copilot", "HKLM\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Copilot", "HKCU\Software\Microsoft\Office\Copilot", "HKLM\Software\Microsoft\Office\Copilot")
             foreach ($key in $copilotRegistryKeys) { reg delete $key /f 2>$null }
-        } catch {
+        }
+        catch {
             Write-Log -Message "Registry cleanup error: $($_.Exception.Message)" -Type "ERROR"
         }
         
@@ -1081,7 +1130,8 @@ function Invoke-AIRemoval {
 
         Write-Host "MICROSOFT COPILOT HAS BEEN COMPLETELY REMOVED!" -ForegroundColor Green
         Write-Log -Message "Microsoft Copilot removed successfully."
-    } else {
+    }
+    else {
         Write-Host "Keeping Microsoft Copilot." -ForegroundColor Cyan
     }
 
@@ -1109,10 +1159,12 @@ function Invoke-AIRemoval {
             Start-Process -FilePath "gpupdate" -ArgumentList "/force" -NoNewWindow -Wait
             Write-Host "Microsoft Recall fully disabled." -ForegroundColor Green
             Write-Log -Message "Microsoft Recall disabled successfully."
-        } catch {
+        }
+        catch {
             Write-Log -Message "Error during Recall disablement: $($_.Exception.Message)" -Type "ERROR"
         }
-    } else {
+    }
+    else {
         Write-Host "Keeping Microsoft Recall." -ForegroundColor Cyan
     }
 }
@@ -1141,10 +1193,12 @@ function Invoke-UIAndTaskbarSetup {
             
             Write-Host "Windows 10 UI tweaks applied successfully." -ForegroundColor Green
             Write-Log -Message "Windows 10 UI tweaks applied (Taskbar Left, Classic Context Menu)."
-        } catch {
+        }
+        catch {
             Write-Log -Message "Error applying Windows 10 UI tweaks: $($_.Exception.Message)" -Type "ERROR"
         }
-    } else {
+    }
+    else {
         Write-Host "Skipping Windows 10 UI tweaks." -ForegroundColor Cyan
     }
 
@@ -1184,10 +1238,12 @@ function Invoke-UIAndTaskbarSetup {
 
             Write-Host "Taskbar cleaned successfully." -ForegroundColor Green
             Write-Log -Message "Taskbar debloat completed."
-        } catch {
+        }
+        catch {
             Write-Log -Message "Error during Taskbar debloat: $($_.Exception.Message)" -Type "ERROR"
         }
-    } else {
+    }
+    else {
         Write-Host "Skipping taskbar debloating." -ForegroundColor Cyan
     }
 
@@ -1203,10 +1259,12 @@ function Invoke-UIAndTaskbarSetup {
                 Set-ItemProperty -Path "HKCU:\Software\Microsoft\Office\16.0\Common" -Name "UI Theme" -Value 4 -Type DWord -ErrorAction SilentlyContinue
             }
             Write-Log -Message "Dark mode enabled."
-        } catch {
+        }
+        catch {
             Write-Log -Message "Error enabling Dark Mode: $($_.Exception.Message)" -Type "ERROR"
         }
-    } else {
+    }
+    else {
         Write-Host "Dark Mode not enabled." -ForegroundColor Cyan
     }
     
@@ -1224,7 +1282,8 @@ function Invoke-SystemOptimizations {
             Set-RegistryValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\Edge" -Name "BackgroundModeEnabled" -Value 0
             Write-Host "Edge features disabled!" -ForegroundColor Green
             Write-Log -Message "Edge forced features disabled."
-        } catch {
+        }
+        catch {
             Write-Log -Message "Error disabling Edge features: $($_.Exception.Message)" -Type "ERROR"
         }
     }
@@ -1238,14 +1297,16 @@ function Invoke-SystemOptimizations {
             
             $vrrSupported = Get-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers" -Name "VRRFeatureEnabled" -ErrorAction SilentlyContinue
             if ($null -ne $vrrSupported) {
-                 Set-RegistryValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers" -Name "VRRFeatureEnabled" -Value 1
+                Set-RegistryValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers" -Name "VRRFeatureEnabled" -Value 1
             }
             Write-Host "Gaming features enabled!" -ForegroundColor Cyan
             Write-Log -Message "Gaming optimizations (GameMode, HAGS, VRR) applied."
-        } catch {
+        }
+        catch {
             Write-Log -Message "Error applying gaming optimizations: $($_.Exception.Message)" -Type "ERROR"
         }
-    } else {
+    }
+    else {
         Write-Host "Skipping gaming optimizations." -ForegroundColor Cyan
     }
 
@@ -1255,7 +1316,8 @@ function Invoke-SystemOptimizations {
         try {
             powercfg /SETACVALUEINDEX SCHEME_CURRENT 2a737441-1930-4402-8d77-b2bebba308a3 48e6b7a6-50f5-4782-a5d4-53bb8f07e226 0
             Write-Log -Message "USB Selective Suspend disabled."
-        } catch {
+        }
+        catch {
             Write-Log -Message "Error disabling USB Suspend: $($_.Exception.Message)" -Type "ERROR"
         }
     }
@@ -1271,7 +1333,8 @@ function Invoke-SystemOptimizations {
             
             Write-Host "Game Compatibility features enabled." -ForegroundColor Green
             Write-Log -Message "Game Compatibility (LongPaths, IncreaseUserVA) enabled."
-        } catch {
+        }
+        catch {
             Write-Log -Message "Error enabling Game Compatibility: $($_.Exception.Message)" -Type "ERROR"
         }
     }
@@ -1294,10 +1357,12 @@ function Invoke-SystemOptimizations {
             
             Write-Host "Memory Core Isolation disabled (Restart required)." -ForegroundColor Yellow
             Write-Log -Message "Memory Core Isolation disabled and notifications suppressed."
-        } catch {
+        }
+        catch {
             Write-Log -Message "Error disabling Memory Core Isolation: $($_.Exception.Message)" -Type "ERROR"
         }
-    } else {
+    }
+    else {
         Write-Host "Keeping Memory Core Isolation enabled." -ForegroundColor Cyan
     }
 
@@ -1310,7 +1375,8 @@ function Invoke-SystemOptimizations {
     try {
         New-Shortcut -TargetPath $script:ogcwinbat -ShortcutPath $script:desktopPath -Description "Launch OGC Windows Utility" -IconPath "C:\Windows\System32\shell32.dll,272"
         Write-Log -Message "Desktop shortcut created/updated."
-    } catch {
+    }
+    catch {
         Write-Log -Message "Error creating desktop shortcut: $($_.Exception.Message)" -Type "ERROR"
     }
     Clear-Host
@@ -1346,7 +1412,8 @@ function Invoke-SoftwareInstallation {
             if ($process.ExitCode -eq 0) {
                 Write-Host "$Name successfully installed." -ForegroundColor Green
                 Write-Log "Successfully installed $Name" "INFO"
-            } else {
+            }
+            else {
                 throw "Winget returned exit code $($process.ExitCode)"
             }
         }
@@ -1369,20 +1436,20 @@ function Invoke-SoftwareInstallation {
         }
 
         $apps = @{
-            "Steam" = "Valve.Steam"; 
+            "Steam"               = "Valve.Steam"; 
             "Epic Games Launcher" = "EpicGames.EpicGamesLauncher"; 
-            "GOG Galaxy" = "GOG.Galaxy";
-            "Discord" = "Discord.Discord"; 
-            "Medal" = "Medal.TV"
+            "GOG Galaxy"          = "GOG.Galaxy";
+            "Discord"             = "Discord.Discord"; 
+            "Medal"               = "Medal.TV"
         }
         
         # Use GetEnumerator to properly access Key (Name) and Value (ID)
         foreach ($app in $apps.GetEnumerator()) {
-             $appName = $app.Key
-             $appId = $app.Value
-             if ((Read-Host "Do you want to install $appName? (y/n)") -eq "y") {
-                 Install-App -Name $appName -Id $appId
-             }
+            $appName = $app.Key
+            $appId = $app.Value
+            if ((Read-Host "Do you want to install $appName? (y/n)") -eq "y") {
+                Install-App -Name $appName -Id $appId
+            }
         }
         Write-Host "Gaming app installation process completed." -ForegroundColor Green
     }
@@ -1393,11 +1460,11 @@ function Invoke-SoftwareInstallation {
     $installGamingUtilities = Read-Host "Do you want to install gaming and monitoring utilities? (y/n)"
     if ($installGamingUtilities -eq "y") {
         $utils = @{
-            "HWiNFO" = "REALiX.HWiNFO"; 
-            "MSI Afterburner" = "MSI.Afterburner"; 
+            "HWiNFO"                             = "REALiX.HWiNFO"; 
+            "MSI Afterburner"                    = "MSI.Afterburner"; 
             "RivaTuner Statistics Server (RTSS)" = "Guru3D.RTSS";
-            "CPU-Z" = "CPUID.CPU-Z"; 
-            "GPU-Z" = "TechPowerUp.GPU-Z"
+            "CPU-Z"                              = "CPUID.CPU-Z"; 
+            "GPU-Z"                              = "TechPowerUp.GPU-Z"
         }
         foreach ($util in $utils.GetEnumerator()) {
             $utilName = $util.Key
@@ -1417,11 +1484,11 @@ function Invoke-SoftwareInstallation {
         
         # Define available browsers
         $browserList = @{
-            "1" = @{ Name="Firefox"; Id="Mozilla.Firefox" };
-            "2" = @{ Name="Brave"; Id="Brave.Brave" };
-            "3" = @{ Name="Opera GX"; Id="Opera.OperaGX" };
-            "4" = @{ Name="Chrome"; Id="Google.Chrome" };
-            "5" = @{ Name="Edge"; Id="Microsoft.Edge" }
+            "1" = @{ Name = "Firefox"; Id = "Mozilla.Firefox" };
+            "2" = @{ Name = "Brave"; Id = "Brave.Brave" };
+            "3" = @{ Name = "Opera GX"; Id = "Opera.OperaGX" };
+            "4" = @{ Name = "Chrome"; Id = "Google.Chrome" };
+            "5" = @{ Name = "Edge"; Id = "Microsoft.Edge" }
         }
 
         # Function to handle selection logic
@@ -1460,7 +1527,8 @@ function Invoke-SoftwareInstallation {
                     Write-Log "User prompted to set $primaryBrowserName as default." "INFO"
                 }
             }
-        } elseif ($choice -ne "N") {
+        }
+        elseif ($choice -ne "N") {
             Write-Host "Invalid selection." -ForegroundColor Red
         }
 
@@ -1482,7 +1550,8 @@ function Invoke-SoftwareInstallation {
                             Write-Host "Running Edge Uninstaller..." -ForegroundColor Magenta
                             Start-Process -FilePath $edgeInstaller.FullName -ArgumentList "--uninstall --system-level --verbose-logging --force-uninstall" -Wait -NoNewWindow
                             Write-Log "Executed Edge setup.exe uninstall command." "INFO"
-                        } else {
+                        }
+                        else {
                             Write-Log "Edge setup.exe not found." "WARNING"
                         }
 
@@ -1500,7 +1569,8 @@ function Invoke-SoftwareInstallation {
                         Set-ItemProperty -Path $edgeReg -Name "StartupBoostEnabled" -Value 0
                         
                         Write-Host "Edge removal/disable tasks completed." -ForegroundColor Green
-                    } catch {
+                    }
+                    catch {
                         Write-Log "Error during Edge removal: $_" "ERROR"
                     }
                 }
@@ -1515,7 +1585,8 @@ function Invoke-SoftwareInstallation {
                 $selection2 = $browserList[$choice2]
                 if ($selection2.Name -eq $primaryBrowserName) {
                     Write-Host "You already installed this browser." -ForegroundColor Yellow
-                } else {
+                }
+                else {
                     Install-App -Name $selection2.Name -Id $selection2.Id
                 }
             }
@@ -1569,10 +1640,12 @@ function Invoke-SoftwareInstallation {
                     try {
                         Get-AppxPackage -AllUsers -Name $app | Remove-AppxPackage -AllUsers -ErrorAction SilentlyContinue
                         Write-Log "Removed AppxPackage: $app" "INFO"
-                    } catch {}
+                    }
+                    catch {}
                 }
             }
-        } elseif ($selectedOffice -eq "None") {
+        }
+        elseif ($selectedOffice -eq "None") {
             # Full Nuke
             Write-Host "Removing all Office-related software..." -ForegroundColor Magenta
             foreach ($app in $officeApps) { Get-AppxPackage -AllUsers -Name $app | Remove-AppxPackage -AllUsers -ErrorAction SilentlyContinue }
@@ -1626,7 +1699,8 @@ function Invoke-SoftwareInstallation {
 
                 Write-Host "Office Telemetry and Nags disabled." -ForegroundColor Green
                 Write-Log "Applied MS Office Telemetry and Nag registry blocks." "INFO"
-            } catch {
+            }
+            catch {
                 Write-Log "Failed to apply Office telemetry tweaks: $_" "ERROR"
             }
         }
@@ -1682,7 +1756,8 @@ function Invoke-DriverInstallation {
                     
                     if ($process.ExitCode -eq 0) {
                         Write-Log "NVIDIA driver installed successfully." "INFO"
-                    } else {
+                    }
+                    else {
                         Write-Log "NVIDIA driver install returned exit code: $($process.ExitCode)" "WARNING"
                     }
 
@@ -1707,9 +1782,10 @@ function Invoke-DriverInstallation {
                     
                     Write-Host "Installing AMD Drivers..." -ForegroundColor Cyan
                     $process = Start-Process -FilePath $amdPath -ArgumentList "/INSTALL /SILENT" -Wait -PassThru
-                     if ($process.ExitCode -eq 0) {
+                    if ($process.ExitCode -eq 0) {
                         Write-Log "AMD driver installed successfully." "INFO"
-                    } else {
+                    }
+                    else {
                         Write-Log "AMD driver install returned exit code: $($process.ExitCode)" "WARNING"
                     }
                 }
@@ -1770,7 +1846,7 @@ function Invoke-DriverInstallation {
             }
         
             # Telemetry Cleanup Prompt
-            if ($gpuChoice -in "1","2","3") {
+            if ($gpuChoice -in "1", "2", "3") {
                 Write-Host "`nTelemetry/Data Collection" -ForegroundColor Magenta
                 Write-Host "It is highly recommended to disable telemetry to improve privacy and performance." -ForegroundColor Gray
                 $disableTele = Read-Host "Do you want to disable telemetry for the installed drivers? (y/n)"
@@ -1808,15 +1884,16 @@ function Invoke-DriverInstallation {
 
                     # Intel Telemetry
                     if (Get-Service "Intel(R) Surrey City Program" -ErrorAction SilentlyContinue) {
-                         Write-Host "Disabling Intel telemetry..." -ForegroundColor Cyan
-                         Stop-Service "Intel(R) Surrey City Program" -Force -ErrorAction SilentlyContinue
-                         Set-Service "Intel(R) Surrey City Program" -StartupType Disabled -ErrorAction SilentlyContinue
-                         Write-Log "Intel telemetry disabled." "INFO"
+                        Write-Host "Disabling Intel telemetry..." -ForegroundColor Cyan
+                        Stop-Service "Intel(R) Surrey City Program" -Force -ErrorAction SilentlyContinue
+                        Set-Service "Intel(R) Surrey City Program" -StartupType Disabled -ErrorAction SilentlyContinue
+                        Write-Log "Intel telemetry disabled." "INFO"
                     }
                 }
             }
 
-        } catch {
+        }
+        catch {
             Write-Log "Critical error in Graphics Driver section: $_" "ERROR"
             Write-Host "An error occurred installing graphics drivers. Check log for details." -ForegroundColor Red
         }
@@ -1857,7 +1934,8 @@ function Invoke-DriverInstallation {
                 Start-Process -FilePath $chipPath -ArgumentList "/INSTALL /SILENT" -Wait
                 Write-Log "AMD Chipset installed." "INFO"
             }
-        } catch {
+        }
+        catch {
             Write-Log "Error in Chipset Driver section: $_" "ERROR"
             Write-Host "An error occurred installing chipset drivers." -ForegroundColor Red
         }
@@ -1877,7 +1955,8 @@ if (-not (Test-Path $ConfigPath)) {
     if (Test-Path $LocalLaunch) {
         & $LocalLaunch
         exit
-    } else {
+    }
+    else {
         Invoke-Expression (Invoke-RestMethod "https://ogc.win")
         exit
     }
@@ -1971,7 +2050,8 @@ try {
     if ($Urls.ContainsKey("DriverNvidia")) {
         Invoke-DriverInstallation 
     }
-} catch { Write-Log "Driver Module Error: $_" "ERROR" }
+}
+catch { Write-Log "Driver Module Error: $_" "ERROR" }
 
 # Final Restart Logic
 Stop-Process -Name explorer -Force
@@ -1995,7 +2075,8 @@ if ($restartChoice -match "^[Yy]$") {
     Write-Host "Restarting now..." -ForegroundColor Green
     Start-Sleep -Seconds 2
     shutdown /r /t 0
-} else {
+}
+else {
     Write-Host "You can restart later. Exiting..." -ForegroundColor Cyan
     Start-Sleep -Seconds 2
     $host.UI.RawUI.FlushInputBuffer()
