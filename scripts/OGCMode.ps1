@@ -44,6 +44,7 @@ $configsFolder = "$parentFolder\configs"
 $scriptsFolder = "$parentFolder\scripts"
 $binDir = "$parentFolder\bin"
 $tempFolder = "$parentFolder\temp"
+$logFolder = "$parentFolder\logs"
 
 # Filename definitions
 $ogcWin = "$scriptsFolder\OGCWin.ps1"
@@ -77,8 +78,8 @@ function Show-Progress {
 
 function Write-Log {
     param (
-        [Parameter(Mandatory=$true)] [string]$Message,
-        [Parameter(Mandatory=$false)] [ValidateSet("SUCCESS","FAILURE","INFO","WARNING","ERROR")] [string]$Status = "INFO",
+        [Parameter(Mandatory = $true)] [string]$Message,
+        [Parameter(Mandatory = $false)] [ValidateSet("SUCCESS", "FAILURE", "INFO", "WARNING", "ERROR")] [string]$Status = "INFO",
         [string]$Module = "General"
     )
     $logFolder = Join-Path $parentFolder "logs"
@@ -114,7 +115,8 @@ foreach ($folder in $folders) {
             New-Item -Path $folder -ItemType Directory -Force | Out-Null 
             Write-Log "Created directory: $folder"
         }
-    } catch {
+    }
+    catch {
         Write-Log "Failed to create directory $folder : $_" "ERROR"
     }
 }
@@ -144,16 +146,19 @@ if ($MissingScripts) {
             Write-Log "Launching local repair script."
             & $launchScript
             exit
-        } catch {
+        }
+        catch {
             Write-Log "Failed to execute local repair script: $_" "ERROR"
         }
-    } else {
+    }
+    else {
         Write-Host "Local repair script missing. Initiating full web reinstall..." -ForegroundColor Magenta
         try {
             Write-Log "Local repair missing. Starting web reinstall."
             Invoke-Expression (Invoke-RestMethod "https://ogc.win")
             exit
-        } catch {
+        }
+        catch {
             Write-Log "Failed to initiate web reinstall: $_" "ERROR"
         }
     }
@@ -162,7 +167,8 @@ if ($MissingScripts) {
 # Update Check Logic
 if (Test-Path $versionLocal) {
     $localVersion = Get-VersionNumber (Get-Content $versionLocal -Raw)
-} else {
+}
+else {
     $localVersion = [version]"0.0"
 }
 
@@ -178,14 +184,17 @@ try {
         try {
             & $launchScript
             exit
-        } catch {
+        }
+        catch {
             Write-Log "Failed to launch update script: $_" "ERROR"
         }
-    } else {
+    }
+    else {
         Write-Host "OGCWin is up to date (Version $localVersion)." -ForegroundColor Green
         Write-Log "OGCWin is up to date (Version $localVersion)."
     }
-} catch {
+}
+catch {
     Write-Host "Could not check for updates (Offline?). Skipping." -ForegroundColor DarkGray
     Write-Log "Update check failed (Likely offline): $_" "WARNING"
 }
@@ -215,7 +224,8 @@ while ($true) {
     
     if ($winVer -match "Windows 11") {
         Write-Host "2. Wizard Mode - Step-by-step new PC setup wizard" -ForegroundColor Yellow
-    } else {
+    }
+    else {
         Write-Host "2. Wizard Mode - [WARNING: Not meant for Windows 10]" -ForegroundColor Red
     }
     
@@ -232,7 +242,8 @@ while ($true) {
             Start-Sleep -Seconds 1
             try {
                 & $ogcWin
-            } catch {
+            }
+            catch {
                 Write-Log "Failed to launch OGCWin: $_" "ERROR"
                 Write-Host "Error launching OGCWin. Check logs." -ForegroundColor Red
             }
@@ -253,7 +264,8 @@ while ($true) {
             Start-Sleep -Seconds 1
             try {
                 & $ogcWiz11
-            } catch {
+            }
+            catch {
                 Write-Log "Failed to launch OGCWiz11: $_" "ERROR"
                 Write-Host "Error launching Wizard. Check logs." -ForegroundColor Red
             }
@@ -263,7 +275,8 @@ while ($true) {
             Write-Log "User selected System Information."
             try {
                 & $sysInfo
-            } catch {
+            }
+            catch {
                 Write-Log "Failed to launch SysInfo: $_" "ERROR"
             }
             Write-Host ""

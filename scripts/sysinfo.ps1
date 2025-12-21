@@ -40,6 +40,7 @@ function Write-Color {
 # Define Paths
 $parentFolder = "C:\ProgramData\OGC Windows Utility"
 $configsFolder = Join-Path $parentFolder "configs"
+$logFolder = "$parentFolder\logs"
 #$scriptsFolder = Join-Path $parentFolder "scripts"
 $binDir = Join-Path $parentFolder "bin"
 
@@ -59,7 +60,6 @@ function Write-Log {
         [Parameter(Mandatory = $false)] [ValidateSet("SUCCESS", "FAILURE", "INFO", "WARNING", "ERROR")] [string]$Status = "INFO",
         [string]$Module = "General"
     )
-    $logFolder = Join-Path $parentFolder "logs"
     $scriptName = [System.IO.Path]::GetFileNameWithoutExtension($PSCommandPath)
     $logFile = Join-Path $logFolder "${scriptName}_log.txt"
     $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"

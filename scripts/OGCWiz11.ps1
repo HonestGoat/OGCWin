@@ -42,6 +42,9 @@ $parentFolder = "C:\ProgramData\OGC Windows Utility"
 $configsFolder = "$parentFolder\configs"
 $scriptsFolder = "$parentFolder\scripts"
 $oneDriveUserPath = "$env:UserProfile\OneDrive"
+$logFolder = "$parentFolder\logs"
+$scriptName = [System.IO.Path]::GetFileNameWithoutExtension($PSCommandPath)
+$logFile = Join-Path $logFolder "${scriptName}_log.txt"
 
 
 # Configuration
@@ -50,6 +53,7 @@ $Urls = @{}
 
 # Files and Shortcuts
 $ogcwinbat = "$parentFolder\OGCWin.bat"
+$ogcmode = "$scriptsFolder\OGCMode.ps1"
 $desktopPath = [System.IO.Path]::Combine([System.Environment]::GetFolderPath("Desktop"), "OGC Windows Utility.lnk")
 
 
