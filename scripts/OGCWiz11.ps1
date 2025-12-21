@@ -249,105 +249,6 @@ function New-Shortcut {
     }
 }
 
-# ==========================================
-#          DATA STRUCTURES
-# ==========================================
-$Global:SoftwareCatalog = [ordered]@{
-    "Browsers"    = @(
-        [PSCustomObject]@{ Name = "Google Chrome"; ID = "Google.Chrome"; Type = "Winget"; Category = "Browsers" }
-        [PSCustomObject]@{ Name = "Mozilla Firefox"; ID = "Mozilla.Firefox"; Type = "Winget"; Category = "Browsers" }
-        [PSCustomObject]@{ Name = "Brave Browser"; ID = "Brave.Brave"; Type = "Winget"; Category = "Browsers" }
-        [PSCustomObject]@{ Name = "Opera GX"; ID = "Opera.OperaGX"; Type = "Winget"; Category = "Browsers" }
-        [PSCustomObject]@{ Name = "Microsoft Edge"; ID = "Microsoft.Edge"; Type = "Winget"; Category = "Browsers" }
-    )
-    "Gaming"      = @(
-        [PSCustomObject]@{ Name = "Steam"; ID = "Valve.Steam"; Type = "Winget"; Category = "Gaming" }
-        [PSCustomObject]@{ Name = "Epic Games (Launcher)"; ID = "EpicGames.EpicGamesLauncher"; Type = "Winget"; Category = "Gaming" }
-        [PSCustomObject]@{ Name = "Ubisoft Connect"; ID = "Ubisoft.Connect"; Type = "Winget"; Category = "Gaming" }
-        [PSCustomObject]@{ Name = "EA App"; ID = "ElectronicArts.EADesktop"; Type = "Winget"; Category = "Gaming" }
-        [PSCustomObject]@{ Name = "GOG Galaxy"; ID = "GOG.Galaxy"; Type = "Winget"; Category = "Gaming" }
-        [PSCustomObject]@{ Name = "Discord"; ID = "Discord.Discord"; Type = "Winget"; Category = "Gaming" }
-    )
-    "Multimedia"  = @(
-        [PSCustomObject]@{ Name = "VLC Media Player"; ID = "VideoLAN.VLC"; Type = "Winget"; Category = "Multimedia" }
-        [PSCustomObject]@{ Name = "Spotify"; ID = "Spotify.Spotify"; Type = "Winget"; Category = "Multimedia" }
-        [PSCustomObject]@{ Name = "OBS Studio"; ID = "OBSProject.OBSStudio"; Type = "Winget"; Category = "Multimedia" }
-        [PSCustomObject]@{ Name = "Audacity"; ID = "Audacity.Audacity"; Type = "Winget"; Category = "Multimedia" }
-    )
-    "Utilities"   = @(
-        [PSCustomObject]@{ Name = "7-Zip"; ID = "7zip.7zip"; Type = "Winget"; Category = "Utilities" }
-        [PSCustomObject]@{ Name = "Notepad++"; ID = "Notepad++.Notepad++"; Type = "Winget"; Category = "Utilities" }
-        [PSCustomObject]@{ Name = "PowerToys"; ID = "Microsoft.PowerToys"; Type = "Winget"; Category = "Utilities" }
-        [PSCustomObject]@{ Name = "WinDirStat"; ID = "WinDirStat.WinDirStat"; Type = "Winget"; Category = "Utilities" }
-        [PSCustomObject]@{ Name = "ShareX"; ID = "ShareX.ShareX"; Type = "Winget"; Category = "Utilities" }
-    )
-    "Development" = @(
-        [PSCustomObject]@{ Name = "VS Code"; ID = "Microsoft.VisualStudioCode"; Type = "Winget"; Category = "Development" }
-        [PSCustomObject]@{ Name = "Git"; ID = "Git.Git"; Type = "Winget"; Category = "Development" }
-        [PSCustomObject]@{ Name = "Node.js (LTS)"; ID = "OpenJS.NodeJS.LTS"; Type = "Winget"; Category = "Development" }
-        [PSCustomObject]@{ Name = "Python 3"; ID = "Python.Python.3"; Type = "Winget"; Category = "Development" }
-    )
-}
-
-function Invoke-SoftwareWorker {
-    param ([string]$Payload)
-    
-    # Decode Jobs
-    $json = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($Payload))
-    $jobs = ConvertFrom-Json $json
-    $logPath = "$env:ProgramData\OGC Windows Utility\logs\software_install_log.txt"
-    
-    Write-Host "=======================================" -ForegroundColor DarkCyan
-    Write-Host "   OGC Software Manager Worker" -ForegroundColor White
-    Write-Host "=======================================" -ForegroundColor DarkCyan
-    Write-Host "Processing $($jobs.Count) tasks..." -ForegroundColor Gray
-    Write-Host ""
-
-    foreach ($job in $jobs) {
-        $app = $job.App
-        $action = $job.Action
-        
-        Write-Host "[$action] " -NoNewline -ForegroundColor Cyan
-        Write-Host $app.Name -ForegroundColor White
-        
-        try {
-            if ($action -eq "Install" -or $action -eq "Update") {
-                if ($app.Type -eq "Winget") {
-                    $argsList = "install --id $($app.ID) -e --source winget --accept-package-agreements --accept-source-agreements --silent --force"
-                    if ($action -eq "Update") { $argsList = "upgrade --id $($app.ID) -e --silent --force" }
-
-                    # run winget redirecting valid streams to log, but showing nothing to console (unless error)
-                    # FIX: We launch cmd /c to handle redirection safely without locking streams
-                    $cmd = "winget $argsList > `"$logPath`" 2>&1"
-                    Start-Process -FilePath "cmd.exe" -ArgumentList "/c $cmd" -Wait -NoNewWindow
-                    
-                    if ($LASTEXITCODE -eq 0) {
-                        Write-Host "   -> Success" -ForegroundColor Green
-                    }
-                    else {
-                        Write-Host "   -> Failed (Check Log)" -ForegroundColor Red
-                    }
-                }
-            }
-            elseif ($action -eq "Uninstall") {
-                if ($app.Type -eq "Winget") {
-                    $cmd = "winget uninstall --id $($app.ID) --silent > `"$logPath`" 2>&1"
-                    Start-Process -FilePath "cmd.exe" -ArgumentList "/c $cmd" -Wait -NoNewWindow
-                    Write-Host "   -> Processed" -ForegroundColor Yellow
-                }
-            }
-        }
-        catch {
-            Write-Host "   -> Error: $_" -ForegroundColor Red
-            Add-Content -Path $logPath -Value "Error processing $($app.Name): $_"
-        }
-    }
-    
-    Write-Host "`nAll tasks completed." -ForegroundColor Green
-    Write-Host "Closing in 3 seconds..." -ForegroundColor Gray
-    Start-Sleep -Seconds 3
-}
-
 function Start-Watchdog {
     param ([int]$ParentPID)
     $scriptBlock = {
@@ -363,137 +264,6 @@ function Start-Watchdog {
     $encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($scriptBlock.ToString()))
     $procArgs = "-NoProfile -WindowStyle Hidden -EncodedCommand $encoded -Args $ParentPID"
     return Start-Process "powershell.exe" -ArgumentList $procArgs -PassThru -WindowStyle Hidden
-}
-
-function Show-TUI {
-    param (
-        [string]$Title,
-        [array]$Items,
-        [bool]$IsSubMenu = $false
-    )
-
-    $selectedIndex = 0
-    $colCount = 2
-    if ($Items.Count -gt 10) { $colCount = 3 }
-    
-    while ($true) {
-        Clear-Host
-        # Header
-        Write-Host "=======================================" -ForegroundColor DarkCyan
-        Write-Host "   $Title" -ForegroundColor White
-        Write-Host "=======================================" -ForegroundColor DarkCyan
-        
-        # Legend (Adaptive)
-        if ($IsSubMenu) {
-            Write-Host "[ARROWS] Nav  [SPACE] Select  [ENTER] Install  [BKSP] Uninstall  [U] Update  [ESC] Back" -ForegroundColor Gray
-        }
-        else {
-            Write-Host "[ARROWS] Nav  [ENTER] Open Category  [ESC] Exit" -ForegroundColor Gray
-        }
-        Write-Host ""
-
-        # Grid Rentering
-        $rowCount = [Math]::Ceiling($Items.Count / $colCount)
-        
-        for ($r = 0; $r -lt $rowCount; $r++) {
-            $line = ""
-            for ($c = 0; $c -lt $colCount; $c++) {
-                $idx = ($r * $colCount) + $c
-                if ($idx -lt $Items.Count) {
-                    $itm = $Items[$idx]
-                    
-                    # Selection Mark (Cursor)
-                    $cursor = "   "
-                    if ($idx -eq $selectedIndex) { $cursor = "-> " }
-                    
-                    # Status Color
-                    $statusColor = "White"
-                    if ($IsSubMenu) {
-                        # Logic to determine installed status color (Green=Inst, Yellow=Avail, Red=Remove, Blue=Update)
-                        if ($itm.Status -eq "Installed") { $statusColor = "Green" }
-                        elseif ($itm.Selected) { $statusColor = "Cyan" } # Highlight selection
-                        else { $statusColor = "Yellow" }
-                        
-                        # Checkbox
-                        $check = "[ ]"
-                        if ($itm.Selected) { $check = "[x]" }
-                        
-                        $display = "$cursor$check $($itm.Name)"
-                    }
-                    else {
-                        # Main Menu
-                        if ($itm.Special) { $statusColor = "Magenta" } # Exit options
-                        $display = "$cursor$($itm.Name)"
-                    }
-
-                    # Padding
-                    $padLen = 35 - $display.Length
-                    if ($padLen -lt 0) { $padLen = 0 }
-                    $pad = " " * $padLen
-                    
-                    # Write Cell with Color
-                    Write-Host "$display$pad" -ForegroundColor $statusColor -NoNewline
-                }
-                else {
-                    Write-Host (" " * 35) -NoNewline
-                }
-            }
-            Write-Host "" # End of Row
-        }
-    }
-}
-
-# Input Handling
-$key = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
-switch ($key.VirtualKeyCode) {
-    38 {
-        # Up
-        $selectedIndex -= $colCount
-        if ($selectedIndex -lt 0) { $selectedIndex += ($rowCount * $colCount) } 
-    }
-    40 {
-        # Down
-        $selectedIndex += $colCount
-        if ($selectedIndex -ge $Items.Count) { $selectedIndex -= ($rowCount * $colCount) }
-    }
-    37 {
-        # Left
-        $selectedIndex--
-        if ($selectedIndex -lt 0) { $selectedIndex = $Items.Count - 1 }
-    }
-    39 {
-        # Right
-        $selectedIndex++
-        if ($selectedIndex -ge $Items.Count) { $selectedIndex = 0 }
-    }
-    32 {
-        # Space
-        if ($IsSubMenu) {
-            $Items[$selectedIndex].Selected = -not $Items[$selectedIndex].Selected
-        }
-    }
-    13 {
-        # Enter
-        return @{ Action = "Enter"; Item = $Items[$selectedIndex] }
-    }
-    8 {
-        # Backspace
-        if ($IsSubMenu) { return @{ Action = "Uninstall"; Item = $Items[$selectedIndex] } }
-    }
-    85 {
-        # U key
-        if ($IsSubMenu) { return @{ Action = "Update"; Item = $Items[$selectedIndex] } }
-    }
-    65 {
-        # A key (Select All - Optional)
-        # Implement if requested
-    }
-    27 {
-        # Esc
-        return @{ Action = "Esc" }
-    }
-}
-}
 }
 
 # ==========================================
@@ -1752,388 +1522,291 @@ function Invoke-SystemOptimizations {
     Clear-Host
 }
 
-
 function Invoke-SoftwareInstallation {
-    Write-Log "Starting Software Installation (TUI Mode)..." "INFO"
-    
-    # 1. Initialize Status Cache
-    Write-Host "Scanning installed applications..." -ForegroundColor Cyan
-    $statusCache = @{}
-    
-    # Fast check via Winget List
-    try {
-        $wingetRaw = winget list --accept-source-agreements | Out-String
-        $Global:SoftwareCatalog.Keys | ForEach-Object {
-            $cat = $_
-            $Global:SoftwareCatalog[$cat] | ForEach-Object {
-                $app = $_
-                $app | Add-Member -MemberType NoteProperty -Name "Status" -Value "Available" -Force
-                $app | Add-Member -MemberType NoteProperty -Name "Selected" -Value $false -Force
-                
-                if ($wingetRaw -match $app.ID) {
-                    $app.Status = "Installed"
-                    $statusCache[$app.ID] = "Installed"
-                }
-            }
-        }
-    } catch {}
+    Write-Host "=======================================" -ForegroundColor DarkBlue
+    Write-Host "       OOOOOO    GGGGGG    CCCCCC      " -ForegroundColor Cyan
+    Write-Host "      OO    OO  GG        CC           " -ForegroundColor Cyan
+    Write-Host "      OO    OO  GG   GGG  CC           " -ForegroundColor Cyan
+    Write-Host "      OO    OO  GG    GG  CC           " -ForegroundColor Cyan
+    Write-Host "       OOOOOO    GGGGGG    CCCCCC      " -ForegroundColor Cyan
+    Write-Host "                                       " -ForegroundColor Cyan
+    Write-Host "        OGC Windows 11 Utility         " -ForegroundColor Yellow
+    Write-Host "     Software Installation Wizard      " -ForegroundColor Yellow
+    Write-Host "        https://discord.gg/ogc         " -ForegroundColor Magenta
+    Write-Host "        Created by Honest Goat         " -ForegroundColor Green
+    Write-Host "=======================================" -ForegroundColor DarkBlue
+    Write-Host "" 
 
-    # Main Menu Loop
-    while ($true) {
-        # Build Main Menu Options
-        $mainMenu = @()
-        $Global:SoftwareCatalog.Keys | ForEach-Object {
-            $mainMenu += [PSCustomObject]@{ Name = "$_"; Type = "Category"; Special = $false }
-        }
-        $mainMenu += [PSCustomObject]@{ Name = "Save & Open OGC Utility"; Type = "Exit"; Special = $true }
-        $mainMenu += [PSCustomObject]@{ Name = "Save & Exit"; Type = "Exit"; Special = $true }
+    Write-Log "Starting Software Installation Wizard..." "INFO"
 
-        $selection = Show-TUI -Title "OGC Software Manager" -Items $mainMenu -IsSubMenu $false
+    # Internal helper to keep code clean and handle logging uniformly
+    function Install-App {
+        param([string]$Name, [string]$Id)
         
-        if ($selection.Action -eq "Esc") {
-            $confirm = Read-Host "Exit Wizard? (y/n)"
-            if ($confirm -eq "y") { return }
+        # Check if already installed
+        if (Get-AppxPackage -Name $Id -ErrorAction SilentlyContinue) {
+            Write-Host "$Name is already installed." -ForegroundColor DarkGray
+            return
         }
-        elseif ($selection.Action -eq "Enter") {
-            $item = $selection.Item
-            
-            if ($item.Type -eq "Category") {
-                # Enter Submenu
-                $catName = $item.Name
-                $subItems = $Global:SoftwareCatalog[$catName]
-                
-                while ($true) {
-                    $subSel = Show-TUI -Title "$catName Manager" -Items $subItems -IsSubMenu $true
-                    
-                    if ($subSel.Action -eq "Esc") { break } # Back to Main
-                    
-                    # Actions that trigger Worker (Install, Uninstall, Update)
-                    if ($subSel.Action -in @("Enter", "Uninstall", "Update")) {
-                        $target = $subSel.Item
-                        $jobAction = "Install"
-                        if ($subSel.Action -eq "Uninstall") { $jobAction = "Uninstall" }
-                        if ($subSel.Action -eq "Update") { $jobAction = "Update" }
-                         
-                        $jobs = @()
-                        # If multiple selected using SPACE, process all selected
-                        # Unless user just hit Enter on one unselected item
-                        $multi = $subItems | Where-Object { $_.Selected -eq $true }
-                         
-                        if ($multi.Count -gt 0) {
-                            foreach ($m in $multi) { $jobs += @{ App = $m; Action = $jobAction } }
-                        } else {
-                            # Single item action
-                            $jobs += @{ App = $target; Action = $jobAction }
-                        }
-                         
-                        # Spawn Worker
-                        $json = $jobs | ConvertTo-Json -Depth 3 -Compress
-                        $payload = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($json))
-                         
-                        # Launch Separate Window
-                        $workerScript = $PSCommandPath
-                        $startArgs = "-NoProfile -ExecutionPolicy Bypass -Command `". '$workerScript'; Invoke-SoftwareWorker -Payload '$payload'`""
-                        Start-Process "powershell.exe" -ArgumentList $startArgs -Wait
-                         
-                        # Refresh Cache (Assuming success for UI feel)
-                        if ($jobAction -eq "Install") { 
-                            if ($multi.Count -gt 0) { $multi | ForEach-Object { $_.Status = "Installed"; $_.Selected = $false } }
-                            else { $target.Status = "Installed" }
-                        }
-                        if ($jobAction -eq "Uninstall") {
-                            if ($multi.Count -gt 0) { $multi | ForEach-Object { $_.Status = "Available"; $_.Selected = $false } }
-                            else { $target.Status = "Available" }
-                        }
-                    }
-                }
-            }
-            elseif ($item.Name -like "Save & Open*") {
-                # Launch OGCWin
-                $ogcWin = "$parentFolder\OGCWin.bat"
-                if (Test-Path $ogcWin) { Start-Process $ogcWin }
-                return
-            }
-            elseif ($item.Name -like "Save & Exit*") {
-                return
-            }
-        }
-    }
-}
 
-Write-Host "        Created by Honest Goat         " -ForegroundColor Green
-Write-Host "=======================================" -ForegroundColor DarkBlue
-Write-Host "" 
-
-Write-Log "Starting Software Installation Wizard..." "INFO"
-
-# Internal helper to keep code clean and handle logging uniformly
-function Install-App {
-    param([string]$Name, [string]$Id)
-        
-    # Check if already installed
-    if (Get-AppxPackage -Name $Id -ErrorAction SilentlyContinue) {
-        Write-Host "$Name is already installed." -ForegroundColor DarkGray
-        return
-    }
-
-    Write-Host "Installing $Name..." -ForegroundColor Magenta
-    Write-Log "Attempting to install $Name ($Id)" "INFO"
-    try {
-        # Renamed $args to $wingetArgs to avoid conflict with reserved automatic variables
-        # Redirect Output to temp file to capture errors if needed, but display nothing to user? User asked for detailed errors.
-        # We will use a temp file for the log of this specific install
-        $installLog = Join-Path $tempFolder "install_$Id.log"
-            
-        $wingetArgs = "install --id $Id --silent --accept-package-agreements --accept-source-agreements --disable-interactivity --force"
-            
-        # Start process and redirect stdout/stderr to file
-        $process = Start-Process -FilePath "winget" -ArgumentList $wingetArgs -Wait -NoNewWindow -PassThru -RedirectStandardOutput $installLog -RedirectStandardError $installLog
-            
-        if ($process.ExitCode -eq 0) {
-            Write-Host "$Name successfully installed." -ForegroundColor Green
-            Write-Log "Successfully installed $Name" "INFO"
-        }
-        else {
-            # Read the log to find the error
-            $errContent = Get-Content $installLog -Raw -ErrorAction SilentlyContinue
-            Write-Host "Failed to install $Name. Exit Code: $($process.ExitCode)" -ForegroundColor Red
-            Write-Log "Failed to install $Name. Exit Code: $($process.ExitCode). Log: $errContent" "ERROR"
-        }
-        Remove-Item $installLog -ErrorAction SilentlyContinue
-    }
-    catch {
-        Write-Host "Failed to install $Name. Check logs." -ForegroundColor Red
-        Write-Log "Failed to install $Name. Error: $_" "ERROR"
-    }
-}
-
-# ==========================================
-#             DEPENDENCIES
-# ==========================================
-Write-Host "--- Dependencies ---" -ForegroundColor Cyan
-if ((Read-Host "Install Visual C++ 2015-2022 Redistributable? (y/n)") -eq "y") {
-    Install-App -Name "Visual C++ 2015-2022" -Id "Microsoft.VCRedist.2015+.x64"
-}
-if ((Read-Host "Install .NET Desktop Runtime 6? (y/n)") -eq "y") {
-    Install-App -Name ".NET Desktop Runtime 6" -Id "Microsoft.DotNet.DesktopRuntime.6"
-}
-
-# ==========================================
-#             DRM / LAUNCHERS
-# ==========================================
-Write-Host "`n--- Game Launchers (DRM) ---" -ForegroundColor Cyan
-$drms = @{
-    "Steam"           = "Valve.Steam"; 
-    "Epic Games"      = "EpicGames.EpicGamesLauncher"; 
-    "GOG Galaxy"      = "GOG.Galaxy";
-    "Ubisoft Connect" = "Ubisoft.Connect";
-    "EA App"          = "ElectronicArts.EADesktop"
-}
-foreach ($app in $drms.GetEnumerator()) {
-    if ((Read-Host "Install $($app.Key)? (y/n)") -eq "y") { Install-App -Name $app.Key -Id $app.Value }
-}
-
-# ==========================================
-#             GAMING APPS
-# ==========================================
-Write-Host "`n--- Gaming Apps ---" -ForegroundColor Cyan
-$gamingApps = @{
-    "Discord" = "Discord.Discord"; 
-    "Medal"   = "Medal.TV"
-}
-foreach ($app in $gamingApps.GetEnumerator()) {
-    if ((Read-Host "Install $($app.Key)? (y/n)") -eq "y") { Install-App -Name $app.Key -Id $app.Value }
-}
-
-# ==========================================
-#             MONITORING TOOLS
-# ==========================================
-Write-Host "`n--- Monitoring Tools ---" -ForegroundColor Cyan
-$monitoring = @{
-    "HWiNFO"           = "REALiX.HWiNFO"; 
-    "MSI Afterburner"  = "MSI.Afterburner"; 
-    "RivaTuner (RTSS)" = "Guru3D.RTSS";
-    "CPU-Z"            = "CPUID.CPU-Z"; 
-    "GPU-Z"            = "TechPowerUp.GPU-Z"
-}
-foreach ($app in $monitoring.GetEnumerator()) {
-    if ((Read-Host "Install $($app.Key)? (y/n)") -eq "y") { Install-App -Name $app.Key -Id $app.Value }
-}
-
-# ==========================================
-#             BROWSERS
-# ==========================================
-Write-Host "`n--- Web Browsers ---" -ForegroundColor Cyan
-$browsers = @{
-    "Firefox"  = "Mozilla.Firefox";
-    "Chrome"   = "Google.Chrome";
-    "Brave"    = "Brave.Brave";
-    "Opera GX" = "Opera.OperaGX"
-}
-    
-foreach ($app in $browsers.GetEnumerator()) {
-    # Check status
-    $status = ""
-    if (Test-AppInstallation $app.Key) { $status = "[Installed]" } # Basic check - might need explicit logic
-    # Better check using Winget list or path? For now relied on Install-App check.
-        
-    if ((Read-Host "Install $($app.Key)? $status (y/n)") -eq "y") { 
-        Install-App -Name $app.Key -Id $app.Value 
-            
-        # Pin to Taskbar (Simple method)
-        # This is complex in Win11. Skipping complex layout xml modification to avoid breakage.
-    }
-}
-
-# ==========================================
-#             OFFICE
-# ==========================================
-Write-Host "`n--- Office Suite ---" -ForegroundColor Cyan
-if ((Read-Host "Install Microsoft 365 (Office)? (y/n)") -eq "y") {
-    Install-App -Name "Microsoft 365" -Id "Microsoft.Office"
-}
-if ((Read-Host "Install LibreOffice? (y/n)") -eq "y") {
-    Install-App -Name "LibreOffice" -Id "TheDocumentFoundation.LibreOffice"
-}
-    
-# ==========================================
-#             EDGE REMOVAL
-# ==========================================
-Write-Host "`n--- Edge Removal ---" -ForegroundColor Cyan
-if ((Read-Host "Remove/Disable Microsoft Edge? (y/n)") -eq "y") {
-    Write-Log "Attempting to remove Microsoft Edge." "INFO"
-    try {
-        # Method 1: Winget
-        Install-App -Name "Edge Uninstall (Winget)" -Id "Microsoft.Edge" 
-
-        # Method 2: Shortcuts
-        $shortcuts = @(
-            "$env:APPDATA\Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar\Microsoft Edge.lnk",
-            "$env:Public\Desktop\Microsoft Edge.lnk",
-            "$env:UserProfile\Desktop\Microsoft Edge.lnk",
-            "$env:ProgramData\Microsoft\Windows\Start Menu\Programs\Microsoft Edge.lnk"
-        )
-        foreach ($s in $shortcuts) {
-            if (Test-Path $s) { Remove-Item $s -Force -ErrorAction SilentlyContinue }
-        }
-             
-        # Method 3: Registry
-        $edgeReg = "HKLM:\SOFTWARE\Policies\Microsoft\Edge"
-        if (!(Test-Path $edgeReg)) { New-Item -Path $edgeReg -Force | Out-Null }
-        Set-ItemProperty -Path $edgeReg -Name "BackgroundModeEnabled" -Value 0
-        Set-ItemProperty -Path $edgeReg -Name "StartupBoostEnabled" -Value 0
-             
-        Write-Host "Edge cleanup completed." -ForegroundColor Green
-    }
-    catch {
-        Write-Log "Edge removal error: $_" "ERROR"
-    }
-}
-Write-Host "3. OpenOffice"
-Write-Host "4. No Office Suite (Remove all)"
-Write-Host "N. Skip this section"
-$officeChoice = Read-Host "Enter your choice (1/2/3/4/N)"
-    
-$selectedOffice = "Skip"
-    
-switch ($officeChoice) {
-    "1" { 
-        Install-App -Name "Microsoft Office" -Id "Microsoft.Office.Desktop" 
-        # Remove Hub/Pre-install junk if we just installed the real deal
-        Get-AppxPackage -Name "Microsoft.MicrosoftOfficeHub" -ErrorAction SilentlyContinue | Remove-AppxPackage -ErrorAction SilentlyContinue
-        $selectedOffice = "Microsoft"
-    }
-    "2" { 
-        Install-App -Name "LibreOffice" -Id "TheDocumentFoundation.LibreOffice"
-        $selectedOffice = "Libre"
-    }
-    "3" { 
-        Install-App -Name "OpenOffice" -Id "Apache.OpenOffice"
-        $selectedOffice = "Open"
-    }
-    "4" { $selectedOffice = "None" }
-    "N" { $selectedOffice = "Skip" }
-}
-
-# --- Office Cleanup Logic ---
-if ($selectedOffice -ne "Skip") {
-    # Define potential clutter
-    $officeApps = @("Microsoft.Office.Desktop", "Microsoft.Office.OneNote", "Microsoft.OfficeHub", "Microsoft.MicrosoftOfficeHub", "Microsoft.OutlookForWindows")
-        
-    # If they chose a specific suite, ask to clean others?
-    if ($selectedOffice -ne "None") {
-        $doCleanup = Read-Host "Do you want to remove other Office suites/hubs to prevent conflicts? (y/n)"
-        if ($doCleanup -eq "y") {
-            Write-Host "Cleaning up conflicting Office apps..." -ForegroundColor Magenta
-            foreach ($app in $officeApps) {
-                try {
-                    Get-AppxPackage -AllUsers -Name $app | Remove-AppxPackage -AllUsers -ErrorAction SilentlyContinue
-                    Write-Log "Removed AppxPackage: $app" "INFO"
-                }
-                catch {}
-            }
-        }
-    }
-    elseif ($selectedOffice -eq "None") {
-        # Full Nuke
-        Write-Host "Removing all Office-related software..." -ForegroundColor Magenta
-        foreach ($app in $officeApps) { Get-AppxPackage -AllUsers -Name $app | Remove-AppxPackage -AllUsers -ErrorAction SilentlyContinue }
-            
-        # Remove folders
-        $officeFolders = @(
-            "$env:ProgramFiles\Microsoft Office", 
-            "$env:ProgramFiles (x86)\Microsoft Office", 
-            "$env:LOCALAPPDATA\Microsoft\Office", 
-            "$env:APPDATA\Microsoft\Office"
-        )
-        foreach ($folder in $officeFolders) { 
-            if (Test-Path $folder) { 
-                Remove-Item -Path $folder -Recurse -Force -ErrorAction SilentlyContinue 
-                Write-Log "Removed folder: $folder" "INFO"
-            } 
-        }
-        Write-Host "Office cleanup complete." -ForegroundColor Green
-    }
-}
-
-# --- Telemetry & Nags (Runs if MS Office is installed or detected) ---
-$msOfficeDetected = (Test-Path "HKLM:\SOFTWARE\Microsoft\Office") -or ($selectedOffice -eq "Microsoft")
-    
-if ($msOfficeDetected) {
-    $disableTelemetry = Read-Host "Do you want to disable MS Office Telemetry, Data Collection, and Advertising Nags? (y/n)"
-    if ($disableTelemetry -eq "y") {
-        Write-Host "Applying Office Privacy tweaks..." -ForegroundColor Magenta
+        Write-Host "Installing $Name..." -ForegroundColor Magenta
+        Write-Log "Attempting to install $Name ($Id)" "INFO"
         try {
-            $telemetryKeys = @(
-                "HKCU:\Software\Microsoft\Office\Common\ClientTelemetry",
-                "HKCU:\Software\Microsoft\Office\16.0\Common\Feedback",
-                "HKCU:\Software\Policies\Microsoft\Office\16.0\Common\Privacy"
-            )
-
-            # 1. Disable Telemetry via Registry
-            foreach ($key in $telemetryKeys) {
-                if (!(Test-Path $key)) { New-Item -Path $key -Force | Out-Null }
+            # Renamed $args to $wingetArgs to avoid conflict with reserved automatic variables
+            # Redirect Output to temp file to capture errors if needed, but display nothing to user? User asked for detailed errors.
+            # We will use a temp file for the log of this specific install
+            $installLog = Join-Path $tempFolder "install_$Id.log"
+            
+            $wingetArgs = "install --id $Id --silent --accept-package-agreements --accept-source-agreements --disable-interactivity --force"
+            
+            # Start process and redirect stdout/stderr to file
+            $process = Start-Process -FilePath "winget" -ArgumentList $wingetArgs -Wait -NoNewWindow -PassThru -RedirectStandardOutput $installLog -RedirectStandardError $installLog
+            
+            if ($process.ExitCode -eq 0) {
+                Write-Host "$Name successfully installed." -ForegroundColor Green
+                Write-Log "Successfully installed $Name" "INFO"
             }
-                
-            # SendTelemetry = 1 (Disable), DisableTelemetry = 1
-            Set-ItemProperty -Path "HKCU:\Software\Microsoft\Office\Common\ClientTelemetry" -Name "DisableTelemetry" -Value 1 -ErrorAction SilentlyContinue
-            Set-ItemProperty -Path "HKCU:\Software\Microsoft\Office\16.0\Common\Feedback" -Name "Enabled" -Value 0 -ErrorAction SilentlyContinue
-            Set-ItemProperty -Path "HKCU:\Software\Policies\Microsoft\Office\16.0\Common\Privacy" -Name "DisconnectedState" -Value 2 -ErrorAction SilentlyContinue
-                
-            # 2. Disable "Whats New" and Upsell Nags
-            $commonKey = "HKCU:\Software\Microsoft\Office\16.0\Common\General"
-            if (!(Test-Path $commonKey)) { New-Item -Path $commonKey -Force | Out-Null }
-            Set-ItemProperty -Path $commonKey -Name "ShownFirstRunOptin" -Value 1 -ErrorAction SilentlyContinue
-            Set-ItemProperty -Path $commonKey -Name "Skype4B" -Value 0 -ErrorAction SilentlyContinue
-
-            Write-Host "Office Telemetry and Nags disabled." -ForegroundColor Green
-            Write-Log "Applied MS Office Telemetry and Nag registry blocks." "INFO"
+            else {
+                # Read the log to find the error
+                $errContent = Get-Content $installLog -Raw -ErrorAction SilentlyContinue
+                Write-Host "Failed to install $Name. Exit Code: $($process.ExitCode)" -ForegroundColor Red
+                Write-Log "Failed to install $Name. Exit Code: $($process.ExitCode). Log: $errContent" "ERROR"
+            }
+            Remove-Item $installLog -ErrorAction SilentlyContinue
         }
         catch {
-            Write-Log "Failed to apply Office telemetry tweaks: $_" "ERROR"
+            Write-Host "Failed to install $Name. Check logs." -ForegroundColor Red
+            Write-Log "Failed to install $Name. Error: $_" "ERROR"
         }
     }
-}
+
+    # ==========================================
+    #             DEPENDENCIES
+    # ==========================================
+    Write-Host "--- Dependencies ---" -ForegroundColor Cyan
+    if ((Read-Host "Install Visual C++ 2015-2022 Redistributable? (y/n)") -eq "y") {
+        Install-App -Name "Visual C++ 2015-2022" -Id "Microsoft.VCRedist.2015+.x64"
+    }
+    if ((Read-Host "Install .NET Desktop Runtime 6? (y/n)") -eq "y") {
+        Install-App -Name ".NET Desktop Runtime 6" -Id "Microsoft.DotNet.DesktopRuntime.6"
+    }
+
+    # ==========================================
+    #             DRM / LAUNCHERS
+    # ==========================================
+    Write-Host "`n--- Game Launchers (DRM) ---" -ForegroundColor Cyan
+    $drms = @{
+        "Steam"           = "Valve.Steam"; 
+        "Epic Games"      = "EpicGames.EpicGamesLauncher"; 
+        "GOG Galaxy"      = "GOG.Galaxy";
+        "Ubisoft Connect" = "Ubisoft.Connect";
+        "EA App"          = "ElectronicArts.EADesktop"
+    }
+    foreach ($app in $drms.GetEnumerator()) {
+        if ((Read-Host "Install $($app.Key)? (y/n)") -eq "y") { Install-App -Name $app.Key -Id $app.Value }
+    }
+
+    # ==========================================
+    #             GAMING APPS
+    # ==========================================
+    Write-Host "`n--- Gaming Apps ---" -ForegroundColor Cyan
+    $gamingApps = @{
+        "Discord" = "Discord.Discord"; 
+        "Medal"   = "Medal.TV"
+    }
+    foreach ($app in $gamingApps.GetEnumerator()) {
+        if ((Read-Host "Install $($app.Key)? (y/n)") -eq "y") { Install-App -Name $app.Key -Id $app.Value }
+    }
+
+    # ==========================================
+    #             MONITORING TOOLS
+    # ==========================================
+    Write-Host "`n--- Monitoring Tools ---" -ForegroundColor Cyan
+    $monitoring = @{
+        "HWiNFO"           = "REALiX.HWiNFO"; 
+        "MSI Afterburner"  = "MSI.Afterburner"; 
+        "RivaTuner (RTSS)" = "Guru3D.RTSS";
+        "CPU-Z"            = "CPUID.CPU-Z"; 
+        "GPU-Z"            = "TechPowerUp.GPU-Z"
+    }
+    foreach ($app in $monitoring.GetEnumerator()) {
+        if ((Read-Host "Install $($app.Key)? (y/n)") -eq "y") { Install-App -Name $app.Key -Id $app.Value }
+    }
+
+    # ==========================================
+    #             BROWSERS
+    # ==========================================
+    Write-Host "`n--- Web Browsers ---" -ForegroundColor Cyan
+    $browsers = @{
+        "Firefox"  = "Mozilla.Firefox";
+        "Chrome"   = "Google.Chrome";
+        "Brave"    = "Brave.Brave";
+        "Opera GX" = "Opera.OperaGX"
+    }
+    
+    foreach ($app in $browsers.GetEnumerator()) {
+        # Check status
+        $status = ""
+        if (Test-AppInstallation $app.Key) { $status = "[Installed]" } # Basic check - might need explicit logic
+        # Better check using Winget list or path? For now relied on Install-App check.
+        
+        if ((Read-Host "Install $($app.Key)? $status (y/n)") -eq "y") { 
+            Install-App -Name $app.Key -Id $app.Value 
+            
+            # Pin to Taskbar (Simple method)
+            # This is complex in Win11. Skipping complex layout xml modification to avoid breakage.
+        }
+    }
+
+    # ==========================================
+    #             OFFICE
+    # ==========================================
+    Write-Host "`n--- Office Suite ---" -ForegroundColor Cyan
+    if ((Read-Host "Install Microsoft 365 (Office)? (y/n)") -eq "y") {
+        Install-App -Name "Microsoft 365" -Id "Microsoft.Office"
+    }
+    if ((Read-Host "Install LibreOffice? (y/n)") -eq "y") {
+        Install-App -Name "LibreOffice" -Id "TheDocumentFoundation.LibreOffice"
+    }
+    
+    # ==========================================
+    #             EDGE REMOVAL
+    # ==========================================
+    Write-Host "`n--- Edge Removal ---" -ForegroundColor Cyan
+    if ((Read-Host "Remove/Disable Microsoft Edge? (y/n)") -eq "y") {
+        Write-Log "Attempting to remove Microsoft Edge." "INFO"
+        try {
+            # Method 1: Winget
+            Install-App -Name "Edge Uninstall (Winget)" -Id "Microsoft.Edge" 
+
+            # Method 2: Shortcuts
+            $shortcuts = @(
+                "$env:APPDATA\Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar\Microsoft Edge.lnk",
+                "$env:Public\Desktop\Microsoft Edge.lnk",
+                "$env:UserProfile\Desktop\Microsoft Edge.lnk",
+                "$env:ProgramData\Microsoft\Windows\Start Menu\Programs\Microsoft Edge.lnk"
+            )
+            foreach ($s in $shortcuts) {
+                if (Test-Path $s) { Remove-Item $s -Force -ErrorAction SilentlyContinue }
+            }
+             
+            # Method 3: Registry
+            $edgeReg = "HKLM:\SOFTWARE\Policies\Microsoft\Edge"
+            if (!(Test-Path $edgeReg)) { New-Item -Path $edgeReg -Force | Out-Null }
+            Set-ItemProperty -Path $edgeReg -Name "BackgroundModeEnabled" -Value 0
+            Set-ItemProperty -Path $edgeReg -Name "StartupBoostEnabled" -Value 0
+             
+            Write-Host "Edge cleanup completed." -ForegroundColor Green
+        }
+        catch {
+            Write-Log "Edge removal error: $_" "ERROR"
+        }
+    }
+    Write-Host "3. OpenOffice"
+    Write-Host "4. No Office Suite (Remove all)"
+    Write-Host "N. Skip this section"
+    $officeChoice = Read-Host "Enter your choice (1/2/3/4/N)"
+    
+    $selectedOffice = "Skip"
+    
+    switch ($officeChoice) {
+        "1" { 
+            Install-App -Name "Microsoft Office" -Id "Microsoft.Office.Desktop" 
+            # Remove Hub/Pre-install junk if we just installed the real deal
+            Get-AppxPackage -Name "Microsoft.MicrosoftOfficeHub" -ErrorAction SilentlyContinue | Remove-AppxPackage -ErrorAction SilentlyContinue
+            $selectedOffice = "Microsoft"
+        }
+        "2" { 
+            Install-App -Name "LibreOffice" -Id "TheDocumentFoundation.LibreOffice"
+            $selectedOffice = "Libre"
+        }
+        "3" { 
+            Install-App -Name "OpenOffice" -Id "Apache.OpenOffice"
+            $selectedOffice = "Open"
+        }
+        "4" { $selectedOffice = "None" }
+        "N" { $selectedOffice = "Skip" }
+    }
+
+    # --- Office Cleanup Logic ---
+    if ($selectedOffice -ne "Skip") {
+        # Define potential clutter
+        $officeApps = @("Microsoft.Office.Desktop", "Microsoft.Office.OneNote", "Microsoft.OfficeHub", "Microsoft.MicrosoftOfficeHub", "Microsoft.OutlookForWindows")
+        
+        # If they chose a specific suite, ask to clean others?
+        if ($selectedOffice -ne "None") {
+            $doCleanup = Read-Host "Do you want to remove other Office suites/hubs to prevent conflicts? (y/n)"
+            if ($doCleanup -eq "y") {
+                Write-Host "Cleaning up conflicting Office apps..." -ForegroundColor Magenta
+                foreach ($app in $officeApps) {
+                    try {
+                        Get-AppxPackage -AllUsers -Name $app | Remove-AppxPackage -AllUsers -ErrorAction SilentlyContinue
+                        Write-Log "Removed AppxPackage: $app" "INFO"
+                    }
+                    catch {}
+                }
+            }
+        }
+        elseif ($selectedOffice -eq "None") {
+            # Full Nuke
+            Write-Host "Removing all Office-related software..." -ForegroundColor Magenta
+            foreach ($app in $officeApps) { Get-AppxPackage -AllUsers -Name $app | Remove-AppxPackage -AllUsers -ErrorAction SilentlyContinue }
+            
+            # Remove folders
+            $officeFolders = @(
+                "$env:ProgramFiles\Microsoft Office", 
+                "$env:ProgramFiles (x86)\Microsoft Office", 
+                "$env:LOCALAPPDATA\Microsoft\Office", 
+                "$env:APPDATA\Microsoft\Office"
+            )
+            foreach ($folder in $officeFolders) { 
+                if (Test-Path $folder) { 
+                    Remove-Item -Path $folder -Recurse -Force -ErrorAction SilentlyContinue 
+                    Write-Log "Removed folder: $folder" "INFO"
+                } 
+            }
+            Write-Host "Office cleanup complete." -ForegroundColor Green
+        }
+    }
+
+    # --- Telemetry & Nags (Runs if MS Office is installed or detected) ---
+    $msOfficeDetected = (Test-Path "HKLM:\SOFTWARE\Microsoft\Office") -or ($selectedOffice -eq "Microsoft")
+    
+    if ($msOfficeDetected) {
+        $disableTelemetry = Read-Host "Do you want to disable MS Office Telemetry, Data Collection, and Advertising Nags? (y/n)"
+        if ($disableTelemetry -eq "y") {
+            Write-Host "Applying Office Privacy tweaks..." -ForegroundColor Magenta
+            try {
+                $telemetryKeys = @(
+                    "HKCU:\Software\Microsoft\Office\Common\ClientTelemetry",
+                    "HKCU:\Software\Microsoft\Office\16.0\Common\Feedback",
+                    "HKCU:\Software\Policies\Microsoft\Office\16.0\Common\Privacy"
+                )
+
+                # 1. Disable Telemetry via Registry
+                foreach ($key in $telemetryKeys) {
+                    if (!(Test-Path $key)) { New-Item -Path $key -Force | Out-Null }
+                }
+                
+                # SendTelemetry = 1 (Disable), DisableTelemetry = 1
+                Set-ItemProperty -Path "HKCU:\Software\Microsoft\Office\Common\ClientTelemetry" -Name "DisableTelemetry" -Value 1 -ErrorAction SilentlyContinue
+                Set-ItemProperty -Path "HKCU:\Software\Microsoft\Office\16.0\Common\Feedback" -Name "Enabled" -Value 0 -ErrorAction SilentlyContinue
+                Set-ItemProperty -Path "HKCU:\Software\Policies\Microsoft\Office\16.0\Common\Privacy" -Name "DisconnectedState" -Value 2 -ErrorAction SilentlyContinue
+                
+                # 2. Disable "Whats New" and Upsell Nags
+                $commonKey = "HKCU:\Software\Microsoft\Office\16.0\Common\General"
+                if (!(Test-Path $commonKey)) { New-Item -Path $commonKey -Force | Out-Null }
+                Set-ItemProperty -Path $commonKey -Name "ShownFirstRunOptin" -Value 1 -ErrorAction SilentlyContinue
+                Set-ItemProperty -Path $commonKey -Name "Skype4B" -Value 0 -ErrorAction SilentlyContinue
+
+                Write-Host "Office Telemetry and Nags disabled." -ForegroundColor Green
+                Write-Log "Applied MS Office Telemetry and Nag registry blocks." "INFO"
+            }
+            catch {
+                Write-Log "Failed to apply Office telemetry tweaks: $_" "ERROR"
+            }
+        }
+    }
 }
 
 function Invoke-DriverInstallation {
