@@ -1280,11 +1280,6 @@ function Invoke-OneDriveRemoval {
             Write-Host "Folder redirection complete." -ForegroundColor Green
         }
     }
-        
-    # Restart explorer to refresh icons
-    Stop-Process -Name "explorer" -Force -ErrorAction SilentlyContinue
-    Start-Sleep -Seconds 1
-    Start-Process "explorer.exe"
 }
 
 function Invoke-TeamsRemoval {
@@ -1570,6 +1565,44 @@ function Invoke-UIAndTaskbarSetup {
     }
 
     Start-Sleep -Seconds 2
+}
+
+function Invoke-DesktopSearchBarRemoval {
+    Write-Log -Message "Starting Invoke-DesktopSearchBarRemoval..."
+    
+    # Prompt with Validation
+    do {
+        $removeSearchBar = Read-Host "Do you want to remove the new floating Windows Search Bar (Desktop)? (y/n)"
+        if ($removeSearchBar -notin "y", "n") { Write-Host "Invalid input. Please enter 'y' or 'n'." -ForegroundColor Red }
+    } until ($removeSearchBar -in "y", "n")
+
+    Write-Log "User response to 'Remove Desktop Search Bar' prompt: $removeSearchBar" "INFO"
+
+    if ($removeSearchBar -eq "y") {
+        Write-Host "Removing Desktop Search Bar..." -ForegroundColor Magenta
+        try {
+            # Registry Policy to Disable Web Widget (Desktop Search Bar) in Edge
+            Set-RegistryValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\Edge" -Name "WebWidgetAllowed" -Value 0
+            Set-RegistryValue -Path "HKCU:\Software\Policies\Microsoft\Edge" -Name "WebWidgetAllowed" -Value 0
+            
+            # Stop Edge Processes to apply
+            $edgeProcs = @("msedge", "msedgewebview2")
+            foreach ($p in $edgeProcs) { 
+                Stop-Process -Name $p -Force -ErrorAction SilentlyContinue 
+            }
+            
+            Write-Host "Desktop Search Bar disabled." -ForegroundColor Green
+            Write-Log "Desktop Search Bar (WebWidget) disabled via Registry." "INFO"
+        }
+        catch {
+            Write-Log "Failed to disable Desktop Search Bar: $($_.Exception.Message)" "ERROR"
+            Write-Host "Error disabling Search Bar. Check logs." -ForegroundColor Red
+        }
+    }
+    else {
+        Write-Log "Skipping Desktop Search Bar removal." "INFO"
+        Write-Host "Skipping Desktop Search Bar removal." -ForegroundColor Cyan
+    }
 }
 
 function Invoke-ActivationTweaks {
@@ -2541,11 +2574,11 @@ try { Invoke-TeamsRemoval } catch { Write-Log "Teams Module Error: $_" "ERROR" }
 try { Invoke-AIRemoval } catch { Write-Log "AI Module Error: $_" "ERROR" }
 try { Invoke-ActivationTweaks } catch { Write-Log "Activation Module Error: $_" "ERROR" }
 try { Invoke-UIAndTaskbarSetup } catch { Write-Log "UI Module Error: $_" "ERROR" }
-try { Invoke-WindowsSearchBarSetup } catch { Write-Log "Search Bar Module Error: $_" "ERROR" }
+try { Invoke-DesktopSearchBarRemoval } catch { Write-Log "Desktop Search Bar Module Error: $_" "ERROR" }
 try { Invoke-SystemOptimisations } catch { Write-Log "Optimization Module Error: $_" "ERROR" }
 try { Invoke-StartExplorer } catch { Write-Log "Start Explorer Error: $_" "ERROR" }
 
-Start-Sleep -Seconds 2
+Start-Sleep -Seconds 1
 Clear-Host
 
 try { Invoke-SoftwareInstallation } catch { Write-Log "Software Module Error: $_" "ERROR" }
