@@ -39,14 +39,14 @@ function Write-Color {
 
 # Define Local Paths
 $parentFolder = "C:\ProgramData\OGC Windows Utility"
+$scriptName = [System.IO.Path]::GetFileNameWithoutExtension($PSCommandPath)
+$oneDriveUserPath = "$env:UserProfile\OneDrive"
+$logFolder = "$parentFolder\logs"
+$logFile = "$logFolder\${scriptName}_log.txt"
+$robocopyLog = "$logFolder\robocopy_log.txt"
 $backupFolder = "$parentFolder\backups"
 $configsFolder = "$parentFolder\configs"
 $scriptsFolder = "$parentFolder\scripts"
-$oneDriveUserPath = "$env:UserProfile\OneDrive"
-$logFolder = "$parentFolder\logs"
-$logFile = "$logFolder${scriptName}_log.txt"
-$robocopyLog = "$logFolder\robocopy_log.txt"
-$scriptName = [System.IO.Path]::GetFileNameWithoutExtension($PSCommandPath)
 
 
 # Configuration
@@ -250,25 +250,68 @@ function New-Shortcut {
 }
 
 function Start-Watchdog {
-    param ([int]$ParentPID)
-    $scriptBlock = {
-        param ($pidToWatch)
-        while (Get-Process -Id $pidToWatch -ErrorAction SilentlyContinue) {
-            Start-Sleep -Seconds 2
-        }
-        if (-not (Get-Process "explorer" -ErrorAction SilentlyContinue)) {
-            Start-Process "explorer.exe"
-        }
-        exit
+    param ([int]$ParentPID, [string]$LogFile)
+    
+    # Check if log file is writable
+    try {
+        if (-not (Test-Path $LogFile)) { New-Item -Path $LogFile -ItemType File -Force | Out-Null }
+        Add-Content -Path $LogFile -Value "$(Get-Date) - DEBUG: Watchdog startup check." -ErrorAction Stop
     }
-    $encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($scriptBlock.ToString()))
-    $procArgs = "-NoProfile -WindowStyle Hidden -EncodedCommand $encoded -Args $ParentPID"
-    return Start-Process "powershell.exe" -ArgumentList $procArgs -PassThru -WindowStyle Hidden
+    catch {
+        # Fallback if we can't write to the requested log
+        $LogFile = "$env:TEMP\OGC_Watchdog_fallback.log"
+    }
+
+    # Embed variables directly into the script block string
+    $code = @"
+    [console]::TreatControlCAsInput = `$true
+    `$pidToWatch = $ParentPID
+    `$log = "$LogFile"
+    
+    function Log { param(`$msg) try { Add-Content -Path `$log -Value "`$(Get-Date) - `$msg" -Force } catch {} }
+    
+    Log "Watchdog initiated. Monitoring PID: `$pidToWatch"
+    
+    while (`$true) {
+        if (-not (Get-Process -Id `$pidToWatch -ErrorAction SilentlyContinue)) {
+             Log "Parent process ($ParentPID) has terminated unexpectedly."
+             break
+        }
+        Start-Sleep -Seconds 2
+    }
+    
+    Start-Sleep -Seconds 1
+    
+    if (-not (Get-Process "explorer" -ErrorAction SilentlyContinue)) {
+        Log "Explorer.exe is not running. Attempting to restart..."
+        
+        # FIX: Restore AutoRestartShell in case script crashed while it was disabled
+        try {
+            Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" -Name "AutoRestartShell" -Value 1 -Force -ErrorAction SilentlyContinue
+            Log "AutoRestartShell registry value restored."
+        } catch {
+             Log "Failed to restore AutoRestartShell: `$(_)"
+        }
+
+        try {
+            Start-Process "explorer.exe"
+            Log "Explorer restart command executed."
+        } catch {
+            Log "Failed to restart explorer: `$(`$_.Exception.Message)"
+        }
+    } else {
+        Log "Explorer.exe is already running. Monitoring complete."
+    }
+    exit
+"@
+
+    $bytes = [System.Text.Encoding]::Unicode.GetBytes($code)
+    $encoded = [System.Convert]::ToBase64String($bytes)
+    
+    # Detached process using 'start' (cmd) or just WinHidden
+    return Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -EncodedCommand $encoded" -PassThru -WindowStyle Hidden
 }
 
-# ==========================================
-#             FUNCTIONS
-# ==========================================
 
 function New-RestorePoint {
     Write-Host "=======================================" -ForegroundColor Cyan
@@ -359,6 +402,7 @@ function Install-Driver {
 # --- Module Functions ---
 
 function Invoke-TelemetrySetup {
+    Write-Log -Message "Starting Invoke-TelemetrySetup..."
     Write-Host "Disabling Telemetry, Tracking, and Data Collection..." -ForegroundColor Magenta
     
     # Disable Telemetry in Registry
@@ -442,6 +486,7 @@ function Invoke-TelemetrySetup {
 }
 
 function Invoke-JunkRemoval {
+    Write-Log -Message "Starting Invoke-JunkRemoval..."
     Write-Host "Disabling all tips, suggestions and advertisements." -ForegroundColor Magenta 
     
     # Disable Windows Welcome Experience & Tailored Experiences
@@ -490,6 +535,7 @@ function Invoke-JunkRemoval {
 }
 
 function Invoke-DNSBlocking {
+    Write-Log -Message "Starting Invoke-DNSBlocking..."
     $blockTelemetry = Read-Host "Do you want to block major Microsoft tracking and telemetry domains? [Recommended] (y/n)"
     if ($blockTelemetry -eq "y") {
         Write-Host "Blocking Telemetry Domains via Hosts File..." -ForegroundColor Magenta
@@ -553,6 +599,7 @@ function Invoke-DNSBlocking {
 }
 
 function Invoke-SecurityEnhancement {
+    Write-Log -Message "Starting Invoke-SecurityEnhancement..."
     Write-Host "Configuring Adobe Acrobat Reader Protected View to 'All Files'..." -ForegroundColor Cyan
     Set-RegistryValue -Path "HKCU:\Software\Adobe\Acrobat Reader\DC\Privileged" -Name "bProtectedMode" -Value 1
     Set-RegistryValue -Path "HKCU:\Software\Adobe\Acrobat Reader\DC\Privileged" -Name "bProtectedView" -Value 2
@@ -618,6 +665,7 @@ function Invoke-SecurityEnhancement {
 }
 
 function Invoke-BloatwareRemoval {
+    Write-Log -Message "Starting Invoke-BloatwareRemoval..."
     $removeBloatware = Read-Host "Do you want to remove preinstalled advertising apps and bloatware? [Recommended] (y/n)"
     if ($removeBloatware -eq "y") {
         Write-Host "Removing Preinstalled Advertising Apps..." -ForegroundColor Magenta
@@ -661,7 +709,68 @@ function Invoke-BloatwareRemoval {
     }
 }
 
+function Invoke-EdgeRemoval {
+    Write-Log -Message "Starting Invoke-EdgeRemoval..."
+    
+    Write-Host "`n--- Edge Removal ---" -ForegroundColor Magenta
+    Write-Host "Caution: Removing Microsoft Edge is mostly safe but can cause issues with specific Microsoft products." -ForegroundColor Yellow
+    Write-Host "Window Widgets and Windows Search (Web results) may be affected." -ForegroundColor Gray
+    
+    do {
+        $removeEdge = Read-Host "Do you want to forcefully remove Microsoft Edge? (y/n)"
+        if ($removeEdge -notin "y", "n") { Write-Host "Invalid input. Please enter 'y' or 'n'." -ForegroundColor Red }
+    } until ($removeEdge -in "y", "n")
+    
+    if ($removeEdge -eq "y") {
+        Write-Host "Forcefully removing Microsoft Edge..." -ForegroundColor Magenta
+        Write-Log -Message "Starting Microsoft Edge removal."
+
+        # 1. Force Uninstall via Setup.exe
+        try {
+            $edgePath = "C:\Program Files (x86)\Microsoft\Edge\Application"
+            if (Test-Path $edgePath) {
+                Get-ChildItem -Path $edgePath -Recurse -Filter "setup.exe" | ForEach-Object {
+                    Write-Host "Executing uninstall command..." -ForegroundColor Cyan
+                    Start-Process -FilePath $_.FullName -ArgumentList "--uninstall --system-level --verbose-logging --force-uninstall" -Wait -NoNewWindow
+                }
+            }
+        }
+        catch { Write-Log "Edge Uninstall Error: $_" "ERROR" }
+
+        # 2. Cleanup Files (Shortcuts & Directories)
+        $edgeFiles = @(
+            "$env:Public\Desktop\Microsoft Edge.lnk", 
+            "$env:UserProfile\Desktop\Microsoft Edge.lnk",
+            "$env:ProgramData\Microsoft\Windows\Start Menu\Programs\Microsoft Edge.lnk",
+            "$env:AppData\Microsoft\Windows\Start Menu\Programs\Microsoft Edge.lnk",
+            "$env:AppData\Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar\Microsoft Edge.lnk"
+        )
+        
+        foreach ($file in $edgeFiles) {
+            if (Test-Path $file) { 
+                Remove-Item -Path $file -Force -ErrorAction SilentlyContinue 
+                Write-Host "Removed shortcut: $file" -ForegroundColor DarkGray
+            }
+        }
+
+        # 3. Registry Hardening
+        Set-RegistryValue -Path "HKLM:\SOFTWARE\Microsoft\EdgeUpdate" -Name "DoNotUpdateToEdgeWithChromium" -Value 1
+        
+        # 4. Stop Services
+        Stop-Service -Name "edgeupdate" -Force -ErrorAction SilentlyContinue
+        Stop-Service -Name "edgeupdatem" -Force -ErrorAction SilentlyContinue
+        
+        Write-Host "Microsoft Edge removal complete." -ForegroundColor Green
+        Write-Log "Edge removal finished." "INFO"
+    }
+    else {
+        Write-Host "Keeping Microsoft Edge." -ForegroundColor Cyan
+    }
+}
+
+
 function Invoke-YourPhoneSetup {
+    Write-Log -Message "Starting Invoke-YourPhoneSetup..."
     $useYourPhone = Read-Host "Do you want to use the 'Your Phone' app to integrate your phone with Windows? (y/n)"
     $yourPhoneInstalled = Get-AppxPackage -Name "Microsoft.YourPhone" -ErrorAction SilentlyContinue
 
@@ -692,11 +801,8 @@ function Invoke-YourPhoneSetup {
     }
 }
 
-# ==========================================
-#             FUNCTIONS
-# ==========================================
-
 function Invoke-XboxSetup {
+    Write-Log -Message "Starting Invoke-XboxSetup..."
     Write-Host "Initializing Xbox Services..." -ForegroundColor Cyan
     $ErrorActionPreference = "Stop"
     $mod = "XboxSetup"
@@ -891,8 +997,9 @@ function Invoke-OneDriveRemoval {
                 if (!(Test-Path $dest)) { New-Item -Path $dest -ItemType Directory -Force | Out-Null }
                 # /XA:O = Exclude Offline (Cloud). Silent console output.
                 $argsList = "`"$source`" `"$dest`" /E /COPY:DAT /R:3 /W:3 /NP /NJH /NJS /XA:O /LOG+:`"$robocopyLog`""
-                $voidLog = Join-Path $env:TEMP "void.log"
-                Start-Process -FilePath "robocopy.exe" -ArgumentList $argsList -NoNewWindow -Wait -RedirectStandardOutput $voidLog -RedirectStandardError $voidLog
+                $voidLogOut = Join-Path $env:TEMP "void_out.log"
+                $voidLogErr = Join-Path $env:TEMP "void_err.log"
+                Start-Process -FilePath "robocopy.exe" -ArgumentList $argsList -NoNewWindow -Wait -RedirectStandardOutput $voidLogOut -RedirectStandardError $voidLogErr
             }
         }
         
@@ -947,7 +1054,9 @@ function Invoke-OneDriveRemoval {
                         if (Test-Path $source) {
                             # /IA:O = Include ONLY Offline (Cloud) files. They will be hydrated.
                             $argsList = "`"$source`" `"$dest`" /E /COPY:DAT /R:5 /W:15 /NP /NJH /NJS /IA:O /LOG+:`"$robocopyLog`""
-                            Start-Process -FilePath "robocopy.exe" -ArgumentList $argsList -NoNewWindow -Wait -RedirectStandardOutput $null -RedirectStandardError $null
+                            $voidLogOut = Join-Path $env:TEMP "void_out.log"
+                            $voidLogErr = Join-Path $env:TEMP "void_err.log"
+                            Start-Process -FilePath "robocopy.exe" -ArgumentList $argsList -NoNewWindow -Wait -RedirectStandardOutput $voidLogOut -RedirectStandardError $voidLogErr
                         }
                     }
                 }
@@ -975,7 +1084,9 @@ function Invoke-OneDriveRemoval {
         Write-Log "Backup Local Leftovers" "INFO"
         $backupArgs = "/E /COPY:DAT /XD $($quotedExcludes -join ' ') /R:3 /W:3 /NP /NJH /NJS /XA:O /LOG+:`"$robocopyLog`""
         $startArgs = "`"$oneDriveUserPath`" `"$leftoverBackup`" $backupArgs"
-        Start-Process -FilePath "robocopy.exe" -ArgumentList $startArgs -NoNewWindow -Wait -RedirectStandardOutput $null -RedirectStandardError $null
+        $voidLogOut = Join-Path $env:TEMP "void_out.log"
+        $voidLogErr = Join-Path $env:TEMP "void_err.log"
+        Start-Process -FilePath "robocopy.exe" -ArgumentList $startArgs -NoNewWindow -Wait -RedirectStandardOutput $voidLogOut -RedirectStandardError $voidLogErr
         
         # Pass 2: Cloud Leftovers (if requested)
         if ($downloadCloud -eq "y") {
@@ -984,7 +1095,9 @@ function Invoke-OneDriveRemoval {
             if (!(Test-Path $cloudBackupDir)) { New-Item -Path $cloudBackupDir -ItemType Directory -Force | Out-Null }
             $cloudArgs = "/E /COPY:DAT /XD $($quotedExcludes -join ' ') /R:5 /W:15 /NP /NJH /NJS /IA:O /LOG+:`"$robocopyLog`""
             $startArgs = "`"$oneDriveUserPath`" `"$cloudBackupDir`" $cloudArgs"
-            Start-Process -FilePath "robocopy.exe" -ArgumentList $startArgs -NoNewWindow -Wait -RedirectStandardOutput $null -RedirectStandardError $null
+            $voidLogOut = Join-Path $env:TEMP "void_out.log"
+            $voidLogErr = Join-Path $env:TEMP "void_err.log"
+            Start-Process -FilePath "robocopy.exe" -ArgumentList $startArgs -NoNewWindow -Wait -RedirectStandardOutput $voidLogOut -RedirectStandardError $voidLogErr
         }
 
         # 5. PHASE 5: UNINSTALLATION & FAILURE MENU
@@ -1115,7 +1228,10 @@ function Invoke-OneDriveRemoval {
 
         $setupPath = "$downloadsFolder\OneDriveSetup.exe"
         try {
-            Invoke-WebRequest -Uri "https://go.microsoft.com/fwlink/?linkid=823054" -OutFile $setupPath
+            # Use Production Ring URL and UserAgent to avoid access issues
+            $odUrl = "https://go.microsoft.com/fwlink/p/?LinkId=248256"
+            Invoke-WebRequest -Uri $odUrl -OutFile $setupPath -UserAgent "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" -UseBasicParsing
+            
             Start-Process -FilePath $setupPath -ArgumentList "/silent" -Wait -NoNewWindow
         }
         catch {
@@ -1124,36 +1240,55 @@ function Invoke-OneDriveRemoval {
             return
         }
 
-        # Remove the Disable Policy
+        # Remove the Disable Policy if it exists
         Remove-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\OneDrive" -Name "DisableFileSyncNGSC" -ErrorAction SilentlyContinue
-
-        # Update Registry to point to OneDrive
-        Write-Host "Updating User Shell Folders to OneDrive..." -ForegroundColor Cyan
-        $regPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders"
-        $odMap = @{
-            "Desktop"   = "$env:UserProfile\OneDrive\Desktop"
-            "Documents" = "$env:UserProfile\OneDrive\Documents"
-            "Pictures"  = "$env:UserProfile\OneDrive\Pictures"
-            "Personal"  = "$env:UserProfile\OneDrive\Documents" # Personal is Docs
-        }
-
-        foreach ($key in $odMap.Keys) {
-            # Create folder if it doesn't exist yet (OneDrive might take a moment to sync)
-            if (!(Test-Path $odMap[$key])) { New-Item -Path $odMap[$key] -ItemType Directory -Force | Out-Null }
-            Set-ItemProperty -Path $regPath -Name $key -Value $odMap[$key] -Force -ErrorAction SilentlyContinue
-        }
 
         Write-Color "ONEDRIVE INSTALLED SUCCESSFULLY." "Green"
         Write-Log "OneDrive install complete." "INFO"
+
+        # --- FOLDER REDIRECTION LOGIC ---
+        Write-Host ""
+        $redirectChoice = Read-Host "Do you want to redirect your Desktop, Documents, and Pictures to OneDrive? (y/n)"
         
-        # Restart explorer to refresh icons
-        Stop-Process -Name "explorer" -Force -ErrorAction SilentlyContinue
-        Start-Sleep -Seconds 1
-        Start-Process "explorer.exe"
+        if ($redirectChoice -eq "y") {
+            Write-Host "Updating User Shell Folders to OneDrive..." -ForegroundColor Cyan
+            $regPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders"
+            $odMap = @{
+                "Desktop"   = "$env:UserProfile\OneDrive\Desktop"
+                "Documents" = "$env:UserProfile\OneDrive\Documents"
+                "Pictures"  = "$env:UserProfile\OneDrive\Pictures"
+                "Personal"  = "$env:UserProfile\OneDrive\Documents" # Personal is Docs
+            }
+
+            foreach ($key in $odMap.Keys) {
+                $targetPath = $odMap[$key]
+                # Create folder if it doesn't exist yet
+                if (!(Test-Path $targetPath)) { New-Item -Path $targetPath -ItemType Directory -Force | Out-Null }
+                Set-ItemProperty -Path $regPath -Name $key -Value $targetPath -Force -ErrorAction SilentlyContinue
+                
+                # MIGRATION: Move old files to new location
+                $sourceName = if ($key -eq "Personal") { "Documents" } else { $key }
+                $sourcePath = "$env:UserProfile\$sourceName"
+                
+                if (Test-Path $sourcePath) {
+                    Write-Host "Migrating $sourceName to OneDrive..." -ForegroundColor Gray
+                    # /E (Subdirs), /MOVE (Delete from source), /XO (Exclude Older), /NFL /NDL (Less noise)
+                    $roboArgs = "`"$sourcePath`" `"$targetPath`" /E /MOVE /XO /NFL /NDL /R:1 /W:1 /LOG+:`"$robocopyLog`""
+                    Start-Process -FilePath "robocopy.exe" -ArgumentList $roboArgs -NoNewWindow -Wait
+                }
+            }
+            Write-Host "Folder redirection complete." -ForegroundColor Green
+        }
     }
+        
+    # Restart explorer to refresh icons
+    Stop-Process -Name "explorer" -Force -ErrorAction SilentlyContinue
+    Start-Sleep -Seconds 1
+    Start-Process "explorer.exe"
 }
 
 function Invoke-TeamsRemoval {
+    Write-Log -Message "Starting Invoke-TeamsRemoval..."
     $removeTeams = Read-Host "Do you want to completely remove Microsoft Teams? [Recommended] (y/n)"
     if ($removeTeams -eq "y") {
         Write-Host "FORCEFULLY REMOVING MICROSOFT TEAMS..." -ForegroundColor Magenta
@@ -1200,6 +1335,7 @@ function Invoke-TeamsRemoval {
 }
 
 function Invoke-AIRemoval {
+    Write-Log -Message "Starting Invoke-AIRemoval..."
     $removeCopilot = Read-Host "Do you want to completely remove Microsoft Copilot? [Recommended] (y/n)"
     if ($removeCopilot -eq "y") {
         Write-Host "FORCEFULLY REMOVING MICROSOFT COPILOT..." -ForegroundColor Magenta
@@ -1213,38 +1349,58 @@ function Invoke-AIRemoval {
             Set-RegistryValue -Path "HKLM:\Software\Policies\Microsoft\Windows\Dsh" -Name "EnableCopilotButton" -Value 0
             Set-RegistryValue -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "ShowCopilotButton" -Value 0
             Set-RegistryValue -Path "HKLM:\Software\Policies\Microsoft\Windows\Copilot" -Name "DisableCopilot" -Value 1
+            
+            # Additional Hardening
+            Set-RegistryValue -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Search" -Name "BingSearchEnabled" -Value 0
+            Set-RegistryValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Search" -Name "DisableWebSearch" -Value 1
+            Set-RegistryValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Search" -Name "ConnectedSearchUseWeb" -Value 0
         }
         catch {
             Write-Log -Message "Error setting Copilot registry policies: $($_.Exception.Message)" -Type "ERROR"
         }
 
+        # Try to stop potentially stuck processes safely
         $copilotProcesses = @("Copilot", "Copilot.exe", "AI.exe", "CopilotRuntime", "CopilotBackground", "Microsoft365Copilot", "Microsoft365Copilot.exe")
+        $copilotProcesses = @("Copilot", "Copilot.exe", "AI.exe", "CopilotRuntime", "CopilotBackground", "Microsoft365Copilot", "Microsoft365Copilot.exe", "BingChatInstaller")
         foreach ($proc in $copilotProcesses) { Stop-Process -Name $proc -Force -ErrorAction SilentlyContinue }
         
+        # Remove Taskbar Icon if Pinned
+        $copilotLnk = "$env:AppData\Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar\Copilot.lnk"
+        if (Test-Path $copilotLnk) { Remove-Item -Path $copilotLnk -Force -ErrorAction SilentlyContinue }
+        
         try { 
-            winget uninstall --id "Microsoft.Copilot" --silent --accept-source-agreements *>$null 
-            winget uninstall --id "Microsoft.365.Copilot" --silent --accept-source-agreements *>$null 
+            # Check if winget is available and packages installed before attempting removal to avoid waiting
+            if (Get-Command winget -ErrorAction SilentlyContinue) {
+                winget uninstall --id "Microsoft.Copilot" --silent --accept-source-agreements --disable-interactivity --force *>$null 
+                winget uninstall --id "Microsoft.365.Copilot" --silent --accept-source-agreements *>$null 
+            }
         }
         catch {
             Write-Log -Message "Winget uninstall encountered an issue or app not found." -Type "INFO"
         }
         
         $copilotPackages = @("Microsoft.Windows.AI.Copilot", "Microsoft.Copilot", "Microsoft.365.Copilot")
-        foreach ($package in $copilotPackages) { try { Remove-AppxPackageAllUsers $package } catch { Write-Log -Message "Failed to remove Appx: $package" -Type "INFO" } }
+        foreach ($package in $copilotPackages) { 
+            if (Get-AppxPackage -Name $package -ErrorAction SilentlyContinue) {
+                try { Remove-AppxPackageAllUsers $package -ErrorAction SilentlyContinue } catch { Write-Log -Message "Failed to remove Appx: $package" -Type "INFO" } 
+            }
+        }
 
         $officeUninstallPath = "C:\Program Files\Common Files\Microsoft Shared\ClickToRun\OfficeC2RClient.exe"
         if (Test-Path $officeUninstallPath) { 
             try { 
-                Start-Process -FilePath $officeUninstallPath -ArgumentList "/uninstall Copilot /quiet /norestart" -NoNewWindow -Wait -ErrorAction Stop 
+                # Reduced potential for hang with strict timeout logic? (Not easily doable in PS 5.1 cleanly without Jobs, sticking to ArgumentList correctness)
+                Start-Process -FilePath $officeUninstallPath -ArgumentList "/uninstall Copilot /quiet /norestart" -NoNewWindow -Wait -ErrorAction SilentlyContinue 
             }
             catch {
-                Write-Log -Message "Office C2R uninstall command failed: $($_.Exception.Message)" -Type "ERROR"
+                Write-Log -Message "Office C2R uninstall command failed (or not applicable)." -Type "INFO"
             } 
         }
 
         try {
+            # Use strict type checking to ensure we don't hang on WMI
             $msiCopilot = Get-WmiObject -Query "SELECT * FROM Win32_Product WHERE Name LIKE '%Copilot%'" -ErrorAction SilentlyContinue
-            if ($msiCopilot) { foreach ($app in $msiCopilot) { $app.Uninstall() } }
+            if ($msiCopilot) { foreach ($app in $msiCopilot) { try { $app.Uninstall() } catch {} } }
         }
         catch {
             Write-Log -Message "MSI uninstall failed: $($_.Exception.Message)" -Type "ERROR"
@@ -1309,6 +1465,7 @@ function Invoke-AIRemoval {
 }
 
 function Invoke-UIAndTaskbarSetup {
+    Write-Log -Message "Starting Invoke-UIAndTaskbarSetup..."
     $win10look = Read-Host "Do you want Windows 11 to look and feel like Windows 10? [Recommended] (y/n)"
     if ($win10look -eq "y") {
         Write-Host "Applying Windows 10 UI tweaks..." -ForegroundColor Magenta
@@ -1411,12 +1568,199 @@ function Invoke-UIAndTaskbarSetup {
     else {
         Write-Host "Dark Mode not enabled." -ForegroundColor Cyan
     }
-    
-    # Explorer restart removed (handled globally at end of script)
-    # Start-Sleep -Seconds 1
+
+    Start-Sleep -Seconds 2
 }
 
-function Invoke-SystemOptimizations {
+function Invoke-ActivationTweaks {
+    $mod = "Activation Tweaks"
+    Write-Log -Message "Starting $mod module..." -Status "INFO" -Module $mod
+
+    Write-Host "`n--- Windows Activation & Licensing ---" -ForegroundColor Cyan
+
+    # Detection: Check License Status
+    $license = Get-CimInstance SoftwareLicensingProduct -Filter "ApplicationID = '55c92734-d682-4d71-983e-d6ec3f16059f' AND PartialProductKey IS NOT NULL" -ErrorAction SilentlyContinue | Select-Object -First 1
+    
+    if ($license -and $license.LicenseStatus -eq 1) {
+        Write-Host "Windows is fully activated. Skipping tweaks." -ForegroundColor Green
+        Write-Log "Windows is activated (Status: 1). Module skipped." "INFO"
+    }
+    else {
+        $statusStr = if ($license) { $license.LicenseStatus } else { "Unknown" }
+        Write-Host "Windows appears to be 'Not Activated'." -ForegroundColor Yellow
+        Write-Log "Windows Not Activated (Status: $statusStr)." "INFO"
+        
+        $choice = Read-Host "Do you want to attempt to remove the Watermark and Disable Activation Nags? (y/n)"
+        if ($choice -eq "y") {
+            Write-Host "Applying Activation Tweaks..." -ForegroundColor Magenta
+            try {
+                # 1. Disable PaintDesktopVersion via User Hive
+                Set-RegistryValue -Path "HKCU:\Control Panel\Desktop" -Name "PaintDesktopVersion" -Value 0
+                
+                # 2. Disable GenTicket (Nag) via Policy
+                Set-RegistryValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\CurrentVersion\SoftwareProtectionPlatform" -Name "NoGenTicket" -Value 1
+                
+                # 3. Disable Activation Toasts
+                Set-RegistryValue -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Notifications\Settings\Windows.SystemToast.SecurityAndMaintenance" -Name "Enabled" -Value 0
+                
+                Write-Host "Tweaks applied. Note: A restart is required for full effect." -ForegroundColor Green
+                Write-Log "Activation watermark/nag tweaks applied." "INFO"
+            }
+            catch {
+                Write-Host "Error applying tweaks: $_" -ForegroundColor Red
+                Write-Log "Activation tweak error: $_" "ERROR"
+            }
+        }
+    }
+    Start-Sleep -Seconds 1
+}
+
+function Invoke-NetworkOptimisations {
+    $mod = "Network Optimizations"
+    Write-Log "Starting $mod module..." "INFO" $mod
+    Write-Host "`n--- Optimizing Network for Downloads ---" -ForegroundColor Cyan
+
+    try {
+        # 1. Reset TCP Autotuning to Normal (often fixes slow speeds)
+        netsh int tcp set global autotuninglevel=normal | Out-Null
+        Write-Log "TCP Autotuning set to 'normal'." "INFO" $mod
+        
+        # 2. Set Delivery Optimization (DO) to allow foreground downloads
+        Set-RegistryValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DeliveryOptimization" -Name "DODownloadMode" -Value 0
+        Write-Log "Delivery Optimization mode adjusted." "INFO" $mod
+
+        # 3. Bits Priority
+        if ((Get-Service BITS).Status -ne 'Running') { Start-Service BITS -ErrorAction SilentlyContinue }
+        
+        Write-Host "Network settings optimized for download speed." -ForegroundColor Green
+    }
+    catch {
+        Write-Log "Error optimizing network: $_" "ERROR" $mod
+    }
+}
+
+function Invoke-StopExplorer {
+    $mod = "Explorer Control"
+    Write-Log "Stopping Windows Explorer..." "INFO" $mod
+    
+    # 1. Disable AutoRestartShell to prevent immediate resurrection by Winlogon
+    Set-RegistryValue -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" -Name "AutoRestartShell" -Value 0
+    
+    # 2. Stop Explorer
+    Stop-Process -Name explorer -Force -ErrorAction SilentlyContinue
+    Start-Sleep -Seconds 1
+}
+
+function Invoke-StartExplorer {
+    $mod = "Explorer Control"
+    Write-Log "Starting Windows Explorer..." "INFO" $mod
+    
+    # 1. Restore AutoRestartShell (Default is 1)
+    Set-RegistryValue -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" -Name "AutoRestartShell" -Value 1
+    
+    # 2. Start Explorer if not running
+    $maxRetries = 3
+    $retryCount = 0
+    $explorerPath = "$env:SystemRoot\explorer.exe"
+
+    while (-not (Get-Process -Name explorer -ErrorAction SilentlyContinue) -and $retryCount -lt $maxRetries) {
+        Write-Log "Attempting to start Explorer (Attempt $($retryCount + 1))..." "INFO" $mod
+        Start-Process -FilePath $explorerPath
+        Start-Sleep -Seconds 2
+        $retryCount++
+    }
+    
+    if (Get-Process -Name explorer -ErrorAction SilentlyContinue) {
+        Write-Host "Explorer started successfully." -ForegroundColor Green
+    }
+    else {
+        Write-Log "Failed to start Explorer after $maxRetries attempts." "ERROR" $mod
+        Write-Host "Warning: Explorer might not have started correctly." -ForegroundColor Yellow
+    }
+    Start-Sleep -Seconds 2
+}
+
+function Invoke-WindowsSearchBarSetup {
+    $mod = "Windows Search Bar"
+    Write-Log -Message "Starting $mod module..." -Status "INFO" -Module $mod
+
+    Write-Host "`n--- Windows Desktop Search Bar Setup ---" -ForegroundColor Cyan
+
+    # Detection logic: Check if Edge WebWidget is allowed/enabled
+    $searchBarEnabled = $true
+    
+    # Check Policy (Standard Disable Method)
+    $policyVal = Get-RegistryValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\Edge" -Name "WebWidgetAllowed" -ErrorAction SilentlyContinue
+    if ($policyVal -eq 0) { $searchBarEnabled = $false }
+    
+    # Check User Pref (If policy not set, this might control it)
+    if ($null -eq $policyVal) {
+        $userVal = Get-RegistryValue -Path "HKCU\Software\Microsoft\Edge\WebWidget" -Name "WebWidgetAllowed" -ErrorAction SilentlyContinue 
+        if ($userVal -eq 0) { $searchBarEnabled = $false }
+    }
+
+    if ($searchBarEnabled) {
+        Write-Host "Desktop Search Bar detected as ENABLED." -ForegroundColor Yellow
+        $choice = Read-Host "Do you want to DISABLE/REMOVE the Desktop Search Bar? (Recommended) (y/n)"
+        if ($choice -eq "y") {
+            Write-Host "Disabling Desktop Search Bar..." -ForegroundColor Magenta
+            try {
+                # 1. Policy Disable (Machine & User)
+                Set-RegistryValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\Edge" -Name "WebWidgetAllowed" -Value 0
+                Set-RegistryValue -Path "HKCU\Software\Policies\Microsoft\Edge" -Name "WebWidgetAllowed" -Value 0
+                
+                # 2. Edge Specific Keys
+                Set-RegistryValue -Path "HKCU\Software\Microsoft\Edge\WebWidget" -Name "WebWidgetAllowed" -Value 0
+                Set-RegistryValue -Path "HKCU\Software\Microsoft\Edge\WebWidget" -Name "Allowed" -Value 0
+
+                # 3. Kill related processes
+                Stop-Process -Name "msedgewebview2" -ErrorAction SilentlyContinue
+                Stop-Process -Name "Widgets" -ErrorAction SilentlyContinue
+                
+                # Verification
+                $check = Get-RegistryValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\Edge" -Name "WebWidgetAllowed"
+                if ($check -eq 0) {
+                    Write-Host "Desktop Search Bar disabled successfully." -ForegroundColor Green
+                    Write-Log -Message "Desktop Search Bar disabled." -Status "INFO" -Module $mod
+                }
+                else {
+                    Write-Host "Failed to verify Search Bar disable." -ForegroundColor Red
+                    Write-Log -Message "Failed to verify Search Bar disable." -Status "ERROR" -Module $mod
+                }
+            }
+            catch {
+                Write-Host "Error disabling Search Bar: $_" -ForegroundColor Red
+                Write-Log -Message "Error disabling Search Bar: $_" -Status "ERROR" -Module $mod
+            }
+        }
+        else {
+            Write-Host "Skipping Search Bar removal." -ForegroundColor Cyan
+        }
+    }
+    else {
+        Write-Host "Desktop Search Bar is currently DISABLED." -ForegroundColor Green
+        Write-Host "Do you want to ENABLE it? " -NoNewline
+        Write-Host "[NOT RECOMMENDED]" -ForegroundColor Red
+        $choice = Read-Host " (y/n)"
+        
+        if ($choice -eq "y") {
+            Write-Host "Enabling Desktop Search Bar..." -ForegroundColor Yellow
+            try {
+                Set-RegistryValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\Edge" -Name "WebWidgetAllowed" -Value 1
+                Set-RegistryValue -Path "HKCU\Software\Microsoft\Edge\WebWidget" -Name "Allowed" -Value 1
+                Write-Host "Desktop Search Bar enabled." -ForegroundColor Green
+                Write-Log -Message "Desktop Search Bar enabled by user." -Status "INFO" -Module $mod
+            }
+            catch {
+                Write-Log -Message "Error enabling Search Bar: $_" -Status "ERROR" -Module $mod
+            }
+        }
+    }
+    Start-Sleep -Seconds 1
+}
+
+function Invoke-SystemOptimisations {
+    Write-Log -Message "Starting Invoke-SystemOptimisations..."
     $debloatEdge = Read-Host "Do you want to remove Edge's forced features? [Recommended] (y/n)"
     if ($debloatEdge -eq "y") {
         Write-Host "Disabling Edge forced features..." -ForegroundColor Magenta
@@ -1514,7 +1858,7 @@ function Invoke-SystemOptimizations {
     
     # Desktop Shortcut
     try {
-        New-Shortcut -TargetPath $script:ogcwinbat -ShortcutPath $script:desktopPath -Description "Launch OGC Windows Utility" -IconPath "C:\Windows\System32\shell32.dll,272"
+        New-Shortcut -TargetPath ${script:ogcwinbat} -ShortcutPath ${script:desktopPath} -Description "Launch OGC Windows Utility" -IconPath "C:\Windows\System32\shell32.dll,272"
         Write-Log -Message "Desktop shortcut created/updated."
     }
     catch {
@@ -1540,26 +1884,27 @@ function Invoke-SoftwareInstallation {
 
     Write-Log "Starting Software Installation Wizard..." "INFO"
 
-    # Internal helper to keep code clean and handle logging uniformly
+    # --- Internal Helpers ---
+    
     function Install-App {
         param([string]$Name, [string]$Id)
         
-        # Check if already installed
+        # Check if already installed (Simple check)
         if (Get-AppxPackage -Name $Id -ErrorAction SilentlyContinue) {
             Write-Host "$Name is already installed." -ForegroundColor DarkGray
             return
         }
-
+        # Note: For Winget apps not in Appx, duplicate install is handled by Winget usually saying "Already installed"
+        
         Write-Host "Installing $Name..." -ForegroundColor Magenta
         Write-Log "Attempting to install $Name ($Id)" "INFO"
         try {
-            # Use separate log files for StdOut and StdErr to avoid file locking conflicts
+            # Use separate log files for StdOut and StdErr
             $installLogOut = Join-Path $tempFolder "install_${Id}_out.log"
             $installLogErr = Join-Path $tempFolder "install_${Id}_err.log"
             
-            $wingetArgs = "install --id $Id --silent --accept-package-agreements --accept-source-agreements --disable-interactivity --force"
+            $wingetArgs = "install --id `"$Id`" --silent --accept-package-agreements --accept-source-agreements --disable-interactivity --force"
             
-            # Start process and redirect stdout/stderr to separate files
             $process = Start-Process -FilePath "winget" -ArgumentList $wingetArgs -Wait -NoNewWindow -PassThru -RedirectStandardOutput $installLogOut -RedirectStandardError $installLogErr
             
             if ($process.ExitCode -eq 0) {
@@ -1567,10 +1912,8 @@ function Invoke-SoftwareInstallation {
                 Write-Log "Successfully installed $Name" "INFO"
             }
             else {
-                # Read the logs to find the error
                 $errContent = Get-Content $installLogErr -Raw -ErrorAction SilentlyContinue
                 if (-not $errContent) { $errContent = Get-Content $installLogOut -Raw -ErrorAction SilentlyContinue }
-                
                 Write-Host "Failed to install $Name. Exit Code: $($process.ExitCode)" -ForegroundColor Red
                 Write-Log "Failed to install $Name. Exit Code: $($process.ExitCode). Log: $errContent" "ERROR"
             }
@@ -1583,173 +1926,256 @@ function Invoke-SoftwareInstallation {
         }
     }
 
-    # ==========================================
-    #             DEPENDENCIES
-    # ==========================================
-    if ((Read-Host "Do you want to check/install System Dependencies (Visual C++, .NET)? (y/n)") -eq "y") {
-        Write-Host "--- Dependencies ---" -ForegroundColor Cyan
-        if ((Read-Host "Install Visual C++ 2015-2022 Redistributable? (y/n)") -eq "y") {
-            Install-App -Name "Visual C++ 2015-2022" -Id "Microsoft.VCRedist.2015+.x64"
+    function Uninstall-App {
+        param([string]$Name, [string]$Id)
+        Write-Host "Uninstalling $Name..." -ForegroundColor Magenta
+        Write-Log "Attempting to uninstall $Name ($Id)" "INFO"
+        try {
+            winget uninstall --id "$Id" --silent --accept-source-agreements | Out-Null
+            Write-Host "$Name uninstalled." -ForegroundColor Green
+            Write-Log "Uninstalled $Name" "INFO"
         }
-        if ((Read-Host "Install .NET Desktop Runtime 6? (y/n)") -eq "y") {
-            Install-App -Name ".NET Desktop Runtime 6" -Id "Microsoft.DotNet.DesktopRuntime.6"
+        catch {
+            Write-Host "Uninstall failed. $_" -ForegroundColor Red
+            Write-Log "Uninstall failed for ${Name}: $_" "ERROR"
+        }
+    }
+
+    function Test-IsInstalled {
+        param([string]$Id, [string]$CheckCmd, [string]$AppName)
+        
+        # 1. Check Command (Fastest)
+        if ($CheckCmd -and (Get-Command $CheckCmd -ErrorAction SilentlyContinue)) { return $true }
+        
+        # 2. Check Appx (Fast) - Try exact and wildcard
+        if (Get-AppxPackage -Name $Id -ErrorAction SilentlyContinue) { return $true }
+        if (Get-AppxPackage -Name "*$Id*" -ErrorAction SilentlyContinue) { return $true }
+
+        # 3. Check Registry Uninstall Keys (Fast enough)
+        # We search for the DisplayName matching the App Name wildcard
+        $regPaths = @(
+            "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*",
+            "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*",
+            "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*"
+        )
+        
+        # Determine name to search (Handle 'Visual C++', etc. carefully? Just use name)
+        # Safety: If Name is too generic, this might false positive, but for this menu it's okay.
+        $searchName = if ($AppName) { "*$AppName*" } else { "*$Id*" }
+        
+        $found = Get-ItemProperty -Path $regPaths -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -like $searchName }
+        if ($found) { return $true }
+
+        return $false
+    }
+    
+    function Show-Menu {
+        param(
+            [string]$CategoryName,
+            [array]$Items,
+            [bool]$MultiSelect = $true
+        )
+        
+        while ($true) {
+            # Refresh PATH environment variable for the current process to see newly installed cmdlets/exes
+            $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
+            
+            Write-Host "`n--- $CategoryName ---" -ForegroundColor Cyan
+            $i = 1
+            foreach ($item in $Items) {
+                $statusSuffix = ""
+                $color = "White"
+                
+                # Logic Fix: Only flag as Installed if truly detected
+                if (Test-IsInstalled -Id $item.Id -CheckCmd $item.Cmd -AppName $item.Name) {
+                    $statusSuffix = " [Installed]"
+                    $color = "Green"
+                }
+                
+                # User Request: Don't show [ ] boxes, just Name + Suffix
+                Write-Host "$i. $($item.Name)$statusSuffix" -ForegroundColor $color
+                $i++
+            }
+            
+            if ($MultiSelect) {
+                Write-Host "0. Done / Skip Category" -ForegroundColor Yellow
+                $choice = Read-Host "Select number(s) to install (e.g. 1,3) or 0 to skip"
+            }
+            else {
+                Write-Host "0. Skip" -ForegroundColor Yellow
+                $choice = Read-Host "Select one to install or 0 to skip"
+            }
+            
+            if ($choice -eq "0" -or $choice -eq "") { return }
+            
+            $selections = $choice -split ","
+            foreach ($sel in $selections) {
+                if ($sel -match "^\d+$" -and [int]$sel -le $Items.Count -and [int]$sel -gt 0) {
+                    $target = $Items[[int]$sel - 1]
+                    Install-App -Name $target.Name -Id $target.Id
+                }
+            }
+            
+            if (-not $MultiSelect) { return }
         }
     }
 
     # ==========================================
-    #             BROWSERS (New Workflow)
+    #             1. DEPENDENCIES
     # ==========================================
-    if ((Read-Host "Do you want to install Web Browsers? (y/n)") -eq "y") {
-        Write-Host "`n--- Web Browsers ---" -ForegroundColor Cyan
-        
-        $browsers = @(
-            @{ Name = "Google Chrome"; Id = "Google.Chrome" },
-            @{ Name = "Mozilla Firefox"; Id = "Mozilla.Firefox" },
-            @{ Name = "Brave Browser"; Id = "Brave.Brave" },
-            @{ Name = "Opera GX"; Id = "Opera.OperaGX" }
-        )
+    $deps = @(
+        @{ Name = "Visual C++ 2015-2022"; Id = "Microsoft.VCRedist.2015+.x64"; Cmd = "" },
+        @{ Name = ".NET Desktop Runtime 6"; Id = "Microsoft.DotNet.DesktopRuntime.6"; Cmd = "" }
+        @{ Name = ".NET Desktop Runtime 7"; Id = "Microsoft.DotNet.DesktopRuntime.7"; Cmd = "" }
+        @{ Name = ".NET Desktop Runtime 8"; Id = "Microsoft.DotNet.DesktopRuntime.8"; Cmd = "" }
+    )
+    if ((Read-Host "Do you want to install game Dependencies? (Visual C++, .NET etc.) (y/n)") -eq "y") {
+        Show-Menu -CategoryName "System Dependencies" -Items $deps
+    }
 
-        function Show-BrowserMenu {
-            Write-Host "Available Browsers:" -ForegroundColor Yellow
-            for ($i = 0; $i -lt $browsers.Count; $i++) {
-                $b = $browsers[$i]
-                $status = ""
-                # Simple check: winget list or Get-Command check (simplified for speed)
-                if (Get-Command "chrome" -ErrorAction SilentlyContinue) { if ($b.Name -eq "Google Chrome") { $status = " [Installed]" } }
-                if (Get-Command "firefox" -ErrorAction SilentlyContinue) { if ($b.Name -eq "Mozilla Firefox") { $status = " [Installed]" } }
-                if (Get-Command "brave" -ErrorAction SilentlyContinue) { if ($b.Name -eq "Brave Browser") { $status = " [Installed]" } }
-                # Opera doesn't always add to path, check common locations or registry? Keeping it simple for now.
-                
-                Write-Host "$($i+1). $($b.Name)$status"
+    # ==========================================
+    #             2. BROWSERS
+    # ==========================================
+    $browsers = @(
+        @{ Name = "Google Chrome"; Id = "Google.Chrome"; Cmd = "chrome" },
+        @{ Name = "Mozilla Firefox"; Id = "Mozilla.Firefox"; Cmd = "firefox" },
+        @{ Name = "Brave Browser"; Id = "Brave.Brave"; Cmd = "brave" },
+        @{ Name = "Opera GX"; Id = "Opera.OperaGX"; Cmd = "launcher" },
+        @{ Name = "Vivaldi"; Id = "Vivaldi.Vivaldi"; Cmd = "vivaldi" }
+    )
+    
+    if ((Read-Host "Do you want to install Web Browsers? (Firefox, Chrome, Brave etc.) (y/n)") -eq "y") {
+        # Primary Selection Logic (Special Case)
+        Write-Host "`n--- Select Primary Browser ---" -ForegroundColor Cyan
+        $i = 1
+        foreach ($b in $browsers) {
+            $statusSuffix = ""
+            $col = "White"
+            if (Test-IsInstalled -Id $b.Id -CheckCmd $b.Cmd -AppName $b.Name) { 
+                $statusSuffix = " [Installed]"
+                $col = "Green"
             }
+            Write-Host "$i. $($b.Name)$statusSuffix" -ForegroundColor $col
+            $i++
         }
-
-        # 1. Select Primary Browser
-        Show-BrowserMenu
-        $selection = Read-Host "Select your PRIMARY browser (1-$($browsers.Count))"
-        if ($selection -match "^\d+$" -and [int]$selection -le $browsers.Count -and [int]$selection -gt 0) {
-            $primary = $browsers[[int]$selection - 1]
+        Write-Host "0. Skip" -ForegroundColor Yellow
+        
+        $pChoice = Read-Host "Select Primary Browser (1-$($browsers.Count))"
+        if ($pChoice -match "^\d+$" -and [int]$pChoice -le $browsers.Count -and [int]$pChoice -gt 0) {
+            $primary = $browsers[[int]$pChoice - 1]
             Install-App -Name $primary.Name -Id $primary.Id
             
-            # Set Default Prompt
-            if ((Read-Host "Do you want to set $($primary.Name) as your default browser? (y/n)") -eq "y") {
-                Write-Host "Opening Default Apps settings..." -ForegroundColor Yellow
-                Write-Host "Please manually select $($primary.Name) and set it as default." -ForegroundColor Cyan
-                Start-Process "ms-settings:defaultapps"
-                Read-Host "Press Enter when done..."
-            }
-        }
-
-        # 2. Install Additional Browsers
-        while ($true) {
-            $more = Read-Host "Do you want to install an additional browser? (y/n)"
-            if ($more -ne "y") { break }
-            
-            Show-BrowserMenu
-            $selection = Read-Host "Select additional browser (1-$($browsers.Count))"
-            if ($selection -match "^\d+$" -and [int]$selection -le $browsers.Count -and [int]$selection -gt 0) {
-                $add = $browsers[[int]$selection - 1]
-                Install-App -Name $add.Name -Id $add.Id
-            }
-        }
-
-        # 3. Microsoft Edge Removal
-        if ((Read-Host "Do you want to remove Microsoft Edge completely? (y/n)") -eq "y") {
-            Write-Host "WARNING: Removing Edge can cause issues with Windows Search, Widgets, and some system links." -ForegroundColor Red
-            Write-Host "This is generally safe, but proceed at your own risk." -ForegroundColor Yellow
-            if ((Read-Host "Are you sure? (y/n)") -eq "y") {
-                Write-Host "Removing Microsoft Edge..." -ForegroundColor Magenta
-                # Using winget uninstall (if allowed) or blocking
-                # Official uninstall is often blocked. We use the 'Uninstall-Edge' trick often used by utilities.
-                # However, for safety in this wizard, we will try standard uninstall first.
-                try {
-                    winget uninstall Microsoft.Edge --silent --accept-source-agreements --force
-                    Write-Host "Edge removal attempted." -ForegroundColor Green
-                }
-                catch {
-                    Write-Host "Standard uninstall failed." -ForegroundColor Yellow
-                    Write-Host "Attempting registry block..." -ForegroundColor Yellow
-                    # Just block it from running? Or leave it be. User asked for removal. 
-                    # Let's do a basic file removal wrapper if standard fails? No, risky. 
-                    # Let's stick to the 'Disable' approach used in some other tools safely.
-                    # Or just report standard uninstall result.
-                    Write-Host "Could not fully uninstall Edge via standard methods." -ForegroundColor Red
+            # Default Browser Prompt
+            if ($primary.Id -ne "Microsoft.Edge") {
+                if ((Read-Host "Set $($primary.Name) as default browser? (y/n)") -eq "y") {
+                    Write-Host "Opening Default Apps settings... Select $($primary.Name) manually." -ForegroundColor Yellow
+                    Start-Process "ms-settings:defaultapps"
+                    Read-Host "Press Enter when done..."
                 }
             }
         }
-    }
-
-    # ==========================================
-    #             GAMING / LAUNCHERS
-    # ==========================================
-    if ((Read-Host "Do you want to install Game Launchers (Steam, Epic, etc.)? (y/n)") -eq "y") {
-        Write-Host "`n--- Game Launchers ---" -ForegroundColor Cyan
-        $drms = @{
-            "Steam"           = "Valve.Steam"; 
-            "Epic Games"      = "EpicGames.EpicGamesLauncher"; 
-            "Ubisoft Connect" = "Ubisoft.Connect";
-            "EA App"          = "ElectronicArts.EADesktop";
-            "Battle.net"      = "Blizzard.BattleNet"
+        
+        # Additional Browsers
+        if ((Read-Host "Install additional browsers? (y/n)") -eq "y") {
+            Show-Menu -CategoryName "Additional Browsers" -Items $browsers
         }
-        foreach ($name in $drms.Keys) {
-            if ((Read-Host "Install $name? (y/n)") -eq "y") {
-                Install-App -Name $name -Id $drms[$name]
-            }
-        }
+        
+        # Edge Removal
+        Invoke-EdgeRemoval
     }
 
     # ==========================================
-    #             COMMUNICATION
+    #             3. GAMING
     # ==========================================
-    if ((Read-Host "Do you want to install Communication Apps (Discord, Zoom)? (y/n)") -eq "y") {
-        Write-Host "`n--- Communication ---" -ForegroundColor Cyan
-        if ((Read-Host "Install Discord? (y/n)") -eq "y") { Install-App -Name "Discord" -Id "Discord.Discord" }
-        if ((Read-Host "Install Zoom? (y/n)") -eq "y") { Install-App -Name "Zoom" -Id "Zoom.Zoom" }
-        if ((Read-Host "Install WhatsApp? (y/n)") -eq "y") { Install-App -Name "WhatsApp" -Id "WhatsApp.WhatsApp" }
-        if ((Read-Host "Install Telegram? (y/n)") -eq "y") { Install-App -Name "Telegram" -Id "Telegram.TelegramDesktop" }
+    $gaming = @(
+        @{ Name = "Steam"; Id = "Valve.Steam"; Cmd = "steam" },
+        @{ Name = "Epic Games Launcher"; Id = "EpicGames.EpicGamesLauncher"; Cmd = "" },
+        @{ Name = "Ubisoft Connect"; Id = "Ubisoft.Connect"; Cmd = "upc" },
+        @{ Name = "EA App"; Id = "ElectronicArts.EADesktop"; Cmd = "" },
+        @{ Name = "Battle.net"; Id = "Blizzard.BattleNet"; Cmd = "Battle.net" },
+        @{ Name = "GOG Galaxy"; Id = "GOG.Galaxy"; Cmd = "GalaxyClient" }
+    )
+    if ((Read-Host "Do you want to install Game Launchers? (Steam, GoG, Epic etc.) (y/n)") -eq "y") {
+        Show-Menu -CategoryName "Game Launchers" -Items $gaming
     }
 
     # ==========================================
-    #             CREATIVE & MEDIA
+    #             4. COMMUNICATION
     # ==========================================
-    if ((Read-Host "Do you want to install Creative & Media Apps (VLC, OBS, Spotify)? (y/n)") -eq "y") {
-        Write-Host "`n--- Creative & Media ---" -ForegroundColor Cyan
-        if ((Read-Host "Install VLC Media Player? (y/n)") -eq "y") { Install-App -Name "VLC" -Id "VideoLAN.VLC" }
-        if ((Read-Host "Install Spotify? (y/n)") -eq "y") { Install-App -Name "Spotify" -Id "Spotify.Spotify" }
-        if ((Read-Host "Install OBS Studio? (y/n)") -eq "y") { Install-App -Name "OBS Studio" -Id "OBSProject.OBSStudio" }
-        if ((Read-Host "Install Audacity? (y/n)") -eq "y") { Install-App -Name "Audacity" -Id "Audacity.Audacity" }
-        if ((Read-Host "Install GIMP? (y/n)") -eq "y") { Install-App -Name "GIMP" -Id "GIMP.GIMP" }
-        if ((Read-Host "Install Paint.NET? (y/n)") -eq "y") { Install-App -Name "Paint.NET" -Id "dotPDN.PaintDotNet" }
+    $comm = @(
+        @{ Name = "Discord"; Id = "Discord.Discord"; Cmd = "Update" },
+        @{ Name = "Zoom"; Id = "Zoom.Zoom"; Cmd = "" },
+        @{ Name = "WhatsApp"; Id = "WhatsApp.WhatsApp"; Cmd = "" },
+        @{ Name = "Telegram Desktop"; Id = "Telegram.TelegramDesktop"; Cmd = "Telegram" },
+        @{ Name = "Signal"; Id = "Signal.Signal"; Cmd = "" }
+    )
+    if ((Read-Host "Do you want to install Communication Apps? (Discord, Zoom, Telegram etc.) (y/n)") -eq "y") {
+        Show-Menu -CategoryName "Communication" -Items $comm
     }
 
     # ==========================================
-    #             OFFICE & PRODUCTIVITY
+    #             5. CREATIVE & MEDIA
     # ==========================================
+    $creative = @(
+        @{ Name = "VLC Media Player"; Id = "VideoLAN.VLC"; Cmd = "vlc" },
+        @{ Name = "Spotify"; Id = "Spotify.Spotify"; Cmd = "" },
+        @{ Name = "OBS Studio"; Id = "OBSProject.OBSStudio"; Cmd = "" },
+        @{ Name = "Audacity"; Id = "Audacity.Audacity"; Cmd = "" },
+        @{ Name = "GIMP"; Id = "GIMP.GIMP"; Cmd = "gimp-console" },
+        @{ Name = "Paint.NET"; Id = "dotPDN.PaintDotNet"; Cmd = "" }
+    )
+    if ((Read-Host "Do you want to install Creative & Media Apps? (VLC, OBS, Audacity, GIMP etc.) (y/n)") -eq "y") {
+        Show-Menu -CategoryName "Creative & Media" -Items $creative
+    }
+
+    # ==========================================
+    #             6. OFFICE & PRODUCTIVITY
+    # ==========================================
+    $office = @(
+        @{ Name = "Microsoft 365 (Office)"; Id = "Microsoft.Office"; Cmd = "winword" },
+        @{ Name = "LibreOffice"; Id = "TheDocumentFoundation.LibreOffice"; Cmd = "soffice" },
+        @{ Name = "OpenOffice"; Id = "Apache.OpenOffice"; Cmd = "soffice" },
+        @{ Name = "WPS Office"; Id = "Kingsoft.WPSOffice"; Cmd = "wps" },
+        @{ Name = "OnlyOffice"; Id = "ONLYOFFICE.DesktopEditors"; Cmd = "" },
+        @{ Name = "Adobe Acrobat Reader"; Id = "Adobe.Acrobat.Reader.64-bit"; Cmd = "AcroRd32" },
+        @{ Name = "Notepad++"; Id = "Notepad++.Notepad++"; Cmd = "notepad++" }
+    )
+    
     if ((Read-Host "Do you want to install Office & Productivity Apps? (y/n)") -eq "y") {
-        Write-Host "`n--- Office & Productivity ---" -ForegroundColor Cyan
-        if ((Read-Host "Install Microsoft 365 (Office)? (y/n)") -eq "y") { Install-App -Name "Microsoft 365" -Id "Microsoft.Office" }
-        if ((Read-Host "Install LibreOffice? (y/n)") -eq "y") { Install-App -Name "LibreOffice" -Id "TheDocumentFoundation.LibreOffice" }
-        if ((Read-Host "Install Adobe Acrobat Reader DC? (y/n)") -eq "y") { Install-App -Name "Adobe Acrobat Reader" -Id "Adobe.Acrobat.Reader.64-bit" }
-        if ((Read-Host "Install Notepad++? (y/n)") -eq "y") { Install-App -Name "Notepad++" -Id "Notepad++.Notepad++" }
+        # Check conflicts logic
+        $installedSuites = $office | Where-Object { ($_.Name -match "Office|365") -and (Test-IsInstalled -Id $_.Id -CheckCmd $_.Cmd) }
+        if ($installedSuites) {
+            Write-Host "Detected installed Office Suites: $($installedSuites.Name -join ', ')" -ForegroundColor Yellow
+            if ((Read-Host "Do you want to remove ALL installed Office suites before proceeding? (y/n)") -eq "y") {
+                foreach ($s in $installedSuites) { Uninstall-App -Name $s.Name -Id $s.Id }
+            }
+        }
+        
+        Show-Menu -CategoryName "Office & Productivity" -Items $office
     }
 
     # ==========================================
-    #             UTILITIES
+    #             7. UTILITIES
     # ==========================================
-    if ((Read-Host "Do you want to install System Utilities (7-Zip, WinRAR, etc.)? (y/n)") -eq "y") {
-        Write-Host "`n--- Utilities ---" -ForegroundColor Cyan
-        if ((Read-Host "Install 7-Zip? (y/n)") -eq "y") { Install-App -Name "7-Zip" -Id "7zip.7zip" }
-        if ((Read-Host "Install WinRAR? (y/n)") -eq "y") { Install-App -Name "WinRAR" -Id "RARLab.WinRAR" }
-        if ((Read-Host "Install NanaZip (Modern 7-Zip)? (y/n)") -eq "y") { Install-App -Name "NanaZip" -Id "M2Team.NanaZip" }
-        if ((Read-Host "Install BleachBit? (y/n)") -eq "y") { Install-App -Name "BleachBit" -Id "BleachBit.BleachBit" }
-        if ((Read-Host "Install CPU-Z? (y/n)") -eq "y") { Install-App -Name "CPU-Z" -Id "CPUID.CPU-Z" }
-        if ((Read-Host "Install HWMonitor? (y/n)") -eq "y") { Install-App -Name "HWMonitor" -Id "CPUID.HWMonitor" }
+    $utils = @(
+        @{ Name = "7-Zip"; Id = "7zip.7zip"; Cmd = "7z" },
+        @{ Name = "WinRAR"; Id = "RARLab.WinRAR"; Cmd = "rar" },
+        @{ Name = "NanaZip"; Id = "M2Team.NanaZip"; Cmd = "" },
+        @{ Name = "BleachBit"; Id = "BleachBit.BleachBit"; Cmd = "bleachbit_console" },
+        @{ Name = "CPU-Z"; Id = "CPUID.CPU-Z"; Cmd = "" },
+        @{ Name = "HWMonitor"; Id = "CPUID.HWMonitor"; Cmd = "" },
+        @{ Name = "AnyDesk"; Id = "Philandro.AnyDesk"; Cmd = "anydesk" },
+        @{ Name = "TeamViewer"; Id = "TeamViewer.TeamViewer"; Cmd = "teamviewer" }
+    )
+    if ((Read-Host "Do you want to install Utilities? (7zip, CPU-Z, HWMonitor, AnyDesk etc.) (y/n)") -eq "y") {
+        Show-Menu -CategoryName "Utilities" -Items $utils
     }
 
     Write-Host "`nSoftware installation phase complete." -ForegroundColor Green
     Write-Log "Software installation phase complete." "INFO"
     Start-Sleep -Seconds 2
 }
+
 
 function Invoke-DriverInstallation {
     Write-Log "Starting Driver Installation module..." "INFO"
@@ -2019,10 +2445,6 @@ Get-Content $ConfigPath | ForEach-Object {
 #          MAIN PROGRAM
 # ==========================================
 
-# Start Safety Watchdog
-$watchdogProc = Start-Watchdog -ParentPID $PID
-
-
 # OGC Banner
 Write-Host "=======================================" -ForegroundColor DarkBlue
 Write-Host "       OOOOOO    GGGGGG    CCCCCC      " -ForegroundColor Cyan
@@ -2060,16 +2482,23 @@ Write-Host "ATTENTION: This process involves restarting system components (Explo
 Write-Host "WARNING: Windows Explorer will be STOPPED. Your desktop and taskbar will disappear." -ForegroundColor Red
 Write-Host "Please SAVE all open documents. Any unsaved work may be LOST." -ForegroundColor Red
 Write-Host "Please CLOSE other applications before continuing." -ForegroundColor Yellow
-$saveWork = Read-Host "Have you saved your work and are ready to proceed? (y/n)"
-if ($saveWork -ne "y") {
+do {
+    $saveWork = Read-Host "Have you saved your work and are ready to proceed? (y/n)"
+    if ($saveWork -notin "y", "n") { Write-Host "Invalid input. Please enter 'y' or 'n'." -ForegroundColor Red }
+} until ($saveWork -in "y", "n")
+
+if ($saveWork -eq "n") {
     Write-Host "Please save your work and run the script again." -ForegroundColor Cyan
     exit
 }
 Write-Host "" 
 
-$continueScript = Read-Host "!!! DISCLAIMER !!! You assume all risk of data loss. Press (y/n) to agree and continue"
+do {
+    $continueScript = Read-Host "!!! DISCLAIMER !!! You assume all risk of data loss. Press (y/n) to agree and continue"
+    if ($continueScript -notin "y", "n") { Write-Host "Invalid input. Please enter 'y' or 'n'." -ForegroundColor Red }
+} until ($continueScript -in "y", "n")
 
-if ($continueScript -ne "y") {
+if ($continueScript -eq "n") {
     Write-Host "Exiting script. No changes have been made." -ForegroundColor Yellow
     Start-Sleep -Seconds 2
     exit
@@ -2078,7 +2507,7 @@ if ($continueScript -ne "y") {
 Write-Host "NOTE: During the process, Windows Explorer may restart, causing this window to lose focus." -ForegroundColor DarkYellow
 Write-Host "If the wizard appears to pause, please CLICK on this window to ensure it has focus." -ForegroundColor DarkYellow
 Write-Host "" 
-Start-Sleep -Seconds 3
+Start-Sleep -Seconds 2
 
 # --- CREATE RESTORE POINT ---
 # Run this BEFORE creating the "no explorer" environment
@@ -2088,13 +2517,18 @@ New-RestorePoint
 # Moving this AFTER restore point ensures it stays stopped
 Write-Host "Stopping Windows Explorer to prevent conflicts..." -ForegroundColor Yellow
 
-# Disable AutoRestartShell to prevent it from coming back immediately
-Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" -Name "AutoRestartShell" -Value 0 -Force -ErrorAction SilentlyContinue
+# Start Safety Watchdog
+$wdLog = Join-Path $logFolder "watchdog_log.txt"
+$watchdogProc = Start-Watchdog -ParentPID $PID -LogFile $wdLog
+Write-Log "Watchdog started with PID $($watchdogProc.Id)" "INFO"
 
-Stop-Process -Name explorer -Force -ErrorAction SilentlyContinue
-Start-Sleep -Seconds 2
 
-# --- RUN MODULES ---
+# ==========================================
+#          MODULES
+# ==========================================
+
+try { Invoke-StopExplorer } catch { Write-Log "Stop Explorer Error: $_" "ERROR" }
+try { Invoke-NetworkOptimisations } catch { Write-Log "Network Opt Error: $_" "ERROR" }
 try { Invoke-TelemetrySetup } catch { Write-Log "Telemetry Module Error: $_" "ERROR" }
 try { Invoke-JunkRemoval } catch { Write-Log "Junk Removal Error: $_" "ERROR" }
 try { Invoke-DNSBlocking } catch { Write-Log "DNS Block Error: $_" "ERROR" }
@@ -2105,10 +2539,16 @@ try { Invoke-YourPhoneSetup } catch { Write-Log "Phone Module Error: $_" "ERROR"
 try { Invoke-OneDriveRemoval } catch { Write-Log "OneDrive Module Error: $_" "ERROR" }
 try { Invoke-TeamsRemoval } catch { Write-Log "Teams Module Error: $_" "ERROR" }
 try { Invoke-AIRemoval } catch { Write-Log "AI Module Error: $_" "ERROR" }
+try { Invoke-ActivationTweaks } catch { Write-Log "Activation Module Error: $_" "ERROR" }
 try { Invoke-UIAndTaskbarSetup } catch { Write-Log "UI Module Error: $_" "ERROR" }
-try { Invoke-SystemOptimizations } catch { Write-Log "Optimization Module Error: $_" "ERROR" }
-try { Invoke-SoftwareInstallation } catch { Write-Log "Software Module Error: $_" "ERROR" }
+try { Invoke-WindowsSearchBarSetup } catch { Write-Log "Search Bar Module Error: $_" "ERROR" }
+try { Invoke-SystemOptimisations } catch { Write-Log "Optimization Module Error: $_" "ERROR" }
+try { Invoke-StartExplorer } catch { Write-Log "Start Explorer Error: $_" "ERROR" }
 
+Start-Sleep -Seconds 2
+Clear-Host
+
+try { Invoke-SoftwareInstallation } catch { Write-Log "Software Module Error: $_" "ERROR" }
 try {
     if ($Urls.ContainsKey("DriverNvidia")) {
         Invoke-DriverInstallation 
@@ -2116,27 +2556,44 @@ try {
 }
 catch { Write-Log "Driver Module Error: $_" "ERROR" }
 
-# Restore Explorer Autorestart (Just in case)
-Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" -Name "AutoRestartShell" -Value 1 -Force -ErrorAction SilentlyContinue
+# Kill Watchdog (Clean Exit with Safety Checks)
+if ($watchdogProc) {
+    # Verify Explorer is running
+    $exp = Get-Process -Name explorer -ErrorAction SilentlyContinue
+    
+    # Verify AutoRestartShell is enabled (1)
+    $val = Get-RegistryValue -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" -Name "AutoRestartShell"
+    
+    if ($exp -and $val -eq 1) {
+        Write-Log "System stable (Explorer running, AutoRestart enabled). Stopping Watchdog." "INFO"
+        Stop-Process -Id $watchdogProc.Id -Force -ErrorAction SilentlyContinue 
+    }
+    else {
+        Write-Log "System unstable (Explorer missing or AutoRestart disabled). Leaving Watchdog running for safety." "WARN"
+        Write-Host "Notice: Watchdog left running to ensure system stability." -ForegroundColor Yellow
+    }
+}
 
-# Kill Watchdog (Clean Exit)
-if ($watchdogProc) { Stop-Process -Id $watchdogProc.Id -Force -ErrorAction SilentlyContinue }
+
+# === END PROGRAM ===
 
 Write-Host "`nAll operations complete." -ForegroundColor Green
-Read-Host "Press Enter to exit..."
+$host.UI.RawUI.FlushInputBuffer()
 
 Start-Process -FilePath "explorer.exe" -ArgumentList "/n" -WindowStyle Hidden
 Write-Host "Explorer restarted." -ForegroundColor Green
 Start-Sleep -Seconds 1
+
 Clear-Host
 Write-Host "" 
 Write-Host "===========================================" -ForegroundColor Green
-Write-Host "  OGC New Windows Wizard is complete!      " -ForegroundColor Cyan
+Write-Host "      OGC New PC Wizard is complete!      " -ForegroundColor Cyan
 Write-Host "  Enjoy your optimized Windows experience. " -ForegroundColor Cyan
 Write-Host "===========================================" -ForegroundColor Green
 Write-Host "" 
 Write-Host "" 
-Write-Host "It is highly recommended to restart your PC to properly apply all the changes." -ForegroundColor Yellow
+Write-Host "It is recommended to restart your PC to properly apply all the changes." -ForegroundColor Yellow
+$host.UI.RawUI.FlushInputBuffer()
 $restartChoice = Read-Host "Restart now? (Y/N)"
 
 if ($restartChoice -match "^[Yy]$") {
@@ -2150,3 +2607,4 @@ else {
     $host.UI.RawUI.FlushInputBuffer()
     Stop-Process -Id $PID -Force
 }
+

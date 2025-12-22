@@ -220,7 +220,7 @@ Write-Host ""
 
 while ($true) {
     Write-Host "Select Mode:" -ForegroundColor Cyan
-    Write-Host "1. Menu Mode   - Access the main utility menu" -ForegroundColor Yellow
+    Write-Host "1. Menu Mode [WIP]   - Access the main utility menu" -ForegroundColor Yellow
     
     if ($winVer -match "Windows 11") {
         Write-Host "2. Wizard Mode - Step-by-step new PC setup wizard" -ForegroundColor Yellow
@@ -283,7 +283,7 @@ while ($true) {
         }
         "q" { 
             Write-Log "User selected Quit."
-            Exit 
+            Stop-Process -Id $PID 
         }
         default { 
             Write-Host "Invalid selection." -ForegroundColor Red
