@@ -43,6 +43,7 @@ $configsFolder = Join-Path $parentFolder "configs"
 $logFolder = "$parentFolder\logs"
 #$scriptsFolder = Join-Path $parentFolder "scripts"
 $binDir = Join-Path $parentFolder "bin"
+$tempFolder = "$parentFolder\temp"
 
 # Files
 $ffJsonPath = Join-Path $tempFolder "fastfetch.json"
@@ -71,6 +72,117 @@ function Write-Log {
     if ($Status -eq "FAILURE") { Write-Host "Error ($Module): $Message" -ForegroundColor Red }
     elseif ($Status -eq "WARNING") { Write-Host "Warning ($Module): $Message" -ForegroundColor Yellow }
 }
+
+function Update-SessionEnvironment {
+    try {
+        $machinePath = [System.Environment]::GetEnvironmentVariable("Path", "Machine")
+        $userPath = [System.Environment]::GetEnvironmentVariable("Path", "User")
+        $env:Path = "$machinePath;$userPath"
+        Write-Log "Session environment variables reloaded."
+    }
+    catch {
+        Write-Log "Failed to reload session environment variables: $_" "ERROR"
+    }
+}
+
+function Install-Fastfetch {
+    # Check if already available
+    if (Get-Command "fastfetch" -ErrorAction SilentlyContinue) {
+        Write-Log "Fastfetch is already installed."
+        return $true
+    }
+    
+    Write-Host "Fastfetch not found. Attempting installation..." -ForegroundColor Yellow
+    Write-Log "Fastfetch not found. Starting installation."
+    
+    # METHOD 1: WinGet
+    if (Get-Command "winget" -ErrorAction SilentlyContinue) {
+        try {
+            Write-Host "  Trying WinGet..." -ForegroundColor Cyan
+            Write-Log "Attempting fastfetch install via WinGet."
+            $result = winget install --id Fastfetch-cli.Fastfetch --exact --silent --accept-package-agreements --accept-source-agreements --disable-interactivity 2>&1
+            Update-SessionEnvironment
+            Start-Sleep -Seconds 1
+            
+            if (Get-Command "fastfetch" -ErrorAction SilentlyContinue) {
+                Write-Host "  Fastfetch installed via WinGet." -ForegroundColor Green
+                Write-Log "Fastfetch installed successfully via WinGet."
+                return $true
+            }
+        }
+        catch {
+            Write-Log "WinGet install failed: $_" "WARNING"
+        }
+    }
+    
+    # METHOD 2: Direct GitHub Download (Windows x64)
+    try {
+        Write-Host "  Trying GitHub direct download..." -ForegroundColor Cyan
+        Write-Log "Attempting fastfetch install via GitHub."
+        
+        # Query GitHub API for latest release
+        $release = Invoke-RestMethod "https://api.github.com/repos/fastfetch-cli/fastfetch/releases/latest" -ErrorAction Stop
+        
+        # Find Windows x64 zip asset (pattern: fastfetch-windows-amd64.zip)
+        $asset = $release.assets | Where-Object { $_.name -match "windows.*amd64.*\.zip$" } | Select-Object -First 1
+        
+        if (-not $asset) {
+            throw "Could not find Windows x64 zip in GitHub release."
+        }
+        
+        Write-Log "Found asset: $($asset.name)"
+        
+        # Ensure temp folder exists
+        $tempFolder = "$parentFolder\temp"
+        if (-not (Test-Path $tempFolder)) { New-Item -Path $tempFolder -ItemType Directory -Force | Out-Null }
+        
+        # Download zip
+        $zipPath = "$tempFolder\fastfetch.zip"
+        Write-Host "  Downloading $($asset.name)..." -ForegroundColor Cyan
+        Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $zipPath -UseBasicParsing -ErrorAction Stop
+        
+        # Extract to bin folder
+        $extractPath = "$binDir\fastfetch"
+        if (Test-Path $extractPath) { Remove-Item $extractPath -Recurse -Force }
+        Write-Host "  Extracting to $extractPath..." -ForegroundColor Cyan
+        Expand-Archive -Path $zipPath -DestinationPath $extractPath -Force
+        
+        # Find the actual fastfetch.exe (may be in a subfolder)
+        $ffExe = Get-ChildItem -Path $extractPath -Recurse -Filter "fastfetch.exe" | Select-Object -First 1
+        if ($ffExe) {
+            $ffDir = $ffExe.DirectoryName
+        }
+        else {
+            $ffDir = $extractPath
+        }
+        
+        # Add to User PATH (persistent)
+        $userPath = [System.Environment]::GetEnvironmentVariable("Path", "User")
+        if ($userPath -notlike "*$ffDir*") {
+            [System.Environment]::SetEnvironmentVariable("Path", "$ffDir;$userPath", "User")
+            Write-Log "Added $ffDir to User PATH."
+        }
+        
+        # Reload PATH in current session
+        Update-SessionEnvironment
+        
+        # Cleanup zip
+        Remove-Item $zipPath -Force -ErrorAction SilentlyContinue
+        
+        if (Get-Command "fastfetch" -ErrorAction SilentlyContinue) {
+            Write-Host "  Fastfetch installed via GitHub." -ForegroundColor Green
+            Write-Log "Fastfetch installed successfully via GitHub."
+            return $true
+        }
+    }
+    catch {
+        Write-Log "GitHub install failed: $_" "ERROR"
+    }
+    
+    Write-Log "All fastfetch installation methods failed." "ERROR"
+    return $false
+}
+
 
 function Format-AuDate {
     param ($DateObj)
@@ -535,38 +647,32 @@ catch {
 write-host "Gathering system information..." -ForegroundColor Green
 Write-Log "SysInfo Script Started. Gathering info..."
 
-# Dependency Checks
-if (-not (Get-Command "fastfetch" -ErrorAction SilentlyContinue)) {
-    Write-Host "CRITICAL: Dependency 'fastfetch' missing." -ForegroundColor Red
-    Write-Log "Dependency missing: fastfetch" "ERROR"
-    Write-Host "The program will restart to repair dependencies..." -ForegroundColor Yellow
-    Start-Sleep -Seconds 4
-    
-    try {
-        # Repair via Web Install (Bypasses local files to ensure full fix)
-        # Repair via Web Install (Bypasses local files to ensure full fix)
-        Invoke-Expression (Invoke-RestMethod "https://ogc.win")
-    }
-    catch {
-        Write-Log "Failed to invoke repair script: $_" "ERROR"
-    }
-    exit
+# Install/Check Fastfetch
+$fastfetchAvailable = Install-Fastfetch
+if (-not $fastfetchAvailable) {
+    Write-Host "WARNING: Could not install fastfetch. Some hardware details may be limited." -ForegroundColor Yellow
+    Write-Log "Fastfetch unavailable. Continuing with WMI fallbacks." "WARNING"
 }
 
-# Gather Fastfetch Data
+# Gather Fastfetch Data (only if installed)
 # Structure: cpu, gpu, memory, disk, os, board, display
-try {
-    fastfetch --structure "cpu:gpu:memory:disk:os:board:display" --format json > $ffJsonPath
-    if (Test-Path $ffJsonPath) {
-        $script:FFData = Get-Content $ffJsonPath | ConvertFrom-Json
-        Write-Log "Fastfetch data retrieved successfully."
+if ($fastfetchAvailable) {
+    try {
+        fastfetch --structure "cpu:gpu:memory:disk:os:board:display" --format json > $ffJsonPath
+        if (Test-Path $ffJsonPath) {
+            $script:FFData = Get-Content $ffJsonPath | ConvertFrom-Json
+            Write-Log "Fastfetch data retrieved successfully."
+        }
+        else {
+            throw "Fastfetch JSON file not found."
+        }
     }
-    else {
-        throw "Fastfetch JSON file not found."
+    catch {
+        Write-Log "Failed gathering Fastfetch data: $_" "ERROR"
+        $script:FFData = $null
     }
 }
-catch {
-    Write-Log "Failed gathering Fastfetch data: $_" "ERROR"
+else {
     $script:FFData = $null
 }
 

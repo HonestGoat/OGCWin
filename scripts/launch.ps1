@@ -93,8 +93,8 @@ function Show-Progress {
 
 function Write-Log {
     param (
-        [Parameter(Mandatory=$true)] [string]$Message,
-        [Parameter(Mandatory=$false)] [ValidateSet("SUCCESS","FAILURE","INFO","WARNING","ERROR")] [string]$Status = "INFO",
+        [Parameter(Mandatory = $true)] [string]$Message,
+        [Parameter(Mandatory = $false)] [ValidateSet("SUCCESS", "FAILURE", "INFO", "WARNING", "ERROR")] [string]$Status = "INFO",
         [string]$Module = "General"
     )
     $logFolder = Join-Path $parentFolder "logs"
@@ -124,11 +124,13 @@ function Get-WindowsVersion {
         Write-Host "Running in LEGACY mode..." -ForegroundColor Cyan
         Write-Log "Running in LEGACY mode (Windows 10)."
         return "Windows10"
-    } elseif ($winVer -match "Windows 11 Home" -or $winVer -match "Windows 11 Pro") {
+    }
+    elseif ($winVer -match "Windows 11 Home" -or $winVer -match "Windows 11 Pro") {
         Write-Host "Running in Windows 11 mode." -ForegroundColor Cyan
         Write-Log "Running in Windows 11 mode."
         return "Windows11"
-    } else {
+    }
+    else {
         Write-Host "Unsupported Windows Version. Exiting." -ForegroundColor Red
         Write-Log "Unsupported Windows Version: $winVer. Exiting." "ERROR"
         Start-Sleep -Seconds 2
@@ -150,7 +152,8 @@ function Update-SessionEnvironment {
         $userPath = [System.Environment]::GetEnvironmentVariable("Path", "User")
         $env:Path = $machinePath + ";" + $userPath
         Write-Log "Session environment variables updated."
-    } catch {
+    }
+    catch {
         Write-Log "Failed to update session environment variables: $_" "ERROR"
     }
 }
@@ -170,12 +173,14 @@ function Get-Url {
 
         if ($urlMap.ContainsKey($key)) {
             return $urlMap[$key]
-        } else {
+        }
+        else {
             Write-Host "Warning: URL key '$key' not found in urls.cfg" -ForegroundColor Red
             Write-Log "URL key '$key' not found in urls.cfg" "ERROR"
             return $null
         }
-    } catch {
+    }
+    catch {
         Write-Log "Failed to read URLs config: $_" "ERROR"
         return $null
     }
@@ -184,15 +189,15 @@ function Get-Url {
 # Load URLs from urls.cfg and always update files from GitHub
 function Get-Scripts {
     $scripts = @{
-        "OGClaunch" = $ogclaunch
-        "OGCMode" = $ogcmode
-        "OGCWin" = $ogcwin
-        "OGCWiz11" = $ogcwiz11
-        "OGCWinBat" = $ogcwinbat
-        "SysInfo" = $sysinfo
+        "OGClaunch"      = $ogclaunch
+        "OGCMode"        = $ogcmode
+        "OGCWin"         = $ogcwin
+        "OGCWiz11"       = $ogcwiz11
+        "OGCWinBat"      = $ogcwinbat
+        "SysInfo"        = $sysinfo
         "ProgSaveBackup" = $progsavebackup
-        "EmailBackup" = $emailBackup
-        "DesktopLayout" = $desktopLayout
+        "EmailBackup"    = $emailBackup
+        "DesktopLayout"  = $desktopLayout
     }
 
     foreach ($script in $scripts.Keys) {
@@ -204,12 +209,14 @@ function Get-Scripts {
                 # Always redownload and overwrite the scripts silently
                 $proc = Start-Process -FilePath "curl.exe" -ArgumentList "-s -L -o `"$scriptPath`" `"$scriptUrl`"" -WindowStyle Hidden -Wait -PassThru -ErrorAction Stop
                 if ($proc.ExitCode -ne 0) {
-                     Write-Log "Failed to download script '$script'. Curl Exit Code: $($proc.ExitCode)" "ERROR"
-                } else {
-                     Write-Log "Downloaded/Updated script: $script"
+                    Write-Log "Failed to download script '$script'. Curl Exit Code: $($proc.ExitCode)" "ERROR"
+                }
+                else {
+                    Write-Log "Downloaded/Updated script: $script"
                 }
             }
-        } catch {
+        }
+        catch {
             Write-Log "Failed to download script '$script': $_" "ERROR"
         }
     }
@@ -233,10 +240,12 @@ function New-Shortcut {
             $Shortcut.IconLocation = $IconPath
             $Shortcut.Save()
             Write-Log "Desktop shortcut created at $ShortcutPath"
-        } else {
+        }
+        else {
             Write-Log "Desktop shortcut already exists."
         }
-    } catch {
+    }
+    catch {
         Write-Log "Failed to create desktop shortcut: $_" "ERROR"
     }
 }
@@ -248,7 +257,8 @@ function Test-WinGet {
     if ($wingetPath) {
         Write-Host "WinGet found: $($wingetPath.Source)" -ForegroundColor Green
         return $true
-    } else {
+    }
+    else {
         Write-Host "WinGet is NOT installed or not in PATH!" -ForegroundColor Red
         return $false
     }
@@ -261,7 +271,8 @@ function Test-AppxInstalled {
     if ($installed) {
         Write-Host "Dependency found: $PackageName" -ForegroundColor Green
         return $true
-    } else {
+    }
+    else {
         Write-Host "Dependency MISSING: $PackageName" -ForegroundColor Red
         return $false
     }
@@ -281,7 +292,8 @@ function Install-WinGet {
             Start-Process -FilePath "curl.exe" -ArgumentList "-L -o `"$script:vclibsPath`" `"$vclibsUrl`"" -NoNewWindow -Wait -ErrorAction Stop
             Add-AppxPackage -Path $script:vclibsPath -ErrorAction Stop
             Write-Log "Installed Microsoft.VCLibs.140.00.UWPDesktop"
-        } catch {
+        }
+        catch {
             Write-Log "Failed to install Microsoft.VCLibs: $_" "ERROR"
         }
     }
@@ -293,7 +305,8 @@ function Install-WinGet {
             Start-Process -FilePath "curl.exe" -ArgumentList "-L -o `"$script:xamlPath`" `"$xamlUrl`"" -NoNewWindow -Wait -ErrorAction Stop
             Add-AppxPackage -Path $script:xamlPath -ErrorAction Stop
             Write-Log "Installed Microsoft.UI.Xaml.2.8"
-        } catch {
+        }
+        catch {
             Write-Log "Failed to install Microsoft.UI.Xaml: $_" "ERROR"
         }
     }
@@ -310,23 +323,26 @@ function Install-WinGet {
             Start-Process -FilePath "curl.exe" -ArgumentList "-L -o `"$wingetPath`" `"$wingetUrl`"" -NoNewWindow -Wait -ErrorAction Stop
             Add-AppxPackage -Path $wingetPath -ErrorAction Stop
             Write-Log "Installed WinGet"
-        } catch {
+        }
+        catch {
             Write-Log "Failed to install WinGet: $_" "ERROR"
         }
     }
 
     # Confirm installations
     if (Test-AppxInstalled "Microsoft.VCLibs.140.00.UWPDesktop" -and `
-        Test-AppxInstalled "Microsoft.UI.Xaml.2.8" -and `
-        Test-WinGet) {
+            Test-AppxInstalled "Microsoft.UI.Xaml.2.8" -and `
+            Test-WinGet) {
         Write-Host "All dependencies installed successfully." -ForegroundColor Green
         try {
             Remove-Item -Path "$script:downloadsFolder\*" -Force -ErrorAction SilentlyContinue
             Write-Log "Cleaned up download folder."
-        } catch {
+        }
+        catch {
             Write-Log "Failed to cleanup downloads folder: $_" "WARNING"
         }
-    } else {
+    }
+    else {
         Write-Host "Some dependencies failed to install." -ForegroundColor Red
         Write-Log "Dependency installation check failed." "ERROR"
     }
@@ -365,7 +381,8 @@ foreach ($folder in $folders) {
             New-Item -Path $folder -ItemType Directory -Force | Out-Null 
             Write-Log "Created directory: $folder"
         }
-    } catch {
+    }
+    catch {
         Write-Log "Failed to create directory $folder : $_" "ERROR"
     }
 }
@@ -375,7 +392,8 @@ if (-Not (Test-ExclusionSet $parentFolder)) {
     try {
         Add-MpPreference -ExclusionPath "$parentFolder" -ErrorAction Stop
         Write-Log "Added Windows Defender exclusion for $parentFolder"
-    } catch {
+    }
+    catch {
         Write-Log "Failed to add Windows Defender exclusion: $_" "ERROR"
     }
 }
@@ -391,7 +409,8 @@ try {
         if ($proc2.ExitCode -ne 0) { throw "Failed to update version.cfg (Exit Code: $($proc2.ExitCode))" }
         
         Write-Log "Updated config files."
-    } else {
+    }
+    else {
         Write-Host "Downloading OGCWin..." -ForegroundColor Yellow
         Start-Process -FilePath "curl.exe" -ArgumentList "-s -L -o `"$urlsConfigPath`" `"$urlsConfigUrl`"" -NoNewWindow -Wait -ErrorAction Stop
         Start-Process -FilePath "curl.exe" -ArgumentList "-s -L -o `"$versionLocal`" `"$versionOnline`"" -NoNewWindow -Wait -ErrorAction Stop
@@ -399,7 +418,8 @@ try {
         Write-Host "Installing OGCWin..." -ForegroundColor Yellow
         Write-Log "Downloaded initial config files."
     }
-} catch {
+}
+catch {
     Write-Log "Failed to download config files: $_" "ERROR"
 }
 
@@ -430,35 +450,10 @@ if (-not (Test-WinGet)) {
         Start-Sleep -Seconds 3
         exit
     }
-} else {
+}
+else {
     Write-Host "All required dependencies are already installed." -ForegroundColor Green
     Write-Log "WinGet is already installed."
-}
-
-# Fastfetch installation check
-try {
-    if (-not (Get-Command "fastfetch" -ErrorAction SilentlyContinue)) {
-        Write-Host "Fastfetch is not installed. Attempting to install..." -ForegroundColor Yellow
-        Write-Log "Fastfetch missing. Attempting install."
-        winget install --id Fastfetch-cli.Fastfetch --exact --silent --accept-package-agreements --accept-source-agreements --disable-interactivity *>$null
-        Update-SessionEnvironment
-        Start-Sleep -Seconds 1
-
-        if (-not (Get-Command "fastfetch" -ErrorAction SilentlyContinue)) {
-            Write-Host "Fastfetch installation failed." -ForegroundColor Red
-            Write-Host "Please manually install Fastfetch and restart the Utility." -ForegroundColor Red
-            Write-Host "Exiting Utility..." -ForegroundColor Red
-            Write-Log "Fastfetch installation failed. Exiting." "ERROR"
-            Start-Sleep -Seconds 3
-            exit
-        }
-        Write-Log "Fastfetch installed successfully."
-    } else {
-        Write-Host "Fastfetch is already installed." -ForegroundColor Green
-        Write-Log "Fastfetch is already installed."
-    }
-} catch {
-    Write-Log "Error during Fastfetch check/install: $_" "ERROR"
 }
 
 Write-Host "All dependencies installed." -ForegroundColor Green
@@ -481,7 +476,8 @@ Clear-Host
 try {
     Write-Log "Launching OGCMode: $ogcmode"
     & $ogcmode
-} catch {
+}
+catch {
     Write-Log "Failed to launch OGCMode script: $_" "ERROR"
     Write-Host "Failed to launch OGCMode. Please check logs." -ForegroundColor Red
     Start-Sleep -Seconds 5
