@@ -644,8 +644,6 @@ catch {
     Write-Log "Failed creating directories: $_" "ERROR"
 }
 
-write-host "Gathering system information..." -ForegroundColor Green
-Write-Log "SysInfo Script Started. Gathering info..."
 
 # Install/Check Fastfetch
 $fastfetchAvailable = Install-Fastfetch
@@ -653,6 +651,9 @@ if (-not $fastfetchAvailable) {
     Write-Host "WARNING: Could not install fastfetch. Some hardware details may be limited." -ForegroundColor Yellow
     Write-Log "Fastfetch unavailable. Continuing with WMI fallbacks." "WARNING"
 }
+
+write-host "Gathering system information..." -ForegroundColor Green
+Write-Log "Gathering system info..."
 
 # Gather Fastfetch Data (only if installed)
 # Structure: cpu, gpu, memory, disk, os, board, display

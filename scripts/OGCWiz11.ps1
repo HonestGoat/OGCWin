@@ -274,34 +274,53 @@ function Start-Watchdog {
     
     while (`$true) {
         if (-not (Get-Process -Id `$pidToWatch -ErrorAction SilentlyContinue)) {
-             Log "Parent process ($ParentPID) has terminated unexpectedly."
+             Log "Parent process ($ParentPID) has terminated."
              break
         }
         Start-Sleep -Seconds 2
     }
     
-    Start-Sleep -Seconds 1
+    Log "Parent process ended. Checking system state..."
+    Start-Sleep -Seconds 2
     
+    # ALWAYS restore AutoRestartShell first
+    try {
+        Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" -Name "AutoRestartShell" -Value 1 -Force -ErrorAction SilentlyContinue
+        Log "AutoRestartShell registry value restored to 1."
+    } catch {
+         Log "Failed to restore AutoRestartShell: `$(`$_.Exception.Message)"
+    }
+    
+    # Check if Explorer is running, if not start it with retries
     if (-not (Get-Process "explorer" -ErrorAction SilentlyContinue)) {
         Log "Explorer.exe is not running. Attempting to restart..."
         
-        # FIX: Restore AutoRestartShell in case script crashed while it was disabled
-        try {
-            Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" -Name "AutoRestartShell" -Value 1 -Force -ErrorAction SilentlyContinue
-            Log "AutoRestartShell registry value restored."
-        } catch {
-             Log "Failed to restore AutoRestartShell: `$(_)"
+        `$maxRetries = 5
+        `$retryCount = 0
+        
+        while (-not (Get-Process "explorer" -ErrorAction SilentlyContinue) -and `$retryCount -lt `$maxRetries) {
+            `$retryCount++
+            Log "Starting Explorer attempt `$retryCount of `$maxRetries..."
+            
+            try {
+                Start-Process "explorer.exe" -ErrorAction SilentlyContinue
+            } catch {
+                Log "Start-Process failed: `$(`$_.Exception.Message)"
+            }
+            
+            Start-Sleep -Seconds 3
         }
-
-        try {
-            Start-Process "explorer.exe"
-            Log "Explorer restart command executed."
-        } catch {
-            Log "Failed to restart explorer: `$(`$_.Exception.Message)"
+        
+        if (Get-Process "explorer" -ErrorAction SilentlyContinue) {
+            Log "Explorer successfully restarted."
+        } else {
+            Log "WARNING: Failed to restart Explorer after `$maxRetries attempts!"
         }
     } else {
-        Log "Explorer.exe is already running. Monitoring complete."
+        Log "Explorer.exe is already running. No action needed."
     }
+    
+    Log "Watchdog monitoring complete. Exiting."
     exit
 "@
 
@@ -1351,11 +1370,10 @@ function Invoke-AIRemoval {
             Set-RegistryValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Search" -Name "ConnectedSearchUseWeb" -Value 0
         }
         catch {
-            Write-Log -Message "Error setting Copilot registry policies: $($_.Exception.Message)" -Type "ERROR"
+            Write-Log -Message "Error setting Copilot registry policies: $($_.Exception.Message)" -Status "ERROR"
         }
 
         # Try to stop potentially stuck processes safely
-        $copilotProcesses = @("Copilot", "Copilot.exe", "AI.exe", "CopilotRuntime", "CopilotBackground", "Microsoft365Copilot", "Microsoft365Copilot.exe")
         $copilotProcesses = @("Copilot", "Copilot.exe", "AI.exe", "CopilotRuntime", "CopilotBackground", "Microsoft365Copilot", "Microsoft365Copilot.exe", "BingChatInstaller")
         foreach ($proc in $copilotProcesses) { Stop-Process -Name $proc -Force -ErrorAction SilentlyContinue }
         
@@ -1371,13 +1389,13 @@ function Invoke-AIRemoval {
             }
         }
         catch {
-            Write-Log -Message "Winget uninstall encountered an issue or app not found." -Type "INFO"
+            Write-Log -Message "Winget uninstall encountered an issue or app not found." -Status "INFO"
         }
         
         $copilotPackages = @("Microsoft.Windows.AI.Copilot", "Microsoft.Copilot", "Microsoft.365.Copilot")
         foreach ($package in $copilotPackages) { 
             if (Get-AppxPackage -Name $package -ErrorAction SilentlyContinue) {
-                try { Remove-AppxPackageAllUsers $package -ErrorAction SilentlyContinue } catch { Write-Log -Message "Failed to remove Appx: $package" -Type "INFO" } 
+                try { Remove-AppxPackageAllUsers $package -ErrorAction SilentlyContinue } catch { Write-Log -Message "Failed to remove Appx: $package" -Status "INFO" } 
             }
         }
 
@@ -1388,7 +1406,7 @@ function Invoke-AIRemoval {
                 Start-Process -FilePath $officeUninstallPath -ArgumentList "/uninstall Copilot /quiet /norestart" -NoNewWindow -Wait -ErrorAction SilentlyContinue 
             }
             catch {
-                Write-Log -Message "Office C2R uninstall command failed (or not applicable)." -Type "INFO"
+                Write-Log -Message "Office C2R uninstall command failed (or not applicable)." -Status "INFO"
             } 
         }
 
@@ -1398,7 +1416,7 @@ function Invoke-AIRemoval {
             if ($msiCopilot) { foreach ($app in $msiCopilot) { try { $app.Uninstall() } catch {} } }
         }
         catch {
-            Write-Log -Message "MSI uninstall failed: $($_.Exception.Message)" -Type "ERROR"
+            Write-Log -Message "MSI uninstall failed: $($_.Exception.Message)" -Status "ERROR"
         }
 
         $copilotFolders = @("$env:LOCALAPPDATA\Packages\Microsoft.Windows.AI.Copilot", "$env:ProgramData\Microsoft\Windows\AI\Copilot", "$env:APPDATA\Microsoft\Copilot", "$env:ProgramFiles\Microsoft\Copilot", "$env:ProgramFiles (x86)\Microsoft\Copilot", "C:\ProgramData\Microsoft\Copilot")
@@ -1411,7 +1429,7 @@ function Invoke-AIRemoval {
             foreach ($key in $copilotRegistryKeys) { reg delete $key /f 2>$null }
         }
         catch {
-            Write-Log -Message "Registry cleanup error: $($_.Exception.Message)" -Type "ERROR"
+            Write-Log -Message "Registry cleanup error: $($_.Exception.Message)" -Status "ERROR"
         }
         
         Stop-Process -Name "StartMenuExperienceHost" -Force -ErrorAction SilentlyContinue
@@ -1443,7 +1461,7 @@ function Invoke-AIRemoval {
 
             $tasks = @("Microsoft\Windows\AI\Recall", "Microsoft\Windows\AI\RecallIndexing")
             foreach ($task in $tasks) {
-                try { schtasks /Change /TN $task /Disable *>$null } catch { Write-Log -Message "Task $task not found or could not be disabled." -Type "INFO" }
+                try { schtasks /Change /TN $task /Disable *>$null } catch { Write-Log -Message "Task $task not found or could not be disabled." -Status "INFO" }
             }
             
             Start-Process -FilePath "gpupdate" -ArgumentList "/force" -NoNewWindow -Wait
@@ -1451,7 +1469,7 @@ function Invoke-AIRemoval {
             Write-Log -Message "Microsoft Recall disabled successfully."
         }
         catch {
-            Write-Log -Message "Error during Recall disablement: $($_.Exception.Message)" -Type "ERROR"
+            Write-Log -Message "Error during Recall disablement: $($_.Exception.Message)" -Status "ERROR"
         }
     }
     else {
@@ -1486,7 +1504,7 @@ function Invoke-UIAndTaskbarSetup {
             Write-Log -Message "Windows 10 UI tweaks applied (Taskbar Left, Classic Context Menu)."
         }
         catch {
-            Write-Log -Message "Error applying Windows 10 UI tweaks: $($_.Exception.Message)" -Type "ERROR"
+            Write-Log -Message "Error applying Windows 10 UI tweaks: $($_.Exception.Message)" -Status "ERROR"
         }
     }
     else {
@@ -1530,13 +1548,13 @@ function Invoke-UIAndTaskbarSetup {
 
             # Remove Widget/News Apps
             $bloatApps = @("MicrosoftWindows.Client.WebExperience", "Microsoft.BingNews", "Microsoft.BingWeather")
-            foreach ($app in $bloatApps) { try { Remove-AppxPackageAllUsers $app } catch { Write-Log -Message "Could not remove $app (may not exist)" -Type "INFO" } }
+            foreach ($app in $bloatApps) { try { Remove-AppxPackageAllUsers $app } catch { Write-Log -Message "Could not remove $app (may not exist)" -Status "INFO" } }
 
             Write-Host "Taskbar cleaned successfully." -ForegroundColor Green
             Write-Log -Message "Taskbar debloat completed."
         }
         catch {
-            Write-Log -Message "Error during Taskbar debloat: $($_.Exception.Message)" -Type "ERROR"
+            Write-Log -Message "Error during Taskbar debloat: $($_.Exception.Message)" -Status "ERROR"
         }
     }
     else {
@@ -1557,7 +1575,7 @@ function Invoke-UIAndTaskbarSetup {
             Write-Log -Message "Dark mode enabled."
         }
         catch {
-            Write-Log -Message "Error enabling Dark Mode: $($_.Exception.Message)" -Type "ERROR"
+            Write-Log -Message "Error enabling Dark Mode: $($_.Exception.Message)" -Status "ERROR"
         }
     }
     else {
@@ -1688,27 +1706,55 @@ function Invoke-StartExplorer {
     $mod = "Explorer Control"
     Write-Log "Starting Windows Explorer..." "INFO" $mod
     
-    # 1. Restore AutoRestartShell (Default is 1)
-    Set-RegistryValue -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" -Name "AutoRestartShell" -Value 1
+    # 1. Restore AutoRestartShell (Default is 1) - CRITICAL: Do this FIRST
+    try {
+        Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" -Name "AutoRestartShell" -Value 1 -Force -ErrorAction Stop
+        Write-Log "AutoRestartShell registry value restored to 1." "INFO" $mod
+    }
+    catch {
+        Write-Log "Failed to restore AutoRestartShell: $_" "ERROR" $mod
+    }
     
     # 2. Start Explorer if not running
-    $maxRetries = 3
+    $maxRetries = 5
     $retryCount = 0
     $explorerPath = "$env:SystemRoot\explorer.exe"
 
     while (-not (Get-Process -Name explorer -ErrorAction SilentlyContinue) -and $retryCount -lt $maxRetries) {
-        Write-Log "Attempting to start Explorer (Attempt $($retryCount + 1))..." "INFO" $mod
-        Start-Process -FilePath $explorerPath
-        Start-Sleep -Seconds 2
         $retryCount++
+        Write-Log "Explorer not running. Attempting to start (Attempt $retryCount of $maxRetries)..." "INFO" $mod
+        Write-Host "Starting Explorer (Attempt $retryCount)..." -ForegroundColor Yellow
+        
+        try {
+            # Try multiple methods to start explorer
+            if ($retryCount -le 2) {
+                # Method 1 & 2: Standard Start-Process
+                Start-Process -FilePath $explorerPath -ErrorAction Stop
+            }
+            elseif ($retryCount -eq 3) {
+                # Method 3: Start with shell execute
+                Start-Process -FilePath "cmd.exe" -ArgumentList "/c start explorer.exe" -WindowStyle Hidden -ErrorAction Stop
+            }
+            else {
+                # Method 4 & 5: Direct invocation with arguments
+                Start-Process -FilePath $explorerPath -ArgumentList "/n,/e" -ErrorAction Stop
+            }
+        }
+        catch {
+            Write-Log "Start-Process failed: $_" "WARNING" $mod
+        }
+        
+        Start-Sleep -Seconds 3
     }
     
     if (Get-Process -Name explorer -ErrorAction SilentlyContinue) {
         Write-Host "Explorer started successfully." -ForegroundColor Green
+        Write-Log "Explorer started successfully." "INFO" $mod
     }
     else {
         Write-Log "Failed to start Explorer after $maxRetries attempts." "ERROR" $mod
-        Write-Host "Warning: Explorer might not have started correctly." -ForegroundColor Yellow
+        Write-Host "ERROR: Explorer could not be started!" -ForegroundColor Red
+        Write-Host "Please manually start Explorer (Win+R, type 'explorer', press Enter)" -ForegroundColor Yellow
     }
     Start-Sleep -Seconds 2
 }
@@ -1804,7 +1850,7 @@ function Invoke-SystemOptimisations {
             Write-Log -Message "Edge forced features disabled."
         }
         catch {
-            Write-Log -Message "Error disabling Edge features: $($_.Exception.Message)" -Type "ERROR"
+            Write-Log -Message "Error disabling Edge features: $($_.Exception.Message)" -Status "ERROR"
         }
     }
 
@@ -1823,7 +1869,7 @@ function Invoke-SystemOptimisations {
             Write-Log -Message "Gaming optimizations (GameMode, HAGS, VRR) applied."
         }
         catch {
-            Write-Log -Message "Error applying gaming optimizations: $($_.Exception.Message)" -Type "ERROR"
+            Write-Log -Message "Error applying gaming optimizations: $($_.Exception.Message)" -Status "ERROR"
         }
     }
     else {
@@ -1838,7 +1884,7 @@ function Invoke-SystemOptimisations {
             Write-Log -Message "USB Selective Suspend disabled."
         }
         catch {
-            Write-Log -Message "Error disabling USB Suspend: $($_.Exception.Message)" -Type "ERROR"
+            Write-Log -Message "Error disabling USB Suspend: $($_.Exception.Message)" -Status "ERROR"
         }
     }
 
@@ -1855,7 +1901,7 @@ function Invoke-SystemOptimisations {
             Write-Log -Message "Game Compatibility (LongPaths, IncreaseUserVA) enabled."
         }
         catch {
-            Write-Log -Message "Error enabling Game Compatibility: $($_.Exception.Message)" -Type "ERROR"
+            Write-Log -Message "Error enabling Game Compatibility: $($_.Exception.Message)" -Status "ERROR"
         }
     }
 
@@ -1879,7 +1925,7 @@ function Invoke-SystemOptimisations {
             Write-Log -Message "Memory Core Isolation disabled and notifications suppressed."
         }
         catch {
-            Write-Log -Message "Error disabling Memory Core Isolation: $($_.Exception.Message)" -Type "ERROR"
+            Write-Log -Message "Error disabling Memory Core Isolation: $($_.Exception.Message)" -Status "ERROR"
         }
     }
     else {
@@ -1895,7 +1941,7 @@ function Invoke-SystemOptimisations {
         Write-Log -Message "Desktop shortcut created/updated."
     }
     catch {
-        Write-Log -Message "Error creating desktop shortcut: $($_.Exception.Message)" -Type "ERROR"
+        Write-Log -Message "Error creating desktop shortcut: $($_.Exception.Message)" -Status "ERROR"
     }
     Clear-Host
 }
@@ -2580,7 +2626,6 @@ try { Invoke-StartExplorer } catch { Write-Log "Start Explorer Error: $_" "ERROR
 
 Start-Sleep -Seconds 1
 Clear-Host
-
 try { Invoke-SoftwareInstallation } catch { Write-Log "Software Module Error: $_" "ERROR" }
 try {
     if ($Urls.ContainsKey("DriverNvidia")) {
@@ -2602,7 +2647,7 @@ if ($watchdogProc) {
         Stop-Process -Id $watchdogProc.Id -Force -ErrorAction SilentlyContinue 
     }
     else {
-        Write-Log "System unstable (Explorer missing or AutoRestart disabled). Leaving Watchdog running for safety." "WARN"
+        Write-Log "System unstable (Explorer missing or AutoRestart disabled). Leaving Watchdog running for safety." "WARNING"
         Write-Host "Notice: Watchdog left running to ensure system stability." -ForegroundColor Yellow
     }
 }
