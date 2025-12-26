@@ -100,7 +100,7 @@ function Install-Fastfetch {
         try {
             Write-Host "  Trying WinGet..." -ForegroundColor Cyan
             Write-Log "Attempting fastfetch install via WinGet."
-            $result = winget install --id Fastfetch-cli.Fastfetch --exact --silent --accept-package-agreements --accept-source-agreements --disable-interactivity 2>&1
+            winget install --id Fastfetch-cli.Fastfetch --exact --silent --accept-package-agreements --accept-source-agreements --disable-interactivity 2>&1 | Out-Null
             Update-SessionEnvironment
             Start-Sleep -Seconds 1
             
@@ -822,8 +822,5 @@ catch {
 }
 
 Write-Host "`nReturning to Main Menu..." -ForegroundColor DarkGray
-Start-Sleep -Seconds 1
-Write-Host "`nReturning to Main Menu..." -ForegroundColor DarkGray
-Start-Sleep -Seconds 1
-# Removed recursive call to prevent stack overflow
+Start-Sleep -Seconds 2
 return
